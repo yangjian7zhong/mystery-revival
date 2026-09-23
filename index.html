@@ -143,6 +143,20 @@ body.panelOpen #side{display:block}
   #side{order:-1; display:none}
   body.panelOpen #side{display:block}
   .tools #btnPanel{display:inline-block}
+}
+/* ==== 画册（所有画面一览）==== */
+.galleryGrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px; margin:8px 0}
+.galleryCell{border:1px solid #232c38; border-radius:10px; overflow:hidden; background:#080b0f}
+.galleryArt{height:120px}
+.galleryArt svg{display:block; width:100%; height:100%}
+.galleryLabel{padding:5px 7px; font-size:12px; color:#c8d2dc}
+/* ==== 画册放大：缩略图太小认不出内容（视觉核对反馈）==== */
+.galleryGrid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px}
+.galleryArt{height:158px}
+.galleryLabel{font-size:12.5px; padding:6px 8px}
+@media (max-width:900px){
+  .galleryGrid{grid-template-columns:1fr}
+  .galleryArt{height:150px}
 }</style>
 </head>
 <body>
@@ -153,6 +167,7 @@ body.panelOpen #side{display:block}
   <span class="spacer"></span>
   <div class="tools">
     <button class="btn small" id="btnPanel">属性</button>
+    <button class="btn small" id="btnGallery">画册</button>
     <button class="btn small" id="btnGuide">世界观</button>
     <span class="tag" id="aiState">AI 叙事：关</span>
     <button class="btn small" id="btnAI">AI 叙事设置</button>
@@ -5943,7 +5958,7 @@ body.panelOpen #side{display:block}
     }
     if (state.integrity.length) { addLog('warn', '【完整性告警】' + state.integrity.slice(-3).join(' / ')); }
     renderPanel();
-    renderSceneArt(state);
+    renderSceneArt(state, { lastAction: realId });
     if (state.over) { renderOver(); hideNow(); renderChoices([]); autoSave(); return; }
     if (state.pending) renderEncounter();     // 进入遭遇：正文要显示在「刚刚发生」里
     renderNow();
@@ -5955,6 +5970,7 @@ body.panelOpen #side{display:block}
   function continueNext() {
     hideNow();
     lastLines = [];
+    lastSceneCtx = { lastAction: null };
     if (!state) return;
     if (state.over) { renderOver(); renderChoices([]); return; }
     if (state.pending) {
@@ -5971,6 +5987,7 @@ body.panelOpen #side{display:block}
   /** 遭遇正文（放进日志，供"继续"之后回看） */
   function renderEncounterPreview() {
     if (!state.pending) return;
+    lastSceneCtx = { lastAction: null };
     addLog('enc', '【遭遇】' + state.pending.name + '（' + state.pending.level + ' 级）', { noNow: true });
     addLog('', state.pending.text, { noNow: true });
     if (N) { const mood = N.encounterMood(state); if (mood) addLog('scene', mood, { noNow: true }); }
@@ -5982,177 +5999,330 @@ body.panelOpen #side{display:block}
     renderSceneArt(state);
   }
 
-  /* -------------------------------------------- 场景插画（内联 SVG 水墨图）
-   * 单文件不能带外部图片，所以「图片」由程序按种子确定性地画出来。
-   * 第一版画得太暗（用户反馈"啥也没有"）→ 这一版：亮地平线、月亮光晕、暖色亮窗、
-   * 近黑剪影 + 亮边、更粗的前景轮廓、暗角与颗粒，并配一条字幕条说明"这是哪儿、什么时候"。
+  /* ============================================================ 场景插画（第 14 轮重做）
+   * 用户要求：① 每个选项要有对应的画面；② 自由输入（AI/手打）的那类不用配图。
+   * 做法：把"画什么"和"什么时候画"分开——
+   *   · motifOf(state, ctx) 决定当前该画哪个母题（行动 id / 鬼 id / 地点 / 时期）；
+   *   · MOTIFS[name] 负责把母题画出来（每个都是可辨认的具象剪影，不是抽象色块）。
+   * 全部为内联 SVG，按 seed+turn 确定性生成，不引用任何外部素材。
    */
   const ERA_PALETTE = {
-    // [天空上, 天空下/地平线, 光色(月/窗/边光), 剪影]
-    ancient: ['#131a21', '#3b3226', '#f0d29a', '#080b0e'],
-    minguo: ['#1b1410', '#513f27', '#ffd489', '#0b0906'],
-    y2017: ['#0f1c2a', '#2f5470', '#d6ecff', '#060b13'],
-    y2018: ['#0d1d22', '#2e5a60', '#ffe9b8', '#04090c'],
-    y2019: ['#171130', '#3f3175', '#e8dcff', '#090714'],
-    doomsday: ['#200e0b', '#63291f', '#ffab74', '#0c0404'],
-    after60: ['#181810', '#4f4a33', '#fff0c8', '#0a0a07'],
+    ancient: ['#141c24', '#463a29', '#f2d59c', '#070a0d'],
+    minguo: ['#1c1512', '#57432a', '#ffd88f', '#0b0906'],
+    y2017: ['#101d2c', '#345b78', '#d9eeff', '#050a12'],
+    y2018: ['#0e1f25', '#33636a', '#ffedbe', '#04090c'],
+    y2019: ['#181233', '#463579', '#ece0ff', '#080614'],
+    doomsday: ['#220f0c', '#6b2d21', '#ffb079', '#0b0404'],
+    after60: ['#191911', '#544e36', '#fff3cd', '#090906'],
   };
-  const MOTIF_BY_PLACE = {
-    school: 'corridor', hotel: 'corridor', apartment: 'window', city: 'skyline',
-    town: 'trees', village: 'trees', street: 'rain', shop: 'window', temple: 'shrine',
-    bus: 'road', oldhouse: 'door', yangjian: 'gate',
-  };
-  const MOTIF_BY_LEVEL = { S: 'gate', A: 'door', B: 'window', C: 'rain' };
 
-  function sceneSvg(s) {
-    const pal = ERA_PALETTE[s && s.era] || ERA_PALETTE.y2018;
-    const city = (C.cities && C.cities[s && s.city]) || null;
-    const seed = (s && s.seedInt) || 20180923;
-    const turn = (s && s.turn) || 1;
-    const h = (i) => ((seed * 9301 + turn * 49297 + i * 233) % 233280) / 233280;
-    let motif = s && s.pending
-      ? (MOTIF_BY_LEVEL[(C.ghosts[s.pending.ghost] || {}).level] || 'door')
-      : (MOTIF_BY_PLACE[(city && city.place) || 'skyline'] || 'skyline');
-    if (s && s.over) motif = 'gate';
-    const W = 400; const H = 190; const horizon = 132;
-    const p = [];
-    p.push('<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">');
-    p.push('<defs>' +
-      '<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0" stop-color="' + pal[0] + '"/><stop offset=".62" stop-color="' + pal[1] + '"/>' +
-      '<stop offset="1" stop-color="' + pal[2] + '" stop-opacity=".55"/></linearGradient>' +
-      '<radialGradient id="halo" cx="50%" cy="50%" r="50%">' +
-      '<stop offset="0" stop-color="' + pal[2] + '" stop-opacity=".85"/>' +
-      '<stop offset=".45" stop-color="' + pal[2] + '" stop-opacity=".18"/>' +
-      '<stop offset="1" stop-color="' + pal[2] + '" stop-opacity="0"/></radialGradient>' +
-      '<linearGradient id="fog" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0" stop-color="' + pal[2] + '" stop-opacity=".30"/>' +
-      '<stop offset="1" stop-color="' + pal[2] + '" stop-opacity="0"/></linearGradient>' +
-      '<radialGradient id="vig" cx="50%" cy="45%" r="72%">' +
-      '<stop offset=".55" stop-color="#000" stop-opacity="0"/>' +
-      '<stop offset="1" stop-color="#000" stop-opacity=".72"/></radialGradient>' +
-      '</defs>');
-    p.push('<rect width="' + W + '" height="' + H + '" fill="url(#sky)"/>');
-    // 月亮 / 光源：大而亮，第一眼就能看见
-    const mx = 62 + h(1) * 270;
-    const my = 34 + h(2) * 26;
-    p.push('<circle cx="' + mx.toFixed(0) + '" cy="' + my.toFixed(0) + '" r="66" fill="url(#halo)"/>');
-    p.push('<circle cx="' + mx.toFixed(0) + '" cy="' + my.toFixed(0) + '" r="15" fill="' + pal[2] + '" opacity=".92"/>');
-    p.push('<circle cx="' + (mx + 5).toFixed(0) + '" cy="' + (my - 3).toFixed(0) + '" r="3" fill="' + pal[0] + '" opacity=".35"/>');
-    // 远景楼群：近黑剪影 + 亮边 + 暖色亮窗
-    for (let i = 0; i < 11; i++) {
-      const bw = 20 + h(i + 20) * 34;
-      const bh = 30 + h(i + 40) * 74;
-      const bx = i * 38 - 14 + h(i + 60) * 10;
-      const by = horizon - bh;
-      p.push('<rect x="' + bx.toFixed(0) + '" y="' + by.toFixed(0) + '" width="' + bw.toFixed(0) + '" height="' + bh.toFixed(0) +
-        '" fill="' + pal[3] + '"/>');
-      p.push('<rect x="' + bx.toFixed(0) + '" y="' + by.toFixed(0) + '" width="' + bw.toFixed(0) + '" height="1.6" fill="' + pal[2] + '" opacity=".55"/>');
-      const winRows = Math.max(1, Math.floor(bh / 16));
-      for (let r = 0; r < winRows; r++) {
-        for (let c = 0; c < 2; c++) {
-          if (h(i * 7 + r * 3 + c) > .62) {
-            p.push('<rect x="' + (bx + 5 + c * 11).toFixed(0) + '" y="' + (by + 8 + r * 15).toFixed(0) +
-              '" width="5" height="7" fill="' + pal[2] + '" opacity="' + (.55 + h(i + r) * .35).toFixed(2) + '"/>');
-          }
-        }
-      }
+  // 行动 → 母题
+  const ACTION_MOTIF = {
+    rest: 'bed', work: 'desk', investigate: 'files', train: 'mirror', mastery: 'grip',
+    purge: 'altar', shop: 'stall', mission: 'hq', gamble: 'dicetable', social: 'meal',
+    safehouse: 'ward', heal: 'clinic', freeze: 'frost', city: 'alley', probe: 'alley',
+  };
+  // 厉鬼 → 母题
+  const GHOST_MOTIF = {
+    guiying: 'crib', qiaomen: 'knockdoor', wutou: 'headless', guiguan: 'coffin',
+    eshigui: 'emptycity', jingqiaoqiao: 'mutealley', qigui: 'chess', yachuang: 'besidebed',
+    guixiang: 'mirror2', ganshigui: 'coffincart', jietianyuan: 'phone', xulie: 'bottles',
+    lingqi: 'meditate', yinqigui: 'well', yiwang: 'photo', zhenname: 'tablets',
+    tonggui: 'eye', xuanze: 'fork',
+  };
+  // 地点 → 母题
+  const PLACE_MOTIF = {
+    school: 'corridor', hotel: 'corridor', apartment: 'apartment', city: 'skyline',
+    town: 'trees', village: 'fields', street: 'rain', shop: 'stall', temple: 'shrine',
+    bus: 'busstop', oldhouse: 'house', yangjian: 'gate',
+  };
+  const MOTIF_LABEL = {
+    bed: '休整·卧室', desk: '上班·工位', files: '调查·档案', mirror: '训练·镜子', grip: '驾驭·按住它',
+    altar: '处置·法坛', stall: '黑市·摊子', hq: '总部·大楼', dicetable: '赌局·桌子', meal: '社交·饭桌',
+    ward: '安全屋·封门', clinic: '治疗·诊室', frost: '冻结·死机', alley: '探索·巷子',
+    crib: '鬼婴·婴儿床', knockdoor: '敲门鬼·教室门', headless: '无头鬼影·商场', coffin: '鬼棺',
+    emptycity: '饿死鬼·空城', mutealley: '静悄悄·无声巷', chess: '棋鬼·棋盘', besidebed: '压床鬼·床边',
+    mirror2: '鬼相·镜中人', coffincart: '赶尸鬼·尸队', phone: '接线员·电话亭', bottles: '序列之鬼·药瓶',
+    meditate: '劫修·松树下', well: '阴气鬼·井', photo: '遗忘鬼·旧照片', tablets: '真名鬼·牌位',
+    eye: '瞳鬼·眼睛', fork: '两难鬼·岔路',
+    corridor: '学校/酒店·走廊', apartment: '住宅楼', skyline: '城市天际线', trees: '镇外·树影',
+    fields: '村外·田土', rain: '雨巷', shrine: '祠堂', busstop: '公交站', house: '老宅', gate: '大门',
+    unknown: '自由行动·无配图',
+  };
+
+  /** 当前该画什么：遭遇 > 刚做的行动 > 地点 > 时期 */
+  function motifOf(state, ctx) {
+    if (!state) return 'skyline';
+    if (state.over) return 'gate';
+    if (state.pending && state.pending.ghost) return GHOST_MOTIF[state.pending.ghost] || 'knockdoor';
+    if (ctx && ctx.lastAction) {
+      if (ctx.lastAction === '__custom__') return 'unknown';     // 自由输入：不给配图（用户明确要求）
+      if (ctx.lastAction.indexOf('city_') === 0) return 'alley';
+      if (ctx.lastAction.indexOf('probe_') === 0) return 'alley';
+      if (ACTION_MOTIF[ctx.lastAction]) return ACTION_MOTIF[ctx.lastAction];
     }
-    // 地平线亮带 + 地面
-    p.push('<rect x="0" y="' + horizon + '" width="' + W + '" height="' + (H - horizon) + '" fill="#05070a"/>');
-    p.push('<rect x="0" y="' + (horizon - 10) + '" width="' + W + '" height="12" fill="url(#fog)"/>');
-    p.push('<ellipse cx="' + (W / 2) + '" cy="' + (horizon + 22) + '" rx="230" ry="26" fill="' + pal[2] + '" opacity=".10"/>');
-    // 前景母题：粗轮廓，一眼可辨
-    const stroke = 'stroke="' + pal[2] + '" stroke-opacity=".85"';
-    if (motif === 'corridor') {
-      p.push('<polygon points="132,' + H + ' 268,' + H + ' 226,96 174,96" fill="#04070a" opacity=".95" ' + stroke + ' stroke-width="2.2"/>');
-      for (let i = 1; i < 6; i++) {
-        const y = H - i * 15;
-        p.push('<line x1="' + (132 + i * 9) + '" y1="' + y + '" x2="' + (268 - i * 9) + '" y2="' + y + '" stroke="' + pal[2] + '" stroke-opacity=".22"/>');
-      }
-      p.push('<rect x="182" y="104" width="36" height="60" fill="#000" stroke="' + pal[2] + '" stroke-opacity=".8" stroke-width="2"/>');
-      p.push('<rect x="196" y="112" width="8" height="52" fill="' + pal[2] + '" opacity=".22"/>');
-    } else if (motif === 'door') {
-      p.push('<rect x="158" y="52" width="84" height="116" fill="#03060a" ' + stroke + ' stroke-width="2.6"/>');
-      p.push('<rect x="168" y="62" width="64" height="96" fill="#0b0f14" opacity=".9"/>');
-      p.push('<circle cx="220" cy="112" r="4" fill="' + pal[2] + '" opacity=".95"/>');
-      p.push('<line x1="0" y1="168" x2="158" y2="168" stroke="' + pal[2] + '" stroke-opacity=".35" stroke-width="2"/>');
-      p.push('<line x1="242" y1="168" x2="400" y2="168" stroke="' + pal[2] + '" stroke-opacity=".35" stroke-width="2"/>');
-      p.push('<ellipse cx="200" cy="176" rx="70" ry="10" fill="' + pal[2] + '" opacity=".14"/>');
-    } else if (motif === 'window') {
-      p.push('<rect x="132" y="48" width="136" height="100" fill="#03060a" ' + stroke + ' stroke-width="2.6"/>');
-      p.push('<line x1="200" y1="48" x2="200" y2="148" ' + stroke + ' stroke-width="2"/>');
-      p.push('<line x1="132" y1="98" x2="268" y2="98" ' + stroke + ' stroke-width="2"/>');
-      p.push('<circle cx="' + (168 + h(9) * 60).toFixed(0) + '" cy="136" r="12" fill="' + pal[2] + '" opacity=".35"/>');
-    } else if (motif === 'trees') {
-      for (let i = 0; i < 4; i++) {
-        const x = 44 + i * 92 + h(i + 11) * 24;
-        p.push('<path d="M' + x.toFixed(0) + ' 190 L' + x.toFixed(0) + ' 84" stroke="#04070a" stroke-width="8"/>');
-        p.push('<path d="M' + x.toFixed(0) + ' 108 q-26 -22 -40 -6 M' + x.toFixed(0) + ' 92 q26 -24 40 -8" stroke="#04070a" stroke-width="6" fill="none"/>');
-        p.push('<path d="M' + x.toFixed(0) + ' 108 q-26 -22 -40 -6" stroke="' + pal[2] + '" stroke-opacity=".3" stroke-width="1.4" fill="none"/>');
-      }
-    } else if (motif === 'rain') {
-      for (let i = 0; i < 34; i++) {
-        const x = h(i + 3) * W; const y = h(i + 33) * (H - 20);
-        p.push('<line x1="' + x.toFixed(0) + '" y1="' + y.toFixed(0) + '" x2="' + (x - 4).toFixed(0) + '" y2="' + (y + 16).toFixed(0) + '" stroke="' + pal[2] + '" stroke-opacity=".34" stroke-width="1.2"/>');
-      }
-      p.push('<path d="M156 168 L156 96 q0 -14 20 -14 q20 0 20 14 L196 168 Z" fill="#04070a" stroke="' + pal[2] + '" stroke-opacity=".8" stroke-width="2"/>');
-      p.push('<line x1="176" y1="82" x2="176" y2="96" stroke="' + pal[2] + '" stroke-opacity=".8" stroke-width="2"/>');
-    } else if (motif === 'shrine') {
-      p.push('<rect x="112" y="60" width="176" height="108" fill="#04070a" stroke="' + pal[2] + '" stroke-opacity=".7" stroke-width="2.4"/>');
-      for (let i = 0; i < 5; i++) {
-        p.push('<rect x="' + (128 + i * 30) + '" y="80" width="15" height="44" fill="none" stroke="' + pal[2] + '" stroke-opacity=".8" stroke-width="2"/>');
-      }
-      p.push('<rect x="104" y="52" width="192" height="8" fill="' + pal[2] + '" opacity=".5"/>');
-      p.push('<circle cx="' + (150 + h(5) * 100).toFixed(0) + '" cy="140" r="7" fill="' + pal[2] + '" opacity=".5"/>');
-    } else if (motif === 'gate') {
-      p.push('<rect x="112" y="16" width="176" height="158" fill="none" stroke="' + pal[2] + '" stroke-opacity=".9" stroke-width="3"/>');
-      p.push('<rect x="146" y="44" width="108" height="130" fill="#03060a" opacity=".95"/>');
-      for (let i = 0; i < 6; i++) p.push('<line x1="112" y1="' + (34 + i * 24) + '" x2="288" y2="' + (34 + i * 24) + '" stroke="' + pal[2] + '" stroke-opacity=".26" stroke-width="1.6"/>');
-      p.push('<ellipse cx="200" cy="164" rx="86" ry="12" fill="' + pal[2] + '" opacity=".16"/>');
-    } else if (motif === 'road') {
-      p.push('<polygon points="24,190 376,190 232,112 168,112" fill="#04070a"/>');
-      p.push('<line x1="200" y1="114" x2="200" y2="188" stroke="' + pal[2] + '" stroke-opacity=".55" stroke-width="2" stroke-dasharray="7 9"/>');
-      p.push('<rect x="150" y="96" width="100" height="18" fill="#04070a" stroke="' + pal[2] + '" stroke-opacity=".5" stroke-width="1.6"/>');
-    } else {
-      p.push('<rect x="48" y="66" width="86" height="102" fill="#04070a"/>');
-      p.push('<rect x="272" y="44" width="92" height="124" fill="#04070a"/>');
-      p.push('<rect x="48" y="66" width="86" height="2" fill="' + pal[2] + '" opacity=".6"/>');
-      p.push('<rect x="272" y="44" width="92" height="2" fill="' + pal[2] + '" opacity=".6"/>');
-      p.push('<rect x="66" y="84" width="9" height="8" fill="' + pal[2] + '" opacity=".75"/>');
-      p.push('<rect x="298" y="70" width="9" height="8" fill="' + pal[2] + '" opacity=".65"/>');
-      p.push('<rect x="322" y="96" width="9" height="8" fill="' + pal[2] + '" opacity=".5"/>');
-    }
-    // 雾气 + 暗角 + 颗粒
-    p.push('<ellipse cx="130" cy="168" rx="240" ry="34" fill="' + pal[2] + '" opacity=".10"/>');
-    p.push('<rect width="' + W + '" height="' + H + '" fill="url(#vig)"/>');
-    for (let i = 0; i < 60; i++) {
-      p.push('<circle cx="' + (h(i + 90) * W).toFixed(0) + '" cy="' + (h(i + 150) * H).toFixed(0) + '" r="0.9" fill="#ffffff" opacity="' + (.05 + h(i) * .10).toFixed(2) + '"/>');
-    }
-    p.push('</svg>');
-    return p.join('');
+    const city = (C.cities && C.cities[state.city]) || null;
+    return PLACE_MOTIF[(city && city.place) || 'city'] || 'skyline';
   }
 
-  /** 字幕条：告诉玩家这张画是"哪儿、什么时候"，让插画不至于被当成一块背景色 */
-  function sceneCaption(s) {
-    if (!s) return '神秘复苏 · 灵异复苏时代';
-    const city = (C.cities && C.cities[s.city]) || null;
-    const era = (C.eras && C.eras[s.era]) || null;
+  /* ------------------------------------------------------------- 画图工具 */
+  const R_ = (x, y, w, h, fill, op) => '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + fill + '"' + (op !== undefined ? ' opacity="' + op + '"' : '') + '/>';
+  const C_ = (cx, cy, r, fill, op) => '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + fill + '"' + (op !== undefined ? ' opacity="' + op + '"' : '') + '/>';
+  const E_ = (cx, cy, rx, ry, fill, op) => '<ellipse cx="' + cx + '" cy="' + cy + '" rx="' + rx + '" ry="' + ry + '" fill="' + fill + '"' + (op !== undefined ? ' opacity="' + op + '"' : '') + '/>';
+  const LN = (x1, y1, x2, y2, st, op, w) => '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + st + '" stroke-opacity="' + (op === undefined ? 1 : op) + '" stroke-width="' + (w || 2) + '" stroke-linecap="round"/>';
+  const PA = (d, fill, op) => '<path d="' + d + '" fill="' + fill + '"' + (op !== undefined ? ' opacity="' + op + '"' : '') + '/>';
+  const PS = (d, st, op, w) => '<path d="' + d + '" fill="none" stroke="' + st + '" stroke-opacity="' + (op === undefined ? 1 : op) + '" stroke-width="' + (w || 2) + '" stroke-linecap="round"/>';
+  const PG = (pts, fill, op) => '<polygon points="' + pts + '" fill="' + fill + '"' + (op !== undefined ? ' opacity="' + op + '"' : '') + '/>';
+  const TX = (x, y, s, fill, size, op) => '<text x="' + x + '" y="' + y + '" fill="' + fill + '" opacity="' + (op || 1) + '" font-size="' + (size || 16) + '" text-anchor="middle" font-family="serif">' + s + '</text>';
+
+  /* ------------------------------------------------------------- 母题库 */
+  const MOTIFS = {};
+  // —— 行动类 ——
+  MOTIFS.bed = (p) => [R_(120, 118, 168, 40, p[3]), R_(120, 104, 26, 18, '#e8e8ec', .85), R_(150, 110, 138, 12, '#5a6470', .9),
+    PS('M118 158 q86 -18 172 0', p[2], .35, 3), E_(150, 128, 20, 9, '#cfd6de', .25), LN(120, 96, 120, 118, p[2], .5, 3), LN(288, 96, 288, 118, p[2], .5, 3)];
+  MOTIFS.desk = (p) => [R_(96, 122, 208, 10, '#1b2129'), R_(110, 132, 8, 30, p[3]), R_(282, 132, 8, 30, p[3]),
+    R_(148, 86, 52, 36, '#0d1218'), R_(154, 92, 40, 24, p[2], .55), PS('M200 104 h34', p[2], .5, 3), C_(246, 100, 10, p[2], .35)];
+  MOTIFS.files = (p) => [R_(96, 150, 208, 8, '#1b2129'), PS('M96 150 h208', p[2], .45, 2.4),
+    R_(112, 158, 176, 26, '#141a21'), PS('M112 158 h176 v26 h-176 z', p[2], .3, 2),
+    LN(196, 162, 210, 178, p[2], .5, 3), C_(203, 176, 2.4, p[2], .8),
+    R_(112, 96, 58, 54, '#e9e4d8', .92), R_(124, 86, 58, 54, '#efe9dc', .96), R_(136, 76, 58, 54, '#f5efe2'),
+    LN(146, 92, 184, 92, '#3a3630', .5, 2), LN(146, 104, 180, 104, '#3a3630', .4, 2),
+    LN(146, 116, 188, 116, '#3a3630', .4, 2), LN(134, 102, 172, 102, '#3a3630', .35, 2),
+    R_(224, 116, 70, 34, '#0d1218'), PS('M224 116 h70 v34 h-70 z', p[2], .5, 2),
+    C_(288, 132, 11, p[2], .5), PS('M288 121 v-14', p[2], .5, 2.6)];
+  MOTIFS.mirror = (p) => [R_(140, 58, 96, 116, '#0b1016'), R_(140, 58, 96, 116, 'none'),
+    PS('M140 58 h96 v116 h-96 z', p[2], .8, 3), PG('196,170 206,170 236,98 216,98', '#000', .55),
+    PA('M196 92 q14 -10 24 0 q-6 22 -12 30 q-6 -8 -12 -30', p[2], .5), C_(196, 84, 7, p[2], .7)];
+  MOTIFS.grip = (p) => [E_(200, 130, 76, 34, '#000', .55),
+    PA('M150 120 q10 -22 26 -14 q10 -26 30 -12 q12 -18 28 -4 q14 -8 20 10 q10 8 2 20 q-16 16 -52 14 q-36 -2 -54 -14 z', '#05070a'),
+    PS('M158 118 l84 -20 M160 126 l82 -6 M166 134 l74 6', p[2], .55, 2.4)];
+  MOTIFS.altar = (p) => [R_(150, 126, 100, 12, '#1a1410'), R_(158, 138, 10, 26, p[3]), R_(232, 138, 10, 26, p[3]),
+    R_(176, 96, 8, 30, '#e8e2d2', .9), R_(194, 88, 8, 38, '#e8e2d2', .95), R_(212, 96, 8, 30, '#e8e2d2', .9),
+    C_(180, 90, 5, '#ffb347', .95), C_(198, 80, 6, '#ffd27a', 1), C_(216, 90, 5, '#ffb347', .95),
+    PS('M200 60 q-14 14 0 26 q14 -12 0 -26', p[2], .5, 2)];
+  MOTIFS.stall = (p) => [R_(120, 96, 160, 6, '#241a14'), R_(126, 102, 6, 56, '#241a14'), R_(268, 102, 6, 56, '#241a14'),
+    C_(150, 96, 12, '#ff9b3d', .95), R_(142, 82, 16, 6, '#241a14'), LN(150, 88, 150, 96, '#241a14', .8, 2),
+    R_(176, 112, 22, 14, '#3a2c22'), R_(206, 112, 22, 14, '#3a2c22'), R_(236, 112, 22, 14, '#3a2c22'),
+    E_(200, 150, 70, 14, p[2], .12)];
+  MOTIFS.hq = (p) => [R_(140, 46, 120, 118, '#0b1118'), PS('M140 46 h120 v118 h-120 z', p[2], .7, 3),
+    R_(152, 58, 12, 14, p[2], .7), R_(172, 58, 12, 14, p[2], .55), R_(192, 58, 12, 14, p[2], .4), R_(212, 58, 12, 14, p[2], .7),
+    R_(152, 82, 12, 14, p[2], .5), R_(212, 82, 12, 14, p[2], .6), LN(200, 20, 200, 46, p[2], .8, 3),
+    PG('200,14 236,24 200,34', p[2], .75)];
+  MOTIFS.dicetable = (p) => [E_(200, 126, 92, 30, '#123', .55), PS('M120 126 q80 -34 160 0', p[2], .6, 3),
+    R_(178, 110, 18, 18, '#f2f0ea', .95), R_(206, 116, 16, 16, '#e8e4da', .9), C_(196, 112, 3, '#c33', .9), C_(214, 120, 3, '#333', .9)];
+  MOTIFS.meal = (p) => [E_(200, 132, 84, 26, '#241a14', .9), R_(150, 112, 40, 10, '#d8d2c4', .85), R_(212, 112, 40, 10, '#d8d2c4', .85),
+    C_(170, 106, 7, '#e8e2d2', .7), C_(232, 106, 7, '#e8e2d2', .7), C_(200, 96, 6, '#ff9b3d', .6), LN(186, 96, 214, 96, p[2], .3, 2)];
+  MOTIFS.ward = (p) => [R_(146, 52, 108, 112, '#0a0f14'), PS('M146 52 h108 v112 h-108 z', p[2], .85, 3),
+    LN(164, 66, 236, 84, '#e8dcc0', .85, 3), LN(236, 66, 164, 84, '#e8dcc0', .85, 3),
+    R_(196, 124, 8, 20, p[2], .6), C_(200, 118, 4, p[2], .9)];
+  MOTIFS.clinic = (p) => [R_(130, 70, 140, 94, '#111820'), PS('M130 70 h140 v94 h-140 z', p[2], .6, 3),
+    LN(200, 92, 200, 136, p[2], .9, 8), LN(178, 114, 222, 114, p[2], .9, 8), E_(200, 168, 90, 12, p[2], .12)];
+  MOTIFS.frost = (p) => [PS('M80 150 L200 60 M200 60 L320 150 M140 150 L200 96 L260 150', p[2], .55, 2),
+    PS('M110 110 l40 12 M250 110 l-40 12 M200 60 v-24', p[2], .4, 2),
+    C_(200, 96, 26, p[2], .18), C_(200, 96, 12, p[2], .3)];
+  MOTIFS.alley = (p) => [PG('120,190 280,190 250,120 150,120', '#05080c', .95), PS('M150 120 h100', p[2], .5, 3),
+    LN(140, 190, 160, 120, p[2], .35, 2), LN(260, 190, 240, 120, p[2], .35, 2),
+    C_(196, 86, 9, '#ff9b3d', .8), R_(188, 92, 16, 5, '#241a14')];
+  MOTIFS.unknown = (p) => [R_(140, 40, 120, 140, '#0a0d12', .8), PS('M140 40 h120 v140 h-120 z', p[2], .35, 2),
+    PS('M180 90 a20 20 0 1 1 20 20 v14', p[2], .6, 5), C_(200, 142, 5, p[2], .7)];
+  // —— 厉鬼类 ——
+  MOTIFS.crib = (p) => [R_(156, 96, 88, 12, '#1b1410'), R_(150, 108, 10, 52, '#1b1410'), R_(240, 108, 10, 52, '#1b1410'),
+    LN(150, 92, 250, 92, p[2], .5, 3), C_(200, 84, 10, '#e8e4da', .5), PA('M188 84 q12 -14 24 0 q-4 12 -12 16 q-8 -4 -12 -16', '#000', .5),
+    PS('M164 100 v48 M176 100 v48 M188 100 v48 M200 100 v48 M212 100 v48 M224 100 v48 M236 100 v48', p[2], .3, 1.6)];
+  MOTIFS.knockdoor = (p) => [R_(150, 46, 100, 122, '#0a0f14'), PS('M150 46 h100 v122 h-100 z', p[2], .9, 3),
+    C_(232, 110, 5, p[2], .95), PS('M176 70 q10 -10 20 0 q-10 10 -20 0 M176 96 q10 -10 20 0 q-10 10 -20 0', p[2], .55, 2.4),
+    LN(120, 46, 120, 168, p[2], .3, 2), LN(280, 46, 280, 168, p[2], .3, 2)];
+  MOTIFS.headless = (p) => [E_(200, 150, 46, 16, '#000', .6),
+    PA('M200 66 q34 0 40 34 q6 30 -6 54 l-68 0 q-12 -24 -6 -54 q6 -34 40 -34 z', '#05080c'),
+    PS('M200 66 q34 0 40 34 q6 30 -6 54 l-68 0 q-12 -24 -6 -54 q6 -34 40 -34 z', p[2], .45, 2)];
+  MOTIFS.coffin = (p) => [PG('200,52 250,86 236,152 164,152 150,86', '#0d1218'),
+    PS('M200,52 250,86 236,152 164,152 150,86 z', p[2], .8, 3), LN(200, 62, 200, 142, p[2], .3, 2),
+    C_(200, 104, 4, p[2], .6), R_(150, 152, 100, 8, '#0a0d12')];
+  MOTIFS.emptycity = (p) => [R_(40, 84, 46, 84, '#05080c'), R_(94, 62, 40, 106, '#05080c'), R_(142, 96, 34, 72, '#05080c'),
+    R_(184, 52, 44, 116, '#05080c'), R_(236, 88, 40, 80, '#05080c'), R_(284, 70, 44, 98, '#05080c'),
+    LN(60, 40, 52, 62, p[2], .35, 1.6), LN(120, 30, 112, 52, p[2], .3, 1.6), LN(210, 24, 202, 46, p[2], .3, 1.6),
+    LN(300, 34, 292, 56, p[2], .3, 1.6), E_(200, 168, 150, 14, p[2], .1)];
+  MOTIFS.mutealley = (p) => [PG('110,190 290,190 258,110 142,110', '#05080c', .95),
+    LN(142, 110, 258, 110, p[2], .5, 3), C_(200, 82, 12, '#0a0f14'), PS('M186 82 l28 0', p[2], .8, 4),
+    PS('M170 60 l-14 -12 M230 60 l14 -12', p[2], .4, 2)];
+  MOTIFS.chess = (p) => [PG('120,168 280,168 250,102 150,102', '#141a12', .95),
+    PS('M150 102 h100 v66 h-100 z', p[2], .5, 2),
+    PS('M162 102 v66 M174 102 v66 M186 102 v66 M198 102 v66 M210 102 v66 M222 102 v66 M234 102 v66', p[2], .28, 1.4),
+    PS('M150 118 h100 M150 135 h100 M150 152 h100', p[2], .28, 1.4),
+    C_(186, 126, 8, '#f2f0ea', .95), C_(222, 143, 8, '#0b0f12', .95)];
+  MOTIFS.besidebed = (p) => [R_(96, 130, 208, 34, '#0d1218'), R_(96, 118, 30, 16, '#e8e8ec', .8),
+    PA('M150 130 q40 -18 80 0 z', '#252c36'),
+    PA('M236 128 q10 -40 22 -52 q10 12 6 52 z', '#05070a'), C_(248, 74, 9, '#05070a'),
+    PS('M236 128 q10 -40 22 -52', p[2], .4, 2)];
+  MOTIFS.mirror2 = (p) => [R_(146, 46, 108, 122, '#0b1016'), PS('M146 46 h108 v122 h-108 z', p[2], .85, 3),
+    PA('M176 130 q10 -40 20 -52 q10 12 8 52 z', '#05070a'),
+    PA('M224 130 q10 -40 20 -52 q10 12 8 52 z', '#05070a', .75),
+    LN(200, 46, 200, 168, p[2], .25, 2)];
+  MOTIFS.coffincart = (p) => [R_(120, 140, 160, 10, '#0a0d12'),
+    PG('152,96 196,116 188,140 160,140 144,116', '#0d1218'), PG('204,96 248,116 240,140 212,140 196,116', '#0d1218'),
+    C_(120, 146, 12, '#0a0d12'), C_(280, 146, 12, '#0a0d12'),
+    PS('M144 116 h104', p[2], .5, 2), C_(258, 74, 7, '#ff9b3d', .7), LN(252, 80, 250, 96, '#241a14', .8, 2)];
+  MOTIFS.phone = (p) => [R_(158, 60, 84, 108, '#0b1118'), PS('M158 60 h84 v108 h-84 z', p[2], .85, 3),
+    R_(162, 64, 76, 60, '#0a0d12'), PS('M158 60 v108', p[2], .5, 4),
+    PA('M186 132 q14 -26 28 0 q-8 12 -14 12 q-6 0 -14 -12 z', '#05080c'), PS('M186 132 q14 -26 28 0', p[2], .45, 2)];
+  MOTIFS.bottles = (p) => [R_(140, 130, 120, 10, '#141a12'),
+    ...([0, 1, 2, 3, 4].map((i) => R_(148 + i * 22, 96 + (i % 2) * 6, 12, 34 - (i % 2) * 6, ['#8fbf8f', '#c78f8f', '#8f9fcf', '#cfb98f', '#b98fcf'][i], .85))),
+    ...([0, 1, 2, 3, 4].map((i) => R_(152 + i * 22, 88 + (i % 2) * 6, 4, 8, '#e8e2d2', .7))),
+    E_(200, 150, 80, 12, p[2], .12)];
+  MOTIFS.meditate = (p) => [PG('120,178 280,178 220,120 180,120', '#0a0f0c', .9),
+    PA('M200 84 q26 0 30 26 q4 22 -4 34 l-52 0 q-8 -12 -4 -34 q4 -26 30 -26 z', '#05080c'),
+    PA('M200 76 q16 0 16 -8 q0 -6 -16 -6 q-16 0 -16 6 q0 8 16 8', '#05080c'),
+    PS('M158 148 q42 -14 84 0', p[2], .5, 2), PS('M120 120 q40 -20 80 -6', p[2], .3, 2)];
+  MOTIFS.well = (p) => [C_(200, 138, 44, '#05080c'), PS('M156 138 a44 44 0 1 0 88 0 a44 44 0 1 0 -88 0', p[2], .6, 3),
+    C_(200, 138, 30, '#020406'), C_(200, 138, 16, '#000', 1),
+    PS('M170 96 q30 -22 60 0', p[2], .35, 2), LN(200, 60, 200, 96, p[2], .4, 2)];
+  MOTIFS.photo = (p) => [R_(140, 56, 120, 96, '#efe9dc', .9), R_(150, 66, 100, 76, '#2a2f36'),
+    PA('M168 132 q10 -34 22 -44 q12 10 20 44 z', '#7b8794', .7),
+    PA('M204 132 q8 -26 18 -34 q10 8 14 34 z', '#7b8794', .35),
+    PS('M150 142 q50 -10 100 0', '#efe9dc', .5, 4), LN(146, 158, 254, 158, p[2], .35, 2)];
+  MOTIFS.tablets = (p) => [R_(124, 60, 152, 106, '#0d1218'), PS('M124 60 h152 v106 h-152 z', p[2], .6, 3),
+    ...([0, 1, 2, 3, 4].map((i) => R_(138 + i * 28, 74, 16, 46, '#1b2129'))),
+    ...([0, 1, 2, 3, 4].map((i) => PS('M142 ' + (86 + i) + ' h8', p[2], .5 - i * .05, 2))),
+    TX(200, 152, '名', p[2], 22, .55)];
+  MOTIFS.eye = (p) => [PA('M132 120 q68 -60 136 0 q-68 60 -136 0 z', '#0a0f14'), PS('M132 120 q68 -60 136 0 q-68 60 -136 0 z', p[2], .8, 3),
+    C_(200, 120, 24, '#1b2b3a'), C_(200, 120, 13, '#0a0f14'), C_(206, 114, 4, '#fff', .8),
+    LN(96, 120, 130, 120, p[2], .5, 3), LN(270, 120, 304, 120, p[2], .5, 3)];
+  MOTIFS.fork = (p) => [PG('200,178 236,178 236,140 200,140', '#05080c'),
+    PG('236,140 300,118 300,140', '#05080c'), PG('236,140 172,118 172,140', '#05080c'),
+    PS('M200 178 v-40 M236 140 l54 -22 M236 140 l-54 -22', p[2], .5, 3),
+    PA('M268 108 q14 0 14 14 q0 22 -14 30 q-14 -8 -14 -30 q0 -14 14 -14 z', '#05080c'),
+    PA('M172 108 q14 0 14 14 q0 22 -14 30 q-14 -8 -14 -30 q0 -14 14 -14 z', '#05080c')];
+  // —— 地点类 ——
+  MOTIFS.corridor = (p) => [PG('132,190 268,190 226,96 174,96', '#04070a', .95), PS('M174 96 h52 l42 94 h-136 z', p[2], .55, 2.4),
+    ...[1, 2, 3, 4, 5].map((i) => LN(132 + i * 9, 190 - i * 15, 268 - i * 9, 190 - i * 15, p[2], .2, 1.6)),
+    R_(182, 104, 36, 60, '#000', 1), PS('M182 104 h36 v60 h-36 z', p[2], .8, 2), R_(196, 112, 8, 52, p[2], .22)];
+  MOTIFS.apartment = (p) => [R_(120, 40, 160, 148, '#05080c'), PS('M120 40 h160 v148 h-160 z', p[2], .45, 2),
+    ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((k) => {
+      const r = Math.floor(k / 3); const c = k % 3;
+      const op = ((k * 7) % 5 === 0) ? .8 : (((k * 3) % 7 === 0) ? .5 : .14);
+      return R_(138 + c * 48, 56 + r * 32, 22, 18, p[2], op);
+    })];
+  MOTIFS.skyline = (p) => [R_(40, 84, 46, 84, '#05080c'), R_(94, 60, 40, 108, '#05080c'), R_(142, 94, 34, 74, '#05080c'),
+    R_(184, 50, 44, 118, '#05080c'), R_(236, 86, 40, 82, '#05080c'), R_(284, 68, 44, 100, '#05080c'),
+    R_(100, 72, 6, 7, p[2], .8), R_(192, 62, 6, 7, p[2], .75), R_(246, 98, 6, 7, p[2], .6), R_(292, 82, 6, 7, p[2], .7)];
+  MOTIFS.trees = (p) => [[0, 1, 2, 3].map((i) => {
+    const x = 48 + i * 88;
+    return PS('M' + x + ' 190 L' + x + ' 82', '#04070a', 1, 8) +
+      PS('M' + x + ' 112 q-26 -22 -40 -6 M' + x + ' 96 q26 -24 40 -8 M' + x + ' 128 q22 -16 34 -4', '#04070a', 1, 6) +
+      PS('M' + x + ' 112 q-26 -22 -40 -6', p[2], .28, 1.4);
+  }).join('')];
+  MOTIFS.fields = (p) => [PS('M20 150 q90 -16 180 0 q90 16 180 0', '#1a140c', .9, 10),
+    PS('M40 160 q80 -14 160 0 q80 14 160 0', p[2], .16, 8),
+    R_(196, 60, 34, 46, '#05080c'), PS('M196 60 l17 -16 l17 16 z', '#05080c'), R_(206, 78, 12, 14, p[2], .55),
+    LN(213, 44, 213, 60, p[2], .4, 2)];
+  MOTIFS.rain = (p) => [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].map((i) =>
+    LN(20 + i * 20, (i * 37) % 150, 14 + i * 20, ((i * 37) % 150) + 18, p[2], .3, 1.3)).join(''),
+    PA('M156 190 L156 96 q0 -16 20 -16 q20 0 20 16 L196 190 Z', '#04070a'), PS('M156 190 L156 96 q0 -16 20 -16 q20 0 20 16 L196 190', p[2], .8, 2.4),
+    LN(176, 80, 176, 96, p[2], .8, 2.4), E_(176, 190, 60, 10, p[2], .14)];
+  MOTIFS.shrine = (p) => [R_(112, 60, 176, 108, '#04070a'), PS('M112 60 h176 v108 h-176 z', p[2], .7, 2.6),
+    ...[0, 1, 2, 3, 4].map((i) => R_(128 + i * 30, 80, 15, 46, 'none') + PS('M128 ' + (80 + i * 0) + ' h15 v46 h-15 z', p[2], .8, 2).replace('M128 80', 'M' + (128 + i * 30) + ' 80').replace('h15', 'h15')),
+    R_(104, 52, 192, 8, p[2], .5), C_(150, 140, 7, p[2], .5)];
+  MOTIFS.busstop = (p) => [R_(150, 70, 6, 60, '#0a0d12'), R_(150, 70, 100, 8, '#0a0d12'),
+    PS('M156 78 v52', p[2], .4, 2), R_(160, 96, 40, 10, '#0a0d12'), PS('M160 96 h40 v10 h-40 z', p[2], .5, 2),
+    R_(236, 100, 60, 40, '#05080c'), PS('M236 100 h60 v40 h-60 z', p[2], .55, 2), R_(244, 108, 14, 10, p[2], .7),
+    LN(246, 140, 246, 156, '#05080c', .8, 4), LN(286, 140, 286, 156, '#05080c', .8, 4)];
+  MOTIFS.house = (p) => [PG('200,40 288,96 288,176 112,176 112,96', '#05080c'), PS('M200 40 L288 96 L288 176 L112 176 L112 96 z', p[2], .55, 2.4),
+    R_(178, 118, 44, 58, '#0a0d12'), PS('M178 118 h44 v58 h-44 z', p[2], .6, 2), C_(214, 148, 3, p[2], .9),
+    R_(136, 112, 26, 24, p[2], .5), R_(240, 112, 26, 24, p[2], .35)];
+  MOTIFS.gate = (p) => [R_(112, 16, 176, 158, 'none'), PS('M112 16 h176 v158 h-176 z', p[2], .9, 3.2),
+    R_(146, 44, 108, 130, '#03060a', .95),
+    ...[0, 1, 2, 3, 4, 5].map((i) => LN(112, 34 + i * 24, 288, 34 + i * 24, p[2], .26, 1.8)),
+    E_(200, 166, 86, 12, p[2], .16)];
+
+  function sceneSvg(state, ctx, forceMotif) {
+    const pal = ERA_PALETTE[(state && state.era)] || ERA_PALETTE.y2018;
+    const seed = (state && state.seedInt) || 20180923;
+    const turn = (state && state.turn) || 1;
+    const hh = (i) => ((seed * 9301 + turn * 49297 + i * 233) % 233280) / 233280;
+    const motif = forceMotif || motifOf(state, ctx);
+    const W = 400; const H = 190; const horizon = 132;
+    const out = [];
+    out.push('<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">');
+    out.push('<defs>' +
+      '<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + pal[0] + '"/><stop offset=".6" stop-color="' + pal[1] + '"/>' +
+      '<stop offset="1" stop-color="' + pal[2] + '" stop-opacity=".5"/></linearGradient>' +
+      '<radialGradient id="halo" cx="50%" cy="50%" r="50%">' +
+      '<stop offset="0" stop-color="' + pal[2] + '" stop-opacity=".8"/><stop offset=".5" stop-color="' + pal[2] + '" stop-opacity=".16"/>' +
+      '<stop offset="1" stop-color="' + pal[2] + '" stop-opacity="0"/></radialGradient>' +
+      '<radialGradient id="vig" cx="50%" cy="45%" r="72%"><stop offset=".55" stop-color="#000" stop-opacity="0"/>' +
+      '<stop offset="1" stop-color="#000" stop-opacity=".7"/></radialGradient></defs>');
+    out.push(R_(0, 0, W, H, 'url(#sky)'));
+    // 月亮 + 地平线（所有母题共用的底子）
+    const mx = 58 + hh(1) * 284;
+    out.push(C_(mx.toFixed(0), (34 + hh(2) * 24).toFixed(0), 62, 'url(#halo)'));
+    out.push(C_(mx.toFixed(0), (34 + hh(2) * 24).toFixed(0), 14, pal[2], .9));
+    out.push(R_(0, horizon, W, H - horizon, '#04070a'));
+    out.push(E_(200, horizon + 24, 240, 30, pal[2], .1));
+    const flat = (a) => [].concat(a).reduce((acc, x) => acc.concat(Array.isArray(x) ? flat(x) : x), []);
+    out.push(flat((MOTIFS[motif] || MOTIFS.skyline)(pal, hh)).join(''));
+    out.push(R_(0, 0, W, H, 'url(#vig)'));
+    for (let i = 0; i < 46; i++) {
+      out.push(C_((hh(i + 90) * W).toFixed(0), (hh(i + 150) * H).toFixed(0), 0.9, '#fff', (.05 + hh(i) * .09).toFixed(2)));
+    }
+    out.push('</svg>');
+    return out.join('');
+  }
+
+  function sceneCaption(state, ctx) {
+    if (!state) return '神秘复苏 · 灵异复苏时代';
+    const city = (C.cities && C.cities[state.city]) || null;
+    const era = (C.eras && C.eras[state.era]) || null;
+    const motif = motifOf(state, ctx);
     const parts = [];
+    if (MOTIF_LABEL[motif]) parts.push(MOTIF_LABEL[motif]);
     if (city) parts.push(city.name);
     if (era) parts.push(era.short);
-    if (s.pending && C.ghosts[s.pending.ghost]) parts.push('遭遇·' + C.ghosts[s.pending.ghost].name);
     return parts.join('　·　') || '神秘复苏';
   }
 
-  function renderSceneArt(s) {
+  let lastSceneCtx = null;
+  function renderSceneArt(state, ctx) {
     const box = $('scene');
-    if (!box || !s) return;
-    box.innerHTML = sceneSvg(s);
-    const cap = el('div', 'sceneCaption', sceneCaption(s));
-    box.appendChild(cap);
+    if (!box || !state) return;
+    if (ctx) lastSceneCtx = ctx;
+    const m = motifOf(state, lastSceneCtx);
+    box.innerHTML = sceneSvg(state, lastSceneCtx);
+    box.appendChild(el('div', 'sceneCaption', sceneCaption(state, lastSceneCtx)));
+    box.setAttribute('data-motif', m);
   }
 
+  /** 供画册页/测试列举所有母题 */
+  function motifList() {
+    return Object.keys(MOTIFS).map((k) => ({ name: k, label: MOTIF_LABEL[k] || k }));
+  }
+
+  /* ------------------------------------------------------------ 画册（所有母题一览）
+   * 用途：① 玩家可以在手机上翻看全部画面；② 我自己核对"每个选项是否真的有配图"。
+   */
+  function openGallery() {
+    const box = $('toolbox');
+    box.style.display = '';
+    clear(box);
+    const list = motifList();
+    box.appendChild(el('div', 'sectionTitle', '画册 · 共 ' + list.length + ' 张（每个行动 / 每只鬼 / 每类地点都有专属画面）'));
+    box.appendChild(el('div', 'hint', '色调随「时期」变化；自由输入的行动不配图（那张是问号）。点「关闭」回到游戏。'));
+    const grid = el('div', 'galleryGrid');
+    const eraIds = Object.keys(C.eras);
+    list.forEach((m, i) => {
+      const fake = { era: eraIds[i % eraIds.length], seedInt: (i + 3) * 7919, turn: 1 + (i % 5), city: 'dachang' };
+      const cell = el('div', 'galleryCell');
+      const art = el('div', 'galleryArt');
+      art.innerHTML = sceneSvg(fake, null, m.name);
+      cell.appendChild(art);
+      cell.appendChild(el('div', 'galleryLabel', m.label + '（' + m.name + '）'));
+      grid.appendChild(cell);
+    });
+    box.appendChild(grid);
+    const close = el('button', 'btn small', '关闭');
+    close.onclick = () => { box.style.display = 'none'; };
+    box.appendChild(close);
+  }
   /* ------------------------------------------------------ 世界观速览（新手引导） */
   const GLOSSARY = [
     ['诡秘复苏', '现实世界的"规律"被厉鬼接管：它们不追人，只按自己的规矩杀人。'],
@@ -6625,6 +6795,9 @@ body.panelOpen #side{display:block}
     V.getAI().then((ai) => build(ai && ai.error ? null : ai)).catch(() => build(null));
   }
 
+  // 供截图/测试核对：列出全部母题与生成 SVG
+  window.RSUI = { motifList: motifList, sceneSvg: sceneSvg, motifOf: motifOf, MOTIFS: MOTIFS, openGallery: openGallery };
+
   /* ------------------------------------------------------------ 初始化 */
   window.addEventListener('DOMContentLoaded', function () {
     $('btnSave').onclick = saveToFile;
@@ -6635,6 +6808,7 @@ body.panelOpen #side{display:block}
     };
     $('btnAI').onclick = function () { openToolbox('ai'); };
     if ($('btnGuide')) $('btnGuide').onclick = openGuide;
+    if ($('btnGallery')) $('btnGallery').onclick = openGallery;
     if ($('btnPanel')) $('btnPanel').onclick = function () { document.body.classList.toggle('panelOpen'); };
     if ($('jumpNew')) $('jumpNew').onclick = scrollLog;
     // 手动往上翻时给出「回到最新」提示
