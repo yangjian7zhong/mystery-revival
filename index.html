@@ -693,6 +693,97 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       items: ['guancai', 'guizhu', 'seal'], contracts: ['qiaomen'],
       flags: { safehouse: 3 }, place: 'yangjian',
     },
+
+    /* ===== 同人衍生开局：一部作品一个开局，初始状态各不相同（src 标注来源作品） ===== */
+
+    ganshiren: {
+      id: 'ganshiren', name: '赶尸人开局', src: '同人《神秘复苏：赶尸人》',
+      blurb: '你是穿越者钱万豪。凌晨四点四十四分，末班车停在村口，司机座上没有人——你手腕上的尸纹正往上爬。',
+      stats: { erosion: 15, humanity: 70, calamity: 15, stealth: 45, sanity: 85, stamina: 100, causality: 10, pollution: 8, ghostEye: 0 },
+      money: { cash: 20, deposit: 0, gold: 1 },
+      items: ['fu'], contracts: [],
+      flags: { safehouse: 0, favor: 1 }, place: 'village',
+    },
+    guiqiang: {
+      id: 'guiqiang', name: '诡枪开局', src: '同人《神秘复苏：诡枪》',
+      blurb: '你与杨间在同一节课上觉醒，体内是两只鬼：诡枪与蓝眼鬼瞳。枪口里那只眼睛，已经睁开了。',
+      stats: { erosion: 25, humanity: 65, calamity: 12, stealth: 50, sanity: 80, stamina: 100, causality: 5, pollution: 0, ghostEye: 2 },
+      money: { cash: 10, deposit: 0, gold: 0 },
+      items: [], contracts: ['tonggui'],
+      flags: { safehouse: 0 }, place: 'school',
+    },
+    guixiang: {
+      id: 'guixiang', name: '鬼相开局', src: '同人《神秘复苏之诡相无间》',
+      blurb: '你切下那片鬼画，移植进自己身体里。从今天起，镜子里多了一个你——它笑得比你早。',
+      stats: { erosion: 35, humanity: 55, calamity: 18, stealth: 40, sanity: 65, stamina: 100, causality: 8, pollution: 10, ghostEye: 1 },
+      money: { cash: 5, deposit: 0, gold: 0 },
+      items: ['guizhu'], contracts: ['guixiang'],
+      flags: { safehouse: 0 }, place: 'apartment',
+    },
+    bingzhu: {
+      id: 'bingzhu', name: '秉烛夜游开局', src: '同人《神秘复苏：秉烛夜游》',
+      blurb: '高三学生霍雍。那本《神秘复苏》从全网消失了，就在同一节课上，四个同学的体温骤降、死状如眠。',
+      stats: { erosion: 20, humanity: 70, calamity: 20, stealth: 55, sanity: 75, stamina: 100, causality: 5, pollution: 5, ghostEye: 1 },
+      money: { cash: 2, deposit: 0, gold: 0 },
+      items: ['fu'], contracts: ['yachuang'],
+      flags: { safehouse: 0 }, place: 'school',
+    },
+    baixiaosheng: {
+      id: 'baixiaosheng', name: '写鬼录开局', src: '同人《我在神秘复苏写鬼录》',
+      blurb: '你手里只有一册白页。它不给力量，只认三样：亲历、洞察、凭自己活着走出来。',
+      stats: { erosion: 8, humanity: 80, calamity: 10, stealth: 60, sanity: 90, stamina: 100, causality: 0, pollution: 0, ghostEye: 0 },
+      money: { cash: 8, deposit: 5, gold: 0 },
+      items: ['fu'], contracts: [],
+      flags: { safehouse: 0, intel: 3 }, place: 'street',
+    },
+    moyao: {
+      id: 'moyao', name: '喝魔药开局', src: '同人《我在神秘复苏里喝魔药》',
+      blurb: '你喝下了第一瓶。柜台后面那个没有脸的人说：欢迎成为下一位——序列里同时只能有一个活着的。',
+      stats: { erosion: 30, humanity: 60, calamity: 15, stealth: 45, sanity: 70, stamina: 100, causality: 12, pollution: 15, ghostEye: 0 },
+      money: { cash: 30, deposit: 0, gold: 2 },
+      items: ['guizhu'], contracts: [],
+      flags: { safehouse: 0, intel: 2 }, place: 'shop',
+    },
+    lianqi: {
+      id: 'lianqi', name: '炼气修仙开局', src: '同人《我在神秘复苏炼气修仙》',
+      blurb: '你按功法运起第一口气。山里的灵气今晚浓得发白，松树下那个打坐的人，已经死了很久了。',
+      stats: { erosion: 10, humanity: 75, calamity: 12, stealth: 50, sanity: 95, stamina: 100, causality: 5, pollution: 0, ghostEye: 1 },
+      money: { cash: 6, deposit: 0, gold: 0 },
+      items: ['fu'], contracts: [],
+      flags: { safehouse: 0 }, place: 'temple',
+    },
+    yinqifa: {
+      id: 'yinqifa', name: '阴气法开局', src: '同人《我在神秘复苏修炼阴气法》',
+      blurb: '老宅地下室的阵眼摆好了。你按功法吸下第一口阴气——风停了，身后有人跟着你一起呼吸。',
+      stats: { erosion: 25, humanity: 60, calamity: 15, stealth: 65, sanity: 75, stamina: 100, causality: 5, pollution: 8, ghostEye: 0 },
+      money: { cash: 15, deposit: 0, gold: 1 },
+      items: ['fu'], contracts: [],
+      flags: { safehouse: 1 }, place: 'oldhouse',
+    },
+    yiwangqishi: {
+      id: 'yiwangqishi', name: '遗忘世间开局', src: '同人《神秘复苏之遗忘世间》',
+      blurb: '你翻相册时发现昨天的照片里少了一个人。你想不起他是谁，只知道胸口那处空着。',
+      stats: { erosion: 12, humanity: 80, calamity: 12, stealth: 55, sanity: 70, stamina: 100, causality: 5, pollution: 5, ghostEye: 0 },
+      money: { cash: 12, deposit: 10, gold: 0 },
+      items: [], contracts: [],
+      flags: { safehouse: 0 }, place: 'town',
+    },
+    zhenming: {
+      id: 'zhenming', name: '鬼名有主开局', src: '同人《神秘复苏：鬼名有主》',
+      blurb: '名主祠的牌位全是空的。从这里走出去的人，第一件事都是想不起自己叫什么。',
+      stats: { erosion: 18, humanity: 70, calamity: 15, stealth: 80, sanity: 80, stamina: 100, causality: 10, pollution: 0, ghostEye: 0 },
+      money: { cash: 5, deposit: 0, gold: 0 },
+      items: ['fu'], contracts: [],
+      flags: { safehouse: 0, disguise: 1 }, place: 'temple',
+    },
+    xuanze: {
+      id: 'xuanze', name: '两难开局', src: '同人《神秘复苏之遵从内心的选择》',
+      blurb: '你面前有两条路，每条路上都站着一个你认识的人。中间那块牌子写着：只能救一个。',
+      stats: { erosion: 15, humanity: 75, calamity: 15, stealth: 55, sanity: 75, stamina: 100, causality: 25, pollution: 0, ghostEye: 0 },
+      money: { cash: 40, deposit: 20, gold: 1 },
+      items: [], contracts: [],
+      flags: { safehouse: 0 }, place: 'city',
+    },
   };
 
   /* --------------------------------------------------------- 世界时钟 */
@@ -708,84 +799,190 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
    * 两轴设计之一：落地决定"你在哪座城"，影响本地厉鬼权重、开局条件与世界推进。
    * src=原著：地名与归属事件均出自原著时间线；src=同人作品名：出自对应衍生作。
    * ghosts：本地关联厉鬼（遭遇时优先出现）；mods.encounter/advance：遭遇率与世界推进修正。
+   * rule：本地规矩（text 显示给玩家；mastery 驾驭判定加成；price 物价倍率）。
+   * act：本地专属行动（每天仍只能做一个主动作，与其它行动共用当天额度）。
    */
   const cities = {
     dachang: { id: 'dachang', name: '大昌市', src: '原著', place: 'school',
       desc: '敲门鬼事件与饿死鬼沦陷的主场。第七中学、富仁商场、尚通大厦都在这里。',
-      ghosts: ['qiaomen', 'guiying', 'wutou', 'eshigui'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 0, advance: 0 } },
+      ghosts: ['qiaomen', 'guiying', 'wutou', 'eshigui'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 0, advance: 0 },
+      rule: { text: '本地灵异浓度最高：驾驭 +5%，但被盯上的概率也高', mastery: 5, price: 1.0 },
+      act: { label: '去第七中学翻那份失踪名册',
+        effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'sanity', v: -4 }],
+        lines: ['你在教务处翻到一份被抽走几页的名册。', '留下的那一页上，有六个名字被红笔圈过——其中一个是你。'] } },
     dajing: { id: 'dajing', name: '大京市', src: '原著', place: 'hotel',
       desc: '总部与国际驭鬼者培训基地所在，平安酒店与王小明实验基地都在城里。',
-      ghosts: ['guiguan', 'zhenname'], effects: [{ k: 'money', key: 'contribution', v: 30 }], mods: { encounter: 4, advance: 0 } },
+      ghosts: ['guiguan', 'zhenname'], effects: [{ k: 'money', key: 'contribution', v: 30 }], mods: { encounter: 4, advance: 0 },
+      rule: { text: '总部辖区：补给好拿（物价 ×0.8），但规矩多（驾驭 −5%）', mastery: -5, price: 0.8 },
+      act: { label: '去培训基地蹭一堂驭鬼者的课',
+        effects: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'stat', key: 'stamina', v: -5 }],
+        lines: ['你混在学员里听了一下午。', '讲师反复强调一句话：鬼不可杀，唯鬼可制——你先记住这个。'] } },
     zhongshan: { id: 'zhongshan', name: '中山市', src: '原著', place: 'hotel',
       desc: '凯撒大酒店与人头气球事件。这家酒店的时间与空间都不太对。',
-      ghosts: ['wutou', 'guixiang'], effects: [{ k: 'flag', key: 'marks', v: 0 }], mods: { encounter: 5, advance: 0 } },
+      ghosts: ['wutou', 'guixiang'], effects: [{ k: 'flag', key: 'marks', v: 0 }], mods: { encounter: 5, advance: 0 },
+      rule: { text: '酒店区时空异常：线索好捡，理智消耗也大', mastery: 0, price: 1.1 },
+      act: { label: '翻凯撒大酒店的住客登记本',
+        effects: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'pollution', v: 3 }],
+        lines: ['登记本上同一间房被写了十几遍，笔迹都不同，日期却是同一天。', '你合上本子的时候，前台铃响了一声——没有人站在那里。'] } },
     dahan: { id: 'dahan', name: '大汉市', src: '原著', place: 'city',
       desc: '烂尾楼里叠着一座"鬼邮局"，双桥镇是它的门。信使的规矩比城里任何单位都严。',
-      ghosts: ['guiguan', 'jietianyuan'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 2, advance: 0 } },
+      ghosts: ['guiguan', 'jietianyuan'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 2, advance: 0 },
+      rule: { text: '鬼邮局辖区：情报流通快，但邮差记得你的脸', mastery: 2, price: 1.0 },
+      act: { label: '去烂尾楼投一次信',
+        effects: [{ k: 'money', key: 'contribution', v: 10 }, { k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stamina', v: -6 }],
+        lines: ['你把信塞进那只不存在的信箱，指尖凉了一下。', '第二天，总部账上多了一笔说不清来路的贡献。'] } },
     dahai: { id: 'dahai', name: '大海市', src: '原著', place: 'city',
       desc: '福寿园与码头。幽灵船最后就是在市中心现身的，海风里一直有铁锈味。',
-      ghosts: ['eshigui', 'zhenname'], effects: [{ k: 'money', key: 'gold', v: 1 }], mods: { encounter: 4, advance: 1 } },
+      ghosts: ['eshigui', 'zhenname'], effects: [{ k: 'money', key: 'gold', v: 1 }], mods: { encounter: 4, advance: 1 },
+      rule: { text: '港口城市：物资多（物价 ×0.9），靠海的灵异也密', mastery: 0, price: 0.9 },
+      act: { label: '去福寿园看看 78 号墓',
+        effects: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'money', key: 'gold', v: 1 }],
+        lines: ['78 号墓的碑上只有姓，没有名。供台上压着一张旧信纸。', '你把信纸收进兜里——它轻得不像纸，像一层皮。'] } },
     dachuan: { id: 'dachuan', name: '大川市', src: '原著', place: 'apartment',
       desc: '明月小区 7 栋 301 室。这里被"鬼影头"侵蚀过，301 室留下的民国遗物还在。',
-      ghosts: ['guiguan', 'yiwang'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 3, advance: 0 } },
+      ghosts: ['guiguan', 'yiwang'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 3, advance: 0 },
+      rule: { text: '301 室所在地：灵异遗物多，理智消耗大（驾驭 +5%）', mastery: 5, price: 1.1 },
+      act: { label: '在 301 室门口站一会儿',
+        effects: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'stat', key: 'sanity', v: -8 }, { k: 'stat', key: 'pollution', v: 4 }],
+        lines: ['门缝里透出的不是光，是"有人在里面走动"的动静。', '你在门口站了十分钟，里面的脚步声一直是同一段。'] } },
     zhongzhou: { id: 'zhongzhou', name: '中州市', src: '原著', place: 'town',
       desc: '鬼湖源头与太平古镇鬼街。纸钱、纸船、渡船，湖底还压着一口黑棺材。',
-      ghosts: ['yinqigui', 'zhenname'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 5, advance: 1 } },
+      ghosts: ['yinqigui', 'zhenname'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 5, advance: 1 },
+      rule: { text: '太平古镇鬼街：招魂人讲规矩（驾驭 +8%），物价也高（×1.2）', mastery: 8, price: 1.2 },
+      act: { label: '去鬼街换一叠纸钱',
+        cost: [{ k: 'money', key: 'cash', v: -20 }],
+        effects: [{ k: 'flag', key: 'favor', v: 1 }, { k: 'flag', key: 'intel', v: 1 }],
+        lines: ['摊主收下你的钱，收得极慢，像在数第几张是你的。', '他多给了你一叠纸钱：\"过湖的时候，先用这个买路。\"'] } },
     daao: { id: 'daao', name: '大澳市', src: '原著', place: 'city',
       desc: '赌场之城。这里的局都是真的，只是赢的人不总是活着走出去。',
-      ghosts: ['xuanze', 'guixiang'], effects: [{ k: 'money', key: 'cash', v: 150 }], mods: { encounter: 3, advance: 0 } },
+      ghosts: ['xuanze', 'guixiang'], effects: [{ k: 'money', key: 'cash', v: 150 }], mods: { encounter: 3, advance: 0 },
+      rule: { text: '赌城：钱来得快（物价 ×1.3），因果也来得快', mastery: 0, price: 1.3 },
+      act: { label: '在大澳做一单干净买卖',
+        effects: [{ k: 'money', key: 'cash', v: 40 }, { k: 'stat', key: 'causality', v: 6 }],
+        lines: ['你把货交到指定的车位，钱当场点清。', '离开时你发现后视镜里多了一辆车——它一直跟到你拐过第三个路口。'] } },
     dadong: { id: 'dadong', name: '大东市', src: '原著', place: 'city',
       desc: '第二次队长会议召开地。饿死鬼曾从这里的收容点脱困。',
-      ghosts: ['eshigui', 'xuanze'], effects: [{ k: 'money', key: 'contribution', v: 20 }], mods: { encounter: 3, advance: 0 } },
+      ghosts: ['eshigui', 'xuanze'], effects: [{ k: 'money', key: 'contribution', v: 20 }], mods: { encounter: 3, advance: 0 },
+      rule: { text: '收容点所在：总部给补贴（物价 ×0.9），但这里出过事', mastery: 0, price: 0.9 },
+      act: { label: '去收容点领一份驭鬼者补贴',
+        effects: [{ k: 'money', key: 'contribution', v: 15 }, { k: 'stat', key: 'stealth', v: -3 }],
+        lines: ['窗口后的人核对了你的编号，头也不抬地推出一份补给。', '登记表最后一行写着上一次的领用人——名字被划掉了。'] } },
     xiaochun: { id: 'xiaochun', name: '小春市', src: '原著', place: 'bus',
       desc: '灵异公交车的站点之一。车不报站，上去了就别问终点。',
-      ghosts: ['jietianyuan', 'jingqiaoqiao'], effects: [{ k: 'stat', key: 'stealth', v: 5 }], mods: { encounter: 2, advance: 0 } },
+      ghosts: ['jietianyuan', 'jingqiaoqiao'], effects: [{ k: 'stat', key: 'stealth', v: 5 }], mods: { encounter: 2, advance: 0 },
+      rule: { text: '公交线路城市：跑得快（体力耗得少），上车容易下车难', mastery: 3, price: 1.0 },
+      act: { label: '在公交总站等一班不该来的车',
+        effects: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'stat', key: 'stamina', v: -8 }, { k: 'stat', key: 'sanity', v: -5 }],
+        lines: ['末班车来了，车头灯是两个空的圆。', '你没有上去，只记下了它的线路号——那条线在地图上不存在。'] } },
     xiaofeng: { id: 'xiaofeng', name: '小丰市', src: '原著', place: 'city',
       desc: '黑色雨伞事件的发生地，至今没有解决。街上有人撑着伞站在雨里不动。',
-      ghosts: ['jingqiaoqiao', 'yiwang'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 3, advance: 0 } },
+      ghosts: ['jingqiaoqiao', 'yiwang'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 3, advance: 0 },
+      rule: { text: '黑色雨伞未解：雨里的人都别搭话（遭遇 +3%）', mastery: 2, price: 1.0 },
+      act: { label: '走到雨里那把伞旁边',
+        effects: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'stat', key: 'sanity', v: -8 }],
+        lines: ['伞下没有人，但伞面上的雨声是两个人的。', '你听见有人在伞里小声数数——数到了你站着的那一秒。'] } },
     baishuizhen: { id: 'baishuizhen', name: '白水镇', src: '原著', place: 'town',
       desc: '亡魂之路与"三年前的世界"。镇子会把人按记忆重新铺一遍——这里死过队长。',
-      ghosts: ['jingqiaoqiao', 'yiwang', 'yinqigui'], effects: [{ k: 'stat', key: 'stealth', v: -10 }, { k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 8, advance: 1 } },
+      ghosts: ['jingqiaoqiao', 'yiwang', 'yinqigui'], effects: [{ k: 'stat', key: 'stealth', v: -10 }, { k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 8, advance: 1 },
+      rule: { text: '亡魂之路：灵异极浓（驾驭 +10%），推进与遭遇都更快', mastery: 10, price: 1.1 },
+      act: { label: '走一遍亡魂之路',
+        effects: [{ k: 'flag', key: 'intel', v: 3 }, { k: 'stat', key: 'sanity', v: -10 }, { k: 'stat', key: 'pollution', v: 6 }],
+        lines: ['路上开始出现熟人，都背对着你，走的方向和你一样。', '你忍住没有叫住他们——叫住其中一个的代价，队长替你付过了。'] } },
     taiping: { id: 'taiping', name: '太平古镇', src: '原著', place: 'town',
       desc: '招魂人一脉守着鬼街。这地方对"阴"的东西有一套自己的规矩。',
-      ghosts: ['yinqigui', 'guixiang'], effects: [{ k: 'flag', key: 'favor', v: 2 }], mods: { encounter: 2, advance: 0 } },
+      ghosts: ['yinqigui', 'guixiang'], effects: [{ k: 'flag', key: 'favor', v: 2 }], mods: { encounter: 2, advance: 0 },
+      rule: { text: '招魂人一脉：驾驭 +8%，纸钱纸船都好用', mastery: 8, price: 1.0 },
+      act: { label: '向招魂人买一张纸船',
+        cost: [{ k: 'money', key: 'cash', v: -15 }],
+        effects: [{ k: 'itemAdd', id: 'fu' }, { k: 'flag', key: 'favor', v: 1 }],
+        lines: ['老人把纸船放在你掌心，纸是湿的。', '\"过水的时候把它放下去，它会替你走一段。\"'] } },
     huanggang: { id: 'huanggang', name: '黄岗村', src: '原著', place: 'village',
       desc: '鬼棺事件现场。棺材还埋在村后的坡上，位置只有村里老人知道。',
-      ghosts: ['guiguan', 'ganshigui'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 4, advance: 0 } },
+      ghosts: ['guiguan', 'ganshigui'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 4, advance: 0 },
+      rule: { text: '村里忌讳多：线索好问，但村民不愿提那口棺材', mastery: 3, price: 1.0 },
+      act: { label: '去村后坡上看那口棺材',
+        effects: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'pollution', v: 3 }],
+        lines: ['棺材有一半露在土外面，棺盖上钉着新的钉子。', '你数了数钉子的位置——是七颗，正好对应民国七老的数目。'] } },
     zongbu: { id: 'zongbu', name: '总部城市', src: '原著', place: 'city',
       desc: '总部与执法队长的办公地。这里的资源最多，规矩也最多。',
-      ghosts: ['zhenname', 'guiguan'], effects: [{ k: 'money', key: 'contribution', v: 60 }, { k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 2, advance: 0 } },
+      ghosts: ['zhenname', 'guiguan'], effects: [{ k: 'money', key: 'contribution', v: 60 }, { k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 2, advance: 0 },
+      rule: { text: '总部所在：资源最多（物价 ×0.8），但一直被盯着（驾驭 −3%）', mastery: -3, price: 0.8 },
+      act: { label: '去总部调一份事件档案',
+        cost: [{ k: 'money', key: 'contribution', v: -20 }],
+        effects: [{ k: 'flag', key: 'intel', v: 3 }],
+        lines: ['档案室的柜子按年份排到最里面一排，全是空的。', '管理员说：\"能看的都在你手里了，别的还没解密。\"'] } },
     shenhu: { id: 'shenhu', name: '神户市', src: '原著', place: 'city',
       desc: '岛国除灵社的地盘。敲门鬼曾在这里出现，除灵社的人则一直在等一个借口。',
-      ghosts: ['qiaomen', 'tonggui'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 6, advance: 1 } },
+      ghosts: ['qiaomen', 'tonggui'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 6, advance: 1 },
+      rule: { text: '海外除灵社地盘：没人管你（驾驭 −5%），物价高（×1.3）', mastery: -5, price: 1.3 },
+      act: { label: '去除灵社问敲门鬼的旧事',
+        effects: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'flag', key: 'favor', v: 1 }, { k: 'stat', key: 'stamina', v: -5 }],
+        lines: ['他们给你看了一段录像：木盒、金漆、三下敲门声。', '录像最后，镜头转向拍摄者——他的脸是空的。'] } },
 
     yanchi: { id: 'yanchi', name: '盐池市', src: '同人《神秘复苏：秉烛夜游》', place: 'city',
       desc: '知鱼大厦与蓝天游乐园。整座城在双数日被拉进一盘棋，没人敢问执棋的是谁。',
-      ghosts: ['qigui', 'yachuang'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 5, advance: 1 } },
+      ghosts: ['qigui', 'yachuang'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 5, advance: 1 },
+      rule: { text: '棋盘鬼域：单数日失踪 32 人，双数日只少一个（遭遇 +5%）', mastery: 2, price: 1.0 },
+      act: { label: '在知鱼大厦楼下看一局棋',
+        effects: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'stat', key: 'sanity', v: -5 }],
+        lines: ['楼下的老人用烟头在报纸上摆棋，黑白子都是活的。', '他告诉你：\"这局下了三年，轮到它走了。\"'] } },
     anhe: { id: 'anhe', name: '安河市', src: '同人《神秘复苏之诡相无间》', place: 'apartment',
       desc: '安河小区的镜子特别多。七十年间，这里的守夜人一个接一个把"相"接手下去。',
-      ghosts: ['guixiang'], effects: [{ k: 'stat', key: 'sanity', v: -5 }], mods: { encounter: 4, advance: 0 } },
+      ghosts: ['guixiang'], effects: [{ k: 'stat', key: 'sanity', v: -5 }], mods: { encounter: 4, advance: 0 },
+      rule: { text: '镜子多：驾驭 +6%，但理智消耗大', mastery: 6, price: 1.0 },
+      act: { label: '把家里所有镜子扣在桌上',
+        effects: [{ k: 'stat', key: 'stealth', v: 5 }, { k: 'stat', key: 'sanity', v: 6 }],
+        lines: ['你一张一张扣过去，最后一面试衣镜压得手心发凉。', '扣完的那一刻，你听见有人在厨房里叹了口气。'] } },
     shanshui: { id: 'shanshui', name: '山水村', src: '同人《神秘复苏：赶尸人》', place: 'village',
       desc: '民国赶尸客栈还在营业，收两样东西：一滴鬼血，一具驭鬼者的尸体。',
-      ghosts: ['ganshigui', 'guiguan'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 5, advance: 0 } },
+      ghosts: ['ganshigui', 'guiguan'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 5, advance: 0 },
+      rule: { text: '赶尸客栈规矩：血可以换路（驾驭 +5%），尸纹会往上爬', mastery: 5, price: 1.0 },
+      act: { label: '在客栈门口留一滴血换路条',
+        effects: [{ k: 'stat', key: 'pollution', v: 6 }, { k: 'flag', key: 'intel', v: 2 }],
+        lines: ['你用针尖刺破指尖，血滴在门槛上，立刻被木板吸进去了。', '老板递出一张路条：\"一个月内，别让它白吸。\"'] } },
     buxingjie: { id: 'buxingjie', name: '步行街', src: '同人《我在神秘复苏写鬼录》', place: 'street',
       desc: '这里的电话亭还能用，接线员会一条一条念出鬼的规律——如果你肯接。',
-      ghosts: ['jietianyuan'], effects: [{ k: 'flag', key: 'intel', v: 2 }], mods: { encounter: 2, advance: 0 } },
+      ghosts: ['jietianyuan'], effects: [{ k: 'flag', key: 'intel', v: 2 }], mods: { encounter: 2, advance: 0 },
+      rule: { text: '电话亭还在：情报最好拿（物价 ×0.9）', mastery: 2, price: 0.9 },
+      act: { label: '接一次那通电话，只听不记',
+        effects: [{ k: 'flag', key: 'intel', v: 3 }, { k: 'stat', key: 'sanity', v: -8 }],
+        lines: ['对面念了七条规律，声音一直很平。', '念到第八条时它停了：\"这条是给你的。\"'] } },
     yaoxiang: { id: 'yaoxiang', name: '药香街', src: '同人《我在神秘复苏里喝魔药》', place: 'shop',
       desc: '柜台上永远摆着七只瓶子。喝一口就能上一个序列，代价写在瓶子背面。',
-      ghosts: ['xulie'], effects: [{ k: 'itemAdd', id: 'fu' }], mods: { encounter: 4, advance: 0 } },
+      ghosts: ['xulie'], effects: [{ k: 'itemAdd', id: 'fu' }], mods: { encounter: 4, advance: 0 },
+      rule: { text: '药铺明码标价：物价 ×1.4，但序列真的能买', mastery: 4, price: 1.4 },
+      act: { label: '买下最低序列的那半瓶药',
+        cost: [{ k: 'money', key: 'gold', v: -1 }],
+        effects: [{ k: 'stat', key: 'erosion', v: 8 }, { k: 'stat', key: 'sanity', v: -5 }, { k: 'flag', key: 'intel', v: 1 }],
+        lines: ['你把半瓶喝下去，喉咙里像过了一遍电。', '柜台后面的人点点头：\"下一位已经在路上了。\"'] } },
     qingyun: { id: 'qingyun', name: '青云山', src: '同人《我在神秘复苏炼气修仙》', place: 'temple',
       desc: '灵气浓得发白的山。山门结界有一处破口，东南角，很多年没人来补。',
-      ghosts: ['lingqi'], effects: [{ k: 'stat', key: 'sanity', v: 5 }], mods: { encounter: 3, advance: 0 } },
+      ghosts: ['lingqi'], effects: [{ k: 'stat', key: 'sanity', v: 5 }], mods: { encounter: 3, advance: 0 },
+      rule: { text: '灵气浓：驾驭 +10%，但一运功就被定位（遭遇 +3%）', mastery: 10, price: 1.0 },
+      act: { label: '在山门东南角修半个时辰',
+        effects: [{ k: 'stat', key: 'sanity', v: 8 }, { k: 'stat', key: 'pollution', v: 3 }, { k: 'flag', key: 'intel', v: 1 }],
+        lines: ['你按住那块裂开的石阶，把气一丝丝往回引。', '裂口小了一点。松树下的那个人，今晚没有回头。'] } },
     yinqigu: { id: 'yinqigu', name: '阴气谷', src: '同人《我在神秘复苏修炼阴气法》', place: 'oldhouse',
       desc: '谷底老宅的地下室是天然阵眼。这里的人练功，练的是把自己练成另一种东西。',
-      ghosts: ['yinqigui'], effects: [{ k: 'stat', key: 'erosion', v: 5 }], mods: { encounter: 4, advance: 1 } },
+      ghosts: ['yinqigui'], effects: [{ k: 'stat', key: 'erosion', v: 5 }], mods: { encounter: 4, advance: 1 },
+      rule: { text: '天然阵眼：驾驭 +8%，但侵蚀起手就高', mastery: 8, price: 1.0 },
+      act: { label: '按功法吸一口谷底的阴气',
+        effects: [{ k: 'stat', key: 'erosion', v: 6 }, { k: 'stat', key: 'sanity', v: 4 }, { k: 'stat', key: 'stamina', v: 8 }],
+        lines: ['阴气顺着喉咙下去，像吞了一口井水。', '你身后那声呼吸，比你慢了半拍——但它确实在跟着你。'] } },
     wangchuan: { id: 'wangchuan', name: '忘川渡', src: '同人《神秘复苏之遗忘世间》', place: 'town',
       desc: '渡口没有船，只有一排写满名字的木牌。牌上的字正在一个一个变淡。',
-      ghosts: ['yiwang'], effects: [{ k: 'stat', key: 'humanity', v: 5 }], mods: { encounter: 3, advance: 0 } },
+      ghosts: ['yiwang'], effects: [{ k: 'stat', key: 'humanity', v: 5 }], mods: { encounter: 3, advance: 0 },
+      rule: { text: '渡口无船：记忆容易丢，人性回升快', mastery: 3, price: 1.0 },
+      act: { label: '在木牌上补写一个正在变淡的名字',
+        effects: [{ k: 'stat', key: 'humanity', v: 5 }, { k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'sanity', v: -4 }],
+        lines: ['你照着记忆把那个名字重描了一遍，墨迹渗进木头里。', '牌子亮了一下，又暗下去——但那个名字今晚没有继续变淡。'] } },
     mingzhuci: { id: 'mingzhuci', name: '名主祠', src: '同人《神秘复苏：鬼名有主》', place: 'temple',
       desc: '祠堂里供奉的牌位全是空的。这里的规矩只有一条：别说出自己的名字。',
-      ghosts: ['zhenname'], effects: [{ k: 'stat', key: 'stealth', v: 5 }], mods: { encounter: 5, advance: 1 } },
+      ghosts: ['zhenname'], effects: [{ k: 'stat', key: 'stealth', v: 5 }], mods: { encounter: 5, advance: 1 },
+      rule: { text: '祠规：不得报出真名（低调值高，驾驭 +5%）', mastery: 5, price: 1.0 },
+      act: { label: '在一块空牌位上刻一个代号',
+        effects: [{ k: 'stat', key: 'stealth', v: 6 }, { k: 'flag', key: 'intel', v: 2 }],
+        lines: ['你没有刻名字，只刻了三个数字。', '守祠的老人看了一眼，说：\"这样它就收不走你。\"'] } },
   };
 
   /* ============================================================ 时期（原著时间线）
@@ -3453,6 +3650,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     if (state.clues.includes(g.masteryClue)) mods.push({ name: '同源拼图', v: 20 });
     if (state.flags.intel >= 5) mods.push({ name: '封印仪式准备', v: 15 });
     if (state.contracts.length >= 2) mods.push({ name: '双鬼平衡', v: 10 });
+    const cityM = (cityOf(state).rule && cityOf(state).rule.mastery) || 0;
+    if (cityM) mods.push({ name: '本地规矩', v: cityM });
     mods.push({ name: '危险等级惩罚', v: -g.penalty });
     if (state.stats.calamity >= 70) mods.push({ name: '劫难修正', v: -5 });
     const r = doCheck(state, 'mastery', ghostId, base, mods);
@@ -3501,6 +3700,40 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   /** 该判定是否还有尝试额度（用尽的行动不再出现在选项里，避免空转按钮） */
   function canAttempt(state, purpose, target) {
     return attemptState(state, purpose, target).allowed;
+  }
+
+  /** 落地城市的专属行动（每城一条；与其它行动共用"每天一个主动作"的额度） */
+  function cityAction(state) {
+    const city = cityOf(state);
+    const act = city.act;
+    if (!act) return null;
+    return {
+      id: 'city_' + city.id,
+      label: act.label + '（' + city.name + '）',
+      tags: ['city'],
+      if: (s) => (!act.require || act.require(s)) && canPay(s, act.cost),
+      run: (s) => {
+        if (act.cost) applyEffects(s, act.cost, '本地开销·' + city.name);
+        // 本地行动的现金收入同样受"本章收入上限"约束：
+        // 否则大澳市这类给钱的本地行动会变成每天 +40 万的无上限刷钱机器（比上班还肥）。
+        const eff = [];
+        let capped = 0;
+        for (const e of act.effects || []) {
+          if (e.k === 'money' && e.v > 0 && (e.key === 'cash' || e.key === 'deposit')) {
+            const cap = tuningOf(s).incomeCap;
+            const room = Math.max(0, cap - s.chapterSpendings);
+            const v = Math.min(e.v, room);
+            s.chapterSpendings += v;
+            if (v !== e.v) capped += e.v - v;
+            if (v > 0) eff.push({ k: 'money', key: e.key, v: v });
+          } else eff.push(e);
+        }
+        if (eff.length) applyEffects(s, eff, '本地行动·' + city.name);
+        const lines = (act.lines || []).slice();
+        if (capped) lines.push('（本章收入已达上限，' + capped + ' 万没能落进口袋）');
+        return { lines: lines };
+      },
+    };
   }
 
   function actionPool(state) {
@@ -3680,7 +3913,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       if: (s) => (s.flags.intel >= 1 || s.turn >= 3) && s.money.gold >= 3,
       run: (s) => {
         const want = 'guizhu';
-        const price = Math.max(1, Math.round((1 + int(roll01(s, 'shopPrice', 0) * 2)) * tuningOf(s).priceMult)); // 1~3kg × 难度系数
+        const cityPrice = (cityOf(s).rule && cityOf(s).rule.price) || 1;
+      const price = Math.max(1, Math.round((1 + int(roll01(s, 'shopPrice', 0) * 2)) * tuningOf(s).priceMult * cityPrice)); // 1~3kg × 难度系数 × 本地物价
         if (s.money.gold < price) return { lines: ['黑市摊主报出 ' + price + 'kg 黄金的价，你手上的金子不够。'] };
         addPath(s, 'money.gold', -price, '黑市购入鬼烛');
         applyEffects(s, [{ k: 'itemAdd', id: want }, { k: 'stat', key: 'stealth', v: -3 }], '黑市交易');
@@ -3729,6 +3963,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
         return { lines: ['你输光了赌本，还欠下一点说不清的东西。'], check: r };
       },
     });
+    const ca = cityAction(state);
+    if (ca) add(ca);
     return pool.filter((a) => !a.if || a.if(state));
   }
 
@@ -4016,6 +4252,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       回合: state.turn + ' 天（第 ' + state.chapter + ' 章）',
       落地: city.name + (state.cityRandom ? '（随机）' : ''),
       时期: era.short + (state.eraRandom ? '（随机）' : ''),
+      本地规矩: (city.rule && city.rule.text) || '无',
       难度: tuningOf(state).name + (state.over ? '' : ''),
       鬼侵蚀: state.stats.erosion,
       人性: state.stats.humanity + ' / ' + clamp(100 - state.stats.erosion, 0, 100),
@@ -4501,6 +4738,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     act_freeze: ['你把它按下去，自己的意识先沉了。', '有那么几秒，你听不见任何声音。',
       '你试着让体内的东西停住。', '你数着自己的呼吸，一遍比一遍慢。'],
     act_custom: ['你决定不按常理来一次。', '你选了一个没人会选的做法。', '你想要点不一样的东西。'],
+    act_city: ['你按本地人的规矩办了这件事。', '这里的规矩和外头不一样，你照着做了。',
+      '你走了一趟只有这座城才有的路。', '本地人教你怎么办，你照办了。'],
   };
 
   /* ------------------------------------------------------------ 取句逻辑 */
@@ -4601,7 +4840,13 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   /** 行动结果变体句（引擎给出 variant key，这里取对应库） */
   function actionLine(state, variant) {
     const bank = 'act_' + (variant || 'custom');
-    if (!B[bank]) return '';
+    if (!B[bank]) {
+      // 本地专属行动（act_<行动>）等没有专属库时：先试该城的专属库，再退通用句，而不是整段消失
+      const cityBank = state && state.city ? 'act_city_' + state.city : null;
+      if (cityBank && B[cityBank]) return pick(cityBank, state);
+      if (B.act_city) return pick('act_city', state);
+      return B.act_normal ? pick('act_normal', state) : '';
+    }
     return pick(bank, state);
   }
 
@@ -5167,13 +5412,21 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       });
     }
 
-    box.appendChild(el('div', 'sectionTitle', '选择开局'));
-    for (const id of Object.keys(C.packs)) {
-      const p = C.packs[id];
-      const b = el('button', 'btn card' + (selected.pack === id ? ' on' : ''),
-        p.name + '　—　' + p.blurb);
-      b.onclick = () => { selected.pack = id; showMenu(); };
-      box.appendChild(b);
+    // 开局包按来源分组：原著开局 / 同人衍生开局（源自用户点名的 11 部同人作）
+    const packGroups = [
+      ['原著开局', Object.keys(C.packs).filter((id) => !C.packs[id].src || C.packs[id].src === '原著')],
+      ['同人衍生开局（11 部衍生作各一个）', Object.keys(C.packs).filter((id) => C.packs[id].src && C.packs[id].src !== '原著')],
+    ];
+    for (const [title, ids] of packGroups) {
+      if (!ids.length) continue;
+      box.appendChild(el('div', 'sectionTitle', '选择开局 · ' + title));
+      for (const id of ids) {
+        const p = C.packs[id];
+        const b = el('button', 'btn card' + (selected.pack === id ? ' on' : ''),
+          p.name + (p.src && p.src !== '原著' ? '　[' + p.src + ']' : '') + '　—　' + p.blurb);
+        b.onclick = () => { selected.pack = id; showMenu(); };
+        box.appendChild(b);
+      }
     }
 
     // ---- 落地（城市）：可自选，也可随机 ----
@@ -5203,8 +5456,10 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       const curC = selected.city === 'random' ? null : C.cities[selected.city];
       box.appendChild(el('div', 'hint', curC
         ? ('落地：' + curC.name + '（' + curC.src + '）' + curC.desc +
-           '　本地厉鬼：' + curC.ghosts.map((g) => (C.ghosts[g] ? C.ghosts[g].name : g)).join('、'))
-        : '落地：随机（按种子抽签，同种子必得同一座城）'));
+           '　本地厉鬼：' + curC.ghosts.map((g) => (C.ghosts[g] ? C.ghosts[g].name : g)).join('、') +
+           (curC.rule ? '　【本地规矩】' + curC.rule.text : '') +
+           (curC.act ? '　【专属行动】' + curC.act.label : ''))
+        : '落地：随机（按种子抽签，同种子必得同一座城；每座城都有本地厉鬼、本地规矩与一条专属行动）'));
     }
 
     // ---- 时期（原著时间线）：可自选，也可随机 ----
