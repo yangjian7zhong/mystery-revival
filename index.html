@@ -175,7 +175,18 @@ body.panelOpen #side{display:block}
 #choices .btn.opt{text-align:left; border-left:3px solid #3d5b73; background:#0e1620; line-height:1.55}
 #choices .btn.opt:hover{border-left-color:var(--accent); background:#132030}
 #choices .btn.opt.exit{border-left-color:#4f8f5f}
-#choices .btn.opt.exit:hover{border-left-color:#6fbf7f}</style>
+#choices .btn.opt.exit:hover{border-left-color:#6fbf7f}
+/* ==== 第 17 轮：修"左栏下面一大片空白"（桌面实测 642px 的透明空区）====
+   原来 #side 只有 792px 高、而右栏 1420px，左栏下面就是一片什么都没有的透明区域。
+   现在：左栏背景铺满整列（align-self:stretch），面板在栏内吸顶；桌面选项改两列，整体变矮。 */
+@media (min-width:901px){
+  #side{align-self:stretch; background:#0f141c; border:1px solid #1d2530; border-radius:12px;
+        padding:12px; position:static; top:auto; overflow:visible}
+  #panel{position:sticky; top:8px}
+  #choices{display:grid; grid-template-columns:1fr 1fr; gap:8px; align-content:start}
+  #choices .choicesHead, #choices .choicesSub, #choices .muted, #choices .hint{grid-column:1 / -1}
+  #choices > .btn.primary.big{grid-column:1 / -1}
+}</style>
 </head>
 <body>
 <header>
