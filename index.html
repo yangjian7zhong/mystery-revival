@@ -3192,12 +3192,18 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     return true;
   }
 
-  /** 该局可出现的厉鬼池：时期时钟里的鬼 ∪ 落地城市的本地鬼 */
+  /** 该局可出现的厉鬼池：时期时钟里的鬼 ∪ 落地城市的本地鬼 ∪ 各年代都有的低阶杂鬼 */
   function ghostPoolOf(state) {
     const era = eraOf(state); const city = cityOf(state);
     const out = [];
     for (const ev of era.events) if (out.indexOf(ev.ghost) < 0) out.push(ev.ghost);
     for (const g of (city.ghosts || [])) if (out.indexOf(g) < 0) out.push(g);
+    // 低阶厉鬼（C/B）不受时期限制：任何年代都有这种"杂鬼"在游荡。
+    // 没有这一条，开局头几天候选池可能只剩 1 只（其余 S/A 都还没排期）→ 必然连着两次撞同一只鬼。
+    for (const gid of Object.keys(CONTENT.ghosts)) {
+      const g = CONTENT.ghosts[gid];
+      if (g && (g.level === 'C' || g.level === 'B') && out.indexOf(gid) < 0) out.push(gid);
+    }
     return out;
   }
 
@@ -3266,6 +3272,27 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   }
 
   /* -------------------------------------------------------------- 效果表 */
+  /**
+   * 现金/存款收入**统一入口**：所有正向收入都必须经过它，受"本章收入上限"约束。
+   * 为什么必须统一：收入上限只要漏掉任何一条路径，那条路径就是刷钱口
+   * （历史教训：大澳市本地行动 +40 万/天不走上限；机制事件的现金也曾经绕过上限）。
+   * opts.raw = true → 不计入上限（仅限开局初始化、结局结算等明确例外）。
+   */
+  function gainCash(state, key, amount, reason, opts) {
+    if (amount <= 0 || (opts && opts.raw) || state.turn === 0 || state.over) {
+      addPath(state, 'money.' + key, amount, reason);
+      return { applied: amount, capped: 0 };
+    }
+    const cap = tuningOf(state).incomeCap;
+    const room = Math.max(0, cap - state.chapterSpendings);
+    const applied = Math.min(amount, room);
+    if (applied > 0) {
+      state.chapterSpendings += applied;
+      addPath(state, 'money.' + key, applied, reason);
+    }
+    return { applied: applied, capped: amount - applied };
+  }
+
   // 声明式效果：引擎统一校验前置条件与代价，前端隐藏不算数。
   function applyEffects(state, effects, reason) {
     const out = [];
@@ -3278,9 +3305,17 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
         case 'stat':
           addPath(state, 'stats.' + e.key, e.v, reason);
           break;
-        case 'money':
-          addPath(state, 'money.' + e.key, e.v, reason);
+        case 'money': {
+          // 正向现金/存款一律走收入上限；黄金、贡献、负向支出不受影响
+          const isGain = e.v > 0 && (e.key === 'cash' || e.key === 'deposit');
+          if (isGain) {
+            const r = gainCash(state, e.key, e.v, reason, { raw: !!e.raw });
+            if (r.capped) out.push({ cappedCash: r.capped, reason: reason });
+          } else {
+            addPath(state, 'money.' + e.key, e.v, reason);
+          }
           break;
+        }
         case 'flag':
           addPath(state, 'flags.' + e.key, e.v, reason);
           break;
@@ -3427,12 +3462,18 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       state.integrity.push('玩法 ' + m.id + ' 执行失败: ' + (err && err.message));
       return null;
     }
-    applyEffects(state, out.effects || [], '玩法·' + m.name);
-    if (m.extra && m.extra.length) applyEffects(state, m.extra, '玩法·' + m.name + '（专属）');
+    // 机制事件的现金同样走统一入口（applyEffects 内部已记账），被上限截断时如实告诉玩家
+    const cappedOut = [];
+    const effOut = applyEffects(state, out.effects || [], '玩法·' + m.name);
+    if (m.extra && m.extra.length) cappedOut.push.apply(cappedOut, applyEffects(state, m.extra, '玩法·' + m.name + '（专属）'));
+    let cappedSum = 0;
+    [effOut, cappedOut].forEach((arr) => (arr || []).forEach((x) => { if (x && x.cappedCash) cappedSum += x.cappedCash; }));
+    const lines = (out.lines || []).slice();
+    if (cappedSum) lines.push('（本章收入已达上限，' + cappedSum + ' 万没能落进口袋）');
     state.mechUsed[m.id] = state.turn;
     state.mechLog.push({ id: m.id, cat: m.cat, name: m.name, turn: state.turn });
     if (state.mechLog.length > 20) state.mechLog = state.mechLog.slice(-20);
-    return { id: m.id, cat: m.cat, name: m.name, lines: out.lines || [] };
+    return { id: m.id, cat: m.cat, name: m.name, lines: lines };
   }
 
   /** 界面用：最近触发的玩法（含大类中文名） */
@@ -3716,18 +3757,14 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       if: (s) => (!act.require || act.require(s)) && canPay(s, act.cost),
       run: (s) => {
         if (act.cost) applyEffects(s, act.cost, '本地开销·' + city.name);
-        // 本地行动的现金收入同样受"本章收入上限"约束：
-        // 否则大澳市这类给钱的本地行动会变成每天 +40 万的无上限刷钱机器（比上班还肥）。
+        // 现金收入统一走 gainCash（受本章收入上限约束）：否则大澳市这类给钱的本地行动
+        // 会变成每天 +40 万的无上限刷钱机器。
         const eff = [];
         let capped = 0;
         for (const e of act.effects || []) {
           if (e.k === 'money' && e.v > 0 && (e.key === 'cash' || e.key === 'deposit')) {
-            const cap = tuningOf(s).incomeCap;
-            const room = Math.max(0, cap - s.chapterSpendings);
-            const v = Math.min(e.v, room);
-            s.chapterSpendings += v;
-            if (v !== e.v) capped += e.v - v;
-            if (v > 0) eff.push({ k: 'money', key: e.key, v: v });
+            const r = gainCash(s, e.key, e.v, '本地行动·' + city.name);
+            capped += r.capped;
           } else eff.push(e);
         }
         if (eff.length) applyEffects(s, eff, '本地行动·' + city.name);
@@ -3755,12 +3792,11 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       run: (s) => {
         const gain = 3 + int(roll01(s, 'workPay', 0) * 6);
         const cap = tuningOf(s).incomeCap;
-        const capped = Math.min(gain, cap - s.chapterSpendings);
-        addPath(s, 'money.cash', capped, '工作收入');
-        s.chapterSpendings += capped;
+        const r = gainCash(s, 'cash', gain, '工作收入');
         applyEffects(s, [{ k: 'stat', key: 'stealth', v: 2 }, { k: 'stat', key: 'stamina', v: -5 }], '低调生活');
         return { lines: ['你照常出现在人群里，做一个无害的普通人。',
-          '收入 +' + capped + ' 万（本章收入已用 ' + s.chapterSpendings + '/' + cap + ' 万）'] };
+          '收入 +' + r.applied + ' 万（本章收入已用 ' + s.chapterSpendings + '/' + cap + ' 万）' +
+          (r.capped ? '　—— 上限已满，' + r.capped + ' 万没能落进口袋' : '')] };
       },
     });
     add({
@@ -3956,9 +3992,10 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
         const r = doCheck(s, 'gamble', chapterKey(s, 'table'), 40, [{ name: '运气', v: s.stats.causality < 30 ? 5 : -5 }]);
         if (r.refused) return { lines: [r.note], check: r };
         if (r.success) {
-          addPath(s, 'money.cash', stake * 3, '鬼事赌局盈利');
+          const win = gainCash(s, 'cash', stake * 3, '鬼事赌局盈利');
           applyEffects(s, [{ k: 'stat', key: 'causality', v: 8 }, { k: 'stat', key: 'stealth', v: -5 }], '赌局');
-          return { lines: ['你押对了。钱来得太快，快得像有人借给你的。'], check: r };
+          return { lines: ['你押对了。钱来得太快，快得像有人借给你的。',
+            '盈利 +' + win.applied + ' 万' + (win.capped ? '（本章收入已达上限，' + win.capped + ' 万没能落进口袋）' : '')], check: r };
         }
         addPath(s, 'money.cash', -stake, '鬼事赌局亏损');
         applyEffects(s, [{ k: 'stat', key: 'causality', v: 10 }, { k: 'stat', key: 'sanity', v: -6 }], '赌局失利');
@@ -3988,19 +4025,32 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   function encounterGhostId(state) {
     const r = roll100(state, 'ghostPick', 0);
     const city = cityOf(state);
+    // 反重复：连着两次撞同一只鬼在读感上非常明显（试玩里出现过"序列之鬼 3 天 2 次""鬼婴 7 天 3 次"）。
+    // 同一分支的候选池里还有别的鬼时，按确定性偏移换一只；换不出来才允许重复。
+    const avoid = state.lastGhost || null;
+    const pickFrom = (pool, salt) => {
+      if (!pool.length) return null;
+      const i = hashStr(state.seed + ':' + state.turn + ':' + salt) % pool.length;
+      if (pool.length > 1 && pool[i] === avoid) return pool[(i + 1) % pool.length];
+      return pool[i];
+    };
     if (r <= 25 && city.ghosts && city.ghosts.length) {
       const local = city.ghosts.filter((gid) => ghostAllowedNow(state, gid));
-      if (local.length) {
-        return local[hashStr(state.seed + ':' + state.turn + ':city') % local.length];
-      }
+      const got = pickFrom(local, 'city');
+      if (got) return got;
     }
     if (r <= 60) {
       const pool = ghostPoolOf(state).filter((gid) => ghostAllowedNow(state, gid));
-      if (pool.length) {
-        return pool[hashStr(state.seed + ':' + state.turn + ':wander') % pool.length];
-      }
+      const got = pickFrom(pool, 'wander');
+      if (got) return got;
     }
-    return activeGhost(state);
+    const main = activeGhost(state);
+    if (main === avoid) {
+      // 主线鬼就是上一只：看看游荡池里有没有别的，没有才接受重复
+      const alt = ghostPoolOf(state).filter((gid) => ghostAllowedNow(state, gid) && gid !== avoid);
+      if (alt.length) return alt[hashStr(state.seed + ':' + state.turn + ':anti') % alt.length];
+    }
+    return main;
   }
 
   /* --------------------------------------------------------- 遭遇与规律 */
@@ -4216,6 +4266,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       const v = roll100(state, 'encounter', 0);
       if (!dead && v <= rc) {
         const gid = encounterGhostId(state);
+        state.lastGhost = gid;     // 记住上一只鬼，供下一回合反重复（必须进存档，否则读档可以刷掉重复）
         state.pending = buildEncounter(state, gid);
         state.phase = 'encounter';
         settlement.push('遭遇判定：1d100=' + v + ' ≤ ' + rc + '% → 遇见「' + state.pending.name + '」（' + state.pending.level + ' 级）');
@@ -4286,6 +4337,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       v: state.v, seed: state.seed, turn: state.turn, difficulty: state.difficulty,
       pack: state.pack, custom: state.custom, tuning: state.tuning, legacy: state.legacy,
       city: state.city, era: state.era, cityRandom: state.cityRandom, eraRandom: state.eraRandom,
+      lastGhost: state.lastGhost || null,
       stats: state.stats, money: state.money, items: state.items,
       contracts: state.contracts, clues: state.clues, bestiary: state.bestiary,
       flags: state.flags, attempts: state.attempts, calamityFloor: state.calamityFloor,
