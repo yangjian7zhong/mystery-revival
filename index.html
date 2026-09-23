@@ -167,7 +167,15 @@ body.panelOpen #side{display:block}
 @media (max-width:900px){
   .scene{height:210px}
   .logwrap{max-height:38vh; min-height:130px}
-}</style>
+}
+/* ==== 第 16 轮：选项区不再像"不明所以的文字块" ==== */
+.choicesHead{font-size:13.5px; color:#ffb59a; font-weight:600; letter-spacing:.3px;
+  padding:6px 2px 2px; border-top:1px solid #1d2530; margin-top:4px}
+.choicesSub{font-size:12.5px; color:var(--dim); padding:0 2px 6px; line-height:1.6}
+#choices .btn.opt{text-align:left; border-left:3px solid #3d5b73; background:#0e1620; line-height:1.55}
+#choices .btn.opt:hover{border-left-color:var(--accent); background:#132030}
+#choices .btn.opt.exit{border-left-color:#4f8f5f}
+#choices .btn.opt.exit:hover{border-left-color:#6fbf7f}</style>
 </head>
 <body>
 <header>
@@ -5937,10 +5945,25 @@ body.panelOpen #side{display:block}
       box.appendChild(el('div', 'muted', '（没有可选行动——请把存档贴回来继续）'));
       return;
     }
+    // 标题：明确这里是"要你选一个"，否则一排按钮看起来像不明所以的文字块
+    const inEnc = !!(state && state.pending);
+    box.appendChild(el('div', 'choicesHead',
+      inEnc ? '你必须做出选择 —— 点下面任意一行（生路要线索支撑，陷阱会死人）'
+            : '今天可以做的事 —— 选一件（每天只能做一个主动作）'));
+    if (inEnc) {
+      const opts = state.pending.options || [];
+      const kinds = { exit: 0, neutral: 0, trap: 0 };
+      opts.forEach((o) => { if (kinds[o.kind] !== undefined) kinds[o.kind]++; });
+      box.appendChild(el('div', 'choicesSub',
+        '现在给出 ' + opts.length + ' 个选项：其中可走的路 ' + kinds.exit + ' 条（需你已掌握线索）、' +
+        '安全但会受伤的 ' + kinds.neutral + ' 条、直接触发规矩的 ' + kinds.trap + ' 条。' +
+        '看不出来就先去调查——线索越全，生路越明确。'));
+    }
     choices.forEach((c, i) => {
       // 选项文字里已经写了「（生路）」的，不再重复追加标注
       const note = c.note && !c.label.includes('生路') ? c.note : '';
-      const b = el('button', 'btn' + (c.note ? ' exit' : ''), (i + 1) + '｜ ' + c.label + note);
+      const b = el('button', 'btn opt' + (c.note ? ' exit' : ''),
+        String(i + 1).padStart(2, '0') + '　' + c.label + note);
       b.onclick = () => onChoice(c.id);
       box.appendChild(b);
     });
@@ -6115,14 +6138,14 @@ body.panelOpen #side{display:block}
    * 全部为内联 SVG，按 seed+turn 确定性生成，不引用任何外部素材。
    */
   const ERA_PALETTE = {
-    // [天空上, 天空中, 地平线暖色, 亮光(月/窗/边光), 主体中间调, 剪影]
-    ancient: ['#2b3a52', '#5d6f8a', '#d8a86a', '#ffe8bd', '#8a7a63', '#2a2b33'],
-    minguo: ['#3a3040', '#6d5a52', '#e0a068', '#ffe2b0', '#8d7a68', '#2e2a2c'],
-    y2017: ['#25384f', '#4a6a8c', '#8fb4d8', '#eaf4ff', '#7d8da3', '#22293a'],
-    y2018: ['#26414a', '#4f7b80', '#9fd0c4', '#f2fff4', '#7f9a94', '#212c31'],
-    y2019: ['#33305a', '#5f5590', '#c39fe0', '#f4ecff', '#8b82b0', '#262238'],
-    doomsday: ['#452028', '#7d3a30', '#e8845a', '#ffd9a8', '#96685a', '#2e1c1c'],
-    after60: ['#3b3a2c', '#6e6a4e', '#d8c88a', '#fff6d8', '#948c6e', '#2c2b24'],
+    // 阴冷诡异向：[天空上, 天空中, 地平线冷光, 高光(月/窗/边光), 主体中间调, 剪影]
+    ancient: ['#1b2635', '#3d4c60', '#8d9cb0', '#f0d9a8', '#6c7989', '#0a0e14'],
+    minguo: ['#231d16', '#453c33', '#8a7460', '#ffdc9c', '#6f6459', '#0b0a09'],
+    y2017: ['#182435', '#33475f', '#7894b4', '#eaf5ff', '#5f7191', '#070b12'],
+    y2018: ['#182429', '#31494c', '#6d9192', '#e6fff4', '#5c7374', '#060b0c'],
+    y2019: ['#1f1b33', '#3d3659', '#7868a0', '#f4ecff', '#5f5686', '#0a0813'],
+    doomsday: ['#2b1415', '#4d2c28', '#9e5147', '#ffc79a', '#71453e', '#0d0606'],
+    after60: ['#24241b', '#484735', '#8b8366', '#fff3cd', '#6f6a56', '#0b0b08'],
   };
 
   // 行动 → 母题
@@ -6371,6 +6394,35 @@ body.panelOpen #side{display:block}
     out.push(E_(200, horizon + 24, 240, 34, pal[2], .28));
     const flat = (a) => [].concat(a).reduce((acc, x) => acc.concat(Array.isArray(x) ? flat(x) : x), []);
     out.push(flat((MOTIFS[motif] || MOTIFS.skyline)(pal, hh)).join(''));
+    // ===== 阴冷诡异质感层（借鉴《我叫杨间》：羊皮纸颗粒、被黑暗窥视的眼睛、高对比冷光）=====
+    // 旧纸颗粒：SVG 湍流滤镜直接生成，不需要任何外部贴图
+    out.push('<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"/>' +
+      '<feColorMatrix type="saturate" values="0"/></filter>');
+    out.push('<rect width="' + W + '" height="' + H + '" filter="url(#grain)" opacity=".13"/>');
+    for (let i = 0; i < 5; i++) {
+      out.push(E_((hh(i + 300) * W).toFixed(0), (hh(i + 320) * H).toFixed(0),
+        (18 + hh(i + 340) * 46).toFixed(0), (10 + hh(i + 360) * 26).toFixed(0), pal[2], .06));
+    }
+    for (let y = 0; y < H; y += 4) out.push(LN(0, y, W, y, '#000000', .06, 1));   // 扫描线
+    for (let i = 0; i < 3; i++) {                                                  // 胶片划痕
+      const sx = (hh(i + 400) * W).toFixed(0);
+      out.push(LN(sx, (hh(i + 410) * 40).toFixed(0), (Number(sx) + hh(i + 420) * 3).toFixed(0), H, '#ffffff', .09, 1));
+    }
+    // 暗处窥视的眼睛：遭遇/结局时必现，平时偶尔出现——"被黑暗窥视"的招牌意象
+    if ((state && (state.pending || state.over)) || hh(7) > .5) {
+      const ex = 44 + hh(11) * 300;
+      const ey = 54 + hh(13) * 58;
+      const gap = 26 + hh(15) * 16;
+      out.push(E_(ex.toFixed(0), ey.toFixed(0), 16, 8, '#000000', .5));
+      [-1, 1].forEach((k) => {
+        const x = (ex + k * gap / 2).toFixed(0);
+        out.push(E_(x, ey.toFixed(0), 6.4, 3.6, pal[3], .95));
+        out.push(C_(x, ey.toFixed(0), 2.2, '#05070a', .95));
+        out.push(C_(x, ey.toFixed(0), 0.9, '#ffffff', .55));
+      });
+      out.push(LN(ex - 46, ey, ex - gap / 2 - 9, ey, pal[3], .16, 1.6));
+      out.push(LN(ex + gap / 2 + 9, ey, ex + 46, ey, pal[3], .16, 1.6));
+    }
     out.push(R_(0, 0, W, H, 'url(#vig)'));
     for (let i = 0; i < 26; i++) {
       out.push(C_((hh(i + 90) * W).toFixed(0), (hh(i + 150) * H).toFixed(0), 0.9, '#fff', (.05 + hh(i) * .09).toFixed(2)));
