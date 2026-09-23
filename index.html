@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
 <style>/* 神秘复苏模拟器 · 样式（暗色、克制、移动端可读） */
 :root{
@@ -86,7 +86,46 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
 .toolbox textarea{width:100%; resize:vertical; font-family:ui-monospace,Consolas,monospace; font-size:12.5px}
 .toolbox .row{align-items:center}
 .toolbox .pk{min-width:72px; color:var(--dim); font-size:13px}
-</style>
+
+/* ==== 第 12 轮：剧情类界面（场景图 + 刚刚发生 + 手机优先） ==== */
+#stage{display:flex; flex-direction:column; gap:10px; min-height:0}
+.scene{width:100%; height:168px; border-radius:12px; overflow:hidden; border:1px solid #1d2530;
+  background:linear-gradient(#0b0f14,#0e141b); flex:none}
+.scene svg{display:block; width:100%; height:100%}
+.logwrap{flex:1; min-height:120px; overflow:auto; scroll-behavior:smooth;
+  border:1px solid #161c24; border-radius:12px; background:rgba(255,255,255,.012); padding:10px 12px}
+.nowcard{border:1px solid var(--accent); border-radius:12px; padding:10px 12px;
+  background:linear-gradient(180deg, rgba(255,112,67,.10), rgba(255,112,67,.03)); flex:none}
+.nowcard .nowhead{font-size:12.5px; color:#ffb59a; letter-spacing:.4px; margin-bottom:6px}
+.nowcard .line{margin:3px 0}
+.freebar{display:flex; gap:8px; width:100%}
+.freebar .input{flex:1}
+.jumpnew{position:sticky; bottom:6px; align-self:center; z-index:5;
+  background:#1b2430; border-color:var(--accent); box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.line.say{color:#e9eef5}
+.line.say.ghost{color:#ff8a80}
+.line.say.mine{color:#9fd2ff}
+.line.narr{color:#c8d2dc}
+.line.sys{color:#8a94a0; font-size:12.5px}
+.speaker{color:#ffb59a; font-weight:600; margin-right:4px}
+
+@media (max-width:900px){
+  .scene{height:132px}
+  .logwrap{min-height:96px; max-height:46vh}
+  #choices .btn{padding:13px 14px; font-size:15px; line-height:1.5}
+  .freebar .input{padding:11px 12px; font-size:15px}
+  header h1{font-size:16px}
+  .tools{gap:6px; flex-wrap:wrap}
+}
+@media (max-width:900px){
+  html,body{height:auto}
+  main{min-height:auto}
+}
+/* ==== 世界观速览 ==== */
+.guideRow{display:flex; gap:10px; padding:6px 2px; border-bottom:1px dashed #1c232c}
+.guideKey{flex:none; width:118px; color:#ffb59a; font-size:13px; font-weight:600}
+.guideVal{flex:1; color:#c8d2dc; font-size:13px; line-height:1.55}
+@media (max-width:900px){ .guideRow{flex-direction:column; gap:2px} .guideKey{width:auto} }</style>
 </head>
 <body>
 <header>
@@ -95,9 +134,10 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   <span class="tag" id="diffLabel">—</span>
   <span class="spacer"></span>
   <div class="tools">
+    <button class="btn small" id="btnGuide">世界观</button>
     <span class="tag" id="aiState">AI 叙事：关</span>
     <button class="btn small" id="btnAI">AI 叙事设置</button>
-    <button class="btn small" id="btnCard">查看存档卡</button>
+    <button class="btn small" id="btnCard">存档卡</button>
     <button class="btn small" id="btnSave">导出存档</button>
     <button class="btn small" id="btnLoad">导入存档</button>
   </div>
@@ -112,11 +152,22 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     </div>
   </aside>
   <section id="stage">
-    <div id="log"></div>
+    <div id="scene" class="scene"></div>
+    <div id="logWrap" class="logwrap">
+      <div id="log"></div>
+    </div>
+    <button class="btn small jumpnew" id="jumpNew" style="display:none">▲ 上面有新剧情</button>
     <div id="toolbox" class="toolbox" style="display:none"></div>
+
+    <!-- 「刚刚发生」：与选项紧贴，保证手机上一定能看到刚才发生了什么 -->
+    <div id="now" class="nowcard" style="display:none"></div>
+
     <div id="footer">
-      <input class="input" id="customInput" placeholder="自定义行动（叙事描述，不参与判定；写到玩法名可直接点名，例如「我要灵异潮汐」）">
-      <button class="btn small" id="btnCustom">执行</button>
+      <div class="freebar">
+        <input class="input" id="customInput" placeholder="自由行动：直接写你想做什么或说什么（例：我去翻第七中学的档案 / 我喊它的名字 / 我什么都不做，听它敲门）">
+        <button class="btn small primary" id="btnCustom">说出来</button>
+      </div>
+      <div class="hint" id="intentHint" style="display:none"></div>
     </div>
     <div id="choices"></div>
   </section>
@@ -686,11 +737,12 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       flags: { safehouse: 0 }, place: 'city',
     },
     yangji: {
-      id: 'yangji', name: '杨戬开局（终局级·极难）',
-      blurb: '你已不是人，不是鬼，也不是驭鬼者。你是第四种存在。但阴阳路的方向，传来了不该有的敲门声。',
+      id: 'yangji', name: '杨戬开局（终局级·鬼域护体）', godLayers: 9,
+      blurb: '你已不是人，不是鬼，也不是驭鬼者——你是第四种存在。体内叠着十几层鬼域与六只契约厉鬼：普通的规律压不住你，但每替你挡一次，鬼域就少一层。',
       stats: { erosion: 90, humanity: 8, calamity: 70, stealth: 5, sanity: 60, stamina: 100, causality: 60, pollution: 0, ghostEye: 9 },
       money: { cash: 0, deposit: 0, gold: 100 },
-      items: ['guancai', 'guizhu', 'seal'], contracts: ['qiaomen'],
+      items: ['guancai', 'guizhu', 'seal'],
+      contracts: ['qiaomen', 'wutou', 'guiguan', 'eshigui', 'guiying', 'jingqiaoqiao'],
       flags: { safehouse: 3 }, place: 'yangjian',
     },
 
@@ -3154,6 +3206,9 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     state.calamityFloor = Math.max(0, stats.calamity - 5);
     state.pending = null;
     state.peakGold = stats.gold || 0;
+    // 鬼域层数（目前只有杨戬开局有）：致死代价改为消耗一层鬼域，层数用尽才会真的死
+    state.godLayers = pack.godLayers || 0;
+    state.notes = [];     // 引擎在流程里产生的提示，由 resolve 带进叙事
 
     // 二周目继承：只改初始值，不参与任何判定
     state.legacy = opts.legacy || null;
@@ -3593,16 +3648,42 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   }
 
   /* --------------------------------------------------------- 阈值与结局 */
+  /**
+   * 鬼域护体：本该致死的代价先由体内鬼域承担（杨戬开局）。
+   * 返回 true = 这次死被挡下了（调用方必须放弃致死结算）。
+   */
+  function godSave(state, why, restore) {
+    if (!state.godLayers || state.godLayers <= 0) return false;
+    state.godLayers -= 1;
+    if (restore) for (const k of Object.keys(restore)) addPath(state, k, restore[k], '鬼域护体·回调');
+    (state.notes = state.notes || []).push(
+      '你体内的鬼域自动铺开了一层，把「' + why + '」硬生生压了回去。' +
+      '（剩余鬼域 ' + state.godLayers + ' 层' + (state.godLayers === 0 ? '——最后一层了' : '') + '）');
+    return true;
+  }
+
   function checkThresholds(state) {
     if (state.over) return;
-    if (state.stats.erosion >= 100) return endGame(state, 'p_fuxi', '鬼侵蚀抵达 100，你不再是人。', 'erosion');
-    if (state.stats.humanity <= 0) return endGame(state, 'p_fuxi', '人性归零，你在镜子里看见的不再是自己。', 'humanity');
+    if (state.stats.erosion >= 100) {
+      if (godSave(state, '侵蚀到顶', { 'stats.erosion': -12 })) return;
+      return endGame(state, 'p_fuxi', '鬼侵蚀抵达 100，你不再是人。', 'erosion');
+    }
+    if (state.stats.humanity <= 0) {
+      if (godSave(state, '人性归零', { 'stats.humanity': 12 })) return;
+      return endGame(state, 'p_fuxi', '人性归零，你在镜子里看见的不再是自己。', 'humanity');
+    }
     if (state.stats.calamity >= 100) {
       triggerCalamity(state);
       if (state.over) return;
       // 劫难代价（侵蚀 +10）可能当场把人推过终点，必须立刻复检
-      if (state.stats.erosion >= 100) return endGame(state, 'p_fuxi', CONTENT.endings.p_fuxi.text, 'calamity');
-      if (state.stats.humanity <= 0) return endGame(state, 'p_fuxi', CONTENT.endings.p_fuxi.text, 'calamity');
+      if (state.stats.erosion >= 100) {
+        if (godSave(state, '劫难压顶', { 'stats.erosion': -12 })) return;
+        return endGame(state, 'p_fuxi', CONTENT.endings.p_fuxi.text, 'calamity');
+      }
+      if (state.stats.humanity <= 0) {
+        if (godSave(state, '劫难压顶', { 'stats.humanity': 12 })) return;
+        return endGame(state, 'p_fuxi', CONTENT.endings.p_fuxi.text, 'calamity');
+      }
     }
   }
 
@@ -3621,7 +3702,11 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       { name: '灾厄印记', v: -marks * 10 },
     ]);
     if (!r.success) {
-      if (marks + 1 >= 5) return endGame(state, 'w_ruyu', CONTENT.endings.w_ruyu.text, 'calamity');
+      if (marks + 1 >= 5) {
+      if (godSave(state, '劫难印记满层', { 'stats.calamity': -40 })) return;
+      return endGame(state, 'w_ruyu', CONTENT.endings.w_ruyu.text, 'calamity');
+    }
+      if (godSave(state, '劫难降临', { 'stats.calamity': -40 })) return;
       return endGame(state, 'dead', '劫难降临，这一次你没有躲过去。', 'calamity');
     }
     // 存活：回落但不得跌破下限（补丁 P1.3）
@@ -3767,6 +3852,163 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   function canAttempt(state, purpose, target) {
     return attemptState(state, purpose, target).allowed;
   }
+
+  /* ------------------------------------------------- 自由行动：意图识别 */
+  /**
+   * 把玩家自己写的话映射到"真实行动"（不接 AI 也能有自由度）。
+   * 命中就按那个行动结算（有数值、有判定），没命中才退化成纯叙事描述。
+   */
+  const INTENT_RULES = [
+    { id: 'purge', kw: ['处置', '压劫难', '净化', '拆规矩', '源头', '清剿', '拆了它'] },
+    { id: 'investigate', kw: ['调查', '打听', '查', '翻', '档案', '线索', '报纸', '上网', '搜', '问', '走访', '探', '看看'] },
+    { id: 'rest', kw: ['休息', '睡', '休整', '静养', '躺', '歇', '不出门', '缓一缓'] },
+    { id: 'work', kw: ['上班', '打工', '赚钱', '挣', '开店', '兼职', '工作', '跑单'] },
+    { id: 'train', kw: ['训练', '练', '觉醒', '开眼', '适应'] },
+    { id: 'freeze', kw: ['冻结', '死机', '压住', '停住', '按下去', '让它睡'] },
+    { id: 'shop', kw: ['黑市', '买', '采购', '补给', '道具'] },
+    { id: 'gamble', kw: ['赌', '押', '下注'] },
+    { id: 'mission', kw: ['任务', '接活', '出任务', '总部派'] },
+    { id: 'social', kw: ['社交', '朋友', '吃饭', '约会', '聊', '喝'] },
+    { id: 'safehouse', kw: ['加固', '安全屋', '封门', '符阵', '门锁'] },
+    { id: 'heal', kw: ['治疗', '看病', '心理医生', '医院', '包扎', '疗伤'] },
+  ];
+
+  /** 解析自由文本 → { actionId, label, via } 或 null */
+  function parseIntent(state, text) {
+    const t = String(text || '').trim();
+    if (!t) return null;
+    const pool = actionPool(state).filter((a) => !a.if || a.if(state));
+    const available = pool.map((a) => a.id);
+    // 1) 去某个地方（今天刷出来的探索选项）
+    for (const p of placeProbeOptions(state)) {
+      const id = 'probe_' + hashStr(p.name) % 1000;
+      if (available.indexOf(id) >= 0) {
+        const key = p.name.replace(/^(自家|学校|小区|镇上|村后|路口|城南|老城)/, '').slice(0, 4);
+        if (key && t.indexOf(key) >= 0) return { actionId: id, label: '去看看：' + p.name, via: '地点' };
+      }
+    }
+    // 2) 驾驭某只鬼：「驾驭敲门鬼」「收服鬼婴」
+    if (/驾驭|收服|契约|收下|压住它/.test(t)) {
+      for (const gid of Object.keys(CONTENT.ghosts)) {
+        const g = CONTENT.ghosts[gid];
+        if (t.indexOf(g.name) >= 0 && available.indexOf('mastery:' + gid) >= 0) {
+          return { actionId: 'mastery:' + gid, label: '驾驭「' + g.name + '」', via: g.name };
+        }
+      }
+    }
+    // 3) 本地专属行动：命中城市行动名里的关键词
+    const city = cityOf(state);
+    if (city.act && available.indexOf('city_' + city.id) >= 0) {
+      const key = String(city.act.label).replace(/^去/, '').replace(/（.*?）/g, '').slice(0, 5);
+      if (key && t.indexOf(key) >= 0) return { actionId: 'city_' + city.id, label: city.act.label, via: '本地行动' };
+    }
+    // 4) 通用行动关键词（按规则优先级：先专有后通用）
+    for (const rule of INTENT_RULES) {
+      for (const kw of rule.kw) {
+        if (t.indexOf(kw) >= 0 && available.indexOf(rule.id) >= 0) {
+          const a = pool.find((x) => x.id === rule.id);
+          return { actionId: rule.id, label: (a && a.label) || rule.id, via: kw };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** 遭遇自由输入的同义词归一化：让"把门封死""别出声"这类口语也能对上选项标签 */
+  const ENC_SYN = {
+    封门: ['封死', '封住', '堵住', '封上', '钉死', '堵死', '焊'],
+    回避: ['躲', '退', '避开', '撤', '缩', '绕开', '走开'],
+    静默: ['不出声', '别出声', '不要出声', '没出声', '安静', '屏住', '闭嘴', '不说话'],
+    出声: ['喊', '叫', '出声', '说话', '喊话'],
+    开门: ['推门', '开门', '把门打开', '拉开门'],
+    奔跑: ['跑', '逃', '冲', '狂奔', '飞奔'],
+    观察: ['看', '观察', '盯着', '留意', '注意'],
+    触碰: ['碰', '摸', '抱', '拿起来', '伸手'],
+    遵循: ['照做', '按规矩', '照着规律', '不触犯', '遵守'],
+  };
+
+  function normalizeEncText(t) {
+    let s = String(t || '');
+    // 先处理否定式，否则"不出声"会被当命中"出声"
+    s = s.replace(/不出声|别出声|不要出声|没出声/g, '静默');
+    for (const tag of Object.keys(ENC_SYN)) {
+      for (const w of ENC_SYN[tag]) if (s.indexOf(w) >= 0) s += ' ' + tag;
+    }
+    return s;
+  }
+
+  /**
+   * 遭遇中的自由输入：把玩家说的话对应到**现有选项**上（绝不会凭空创造一个绕过判定的选项）。
+   */
+  function parseEncounterIntent(state, text) {
+    const enc = state.pending;
+    if (!enc) return null;
+    const raw = String(text || '').trim();
+    if (!raw) return null;
+    const t = normalizeEncText(raw);
+    let best = null; let bestScore = 0;
+    for (const o of enc.options) {
+      let score = 0;
+      const label = String(o.label || '');
+      for (let i = 0; i + 1 < label.length; i++) if (t.indexOf(label.slice(i, i + 2)) >= 0) score += 1;
+      (o.tags || []).forEach((tg) => { if (tg && t.indexOf(tg) >= 0) score += 3; });
+      if (score > bestScore) { bestScore = score; best = o; }
+    }
+    return bestScore >= 3 ? { optionId: best.id, label: best.label, kind: best.kind } : null;
+  }
+
+  const PLACES = {
+    school: ['第七中学的旧教学楼', '学校后门的监控室'], apartment: ['自家楼下的物业', '小区地下车库'],
+    city: ['城南的旧商城', '老城区的天桥', '夜间营业的便利店'], town: ['镇上的祠堂', '路口那盏不亮的路灯'],
+    village: ['村后的坡地', '晒谷场的老仓库'], hotel: ['酒店十二层的走廊', '地下停车场'],
+    street: ['步行街的电话亭', '巷口的裁缝铺'], shop: ['药铺后间', '柜台底下的抽屉'],
+    temple: ['祠堂的偏殿', '山门外的石阶'], bus: ['末班车的候车亭', '公交总站的调度室'],
+    oldhouse: ['老宅的地下室', '二楼的空房间'], yangjian: ['阴阳路的入口', '黄金门的背面'],
+  };
+
+  /** 每天 3 个"去哪里看看"的探索选项（按种子确定性抽取；只给叙事与小数值，不改判定） */
+  function placeProbeOptions(state) {
+    const city = cityOf(state);
+    const list = PLACES[city.place] || PLACES.city;
+    const out = [];
+    for (let i = 0; i < 3; i++) {
+      const name = list[hashStr(state.seed + ':' + state.turn + ':probe' + i) % list.length];
+      if (out.some((x) => x.name === name)) continue;
+      out.push({ name: name });
+    }
+    return out;
+  }
+
+  function probeAction(state, name) {
+    return {
+      id: 'probe_' + hashStr(name) % 1000,
+      label: '去看看：' + name,
+      tags: ['probe'],
+      run: (s) => {
+        const r = roll100(s, 'probe:' + name, 0);
+        if (r <= 18) {           // 小概率撞见异常：给一点线索方向，但也要付代价
+          applyEffects(s, [{ k: 'stat', key: 'pollution', v: 4 }, { k: 'stat', key: 'sanity', v: -3 }], '探索异常');
+          return { lines: ['你去了 ' + name + '。', '那里有件东西不对劲：' + (CITY_PROBE_HINTS[hashStr(name) % CITY_PROBE_HINTS.length])] };
+        }
+        if (r <= 40) {
+          applyEffects(s, [{ k: 'stat', key: 'stamina', v: -4 }], '白跑一趟');
+          return { lines: ['你去了 ' + name + '，什么也没有。', '回程时你一直留意身后，脚步声始终只有你自己的。'] };
+        }
+        if (r <= 70) {
+          applyEffects(s, [{ k: 'stat', key: 'sanity', v: 2 }, { k: 'stat', key: 'stealth', v: 2 }], '熟悉地形');
+          return { lines: ['你在 ' + name + ' 待了一会儿。', '你记住了这里的出入口和摄像头位置——真出事的时候，这些比勇气有用。'] };
+        }
+        applyEffects(s, [{ k: 'stat', key: 'pollution', v: 3 }, { k: 'stat', key: 'calamity', v: 2 }], '踩到痕迹');
+        return { lines: ['你去了 ' + name + '。', '地上有拖拽的痕迹，拖到墙根就断了。今晚这里的空气不太对。'] };
+      },
+    };
+  }
+  const CITY_PROBE_HINTS = [
+    '墙角的石灰是新刷的，刷的时候没带梯子——是高处自己落下来的。',
+    '有人在这里数过数，数到一半停了，地上留着他最后数到的那个数。',
+    '门内侧贴着一张纸条：不要在这里说出自己的名字。',
+    '窗户是关着的，但窗台上的灰有两个人的手印，一个是反着的。',
+  ];
 
   /** 落地城市的专属行动（每城一条；与其它行动共用"每天一个主动作"的额度） */
   function cityAction(state) {
@@ -4048,6 +4290,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     });
     const ca = cityAction(state);
     if (ca) add(ca);
+    // 自由探索：每天 3 个"去哪里看看"（让选项不再只有那几个功能按钮）
+    for (const p of placeProbeOptions(state)) add(probeAction(state, p.name));
     return pool.filter((a) => !a.if || a.if(state));
   }
 
@@ -4174,10 +4418,16 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       // 确定性必死判定；只有持有有效抵御手段才进入概率结算
       const shield = pickShield(state, g);
       if (!shield) {
-        dead = true;
-        deadCause = 'encounter-trap';
-        lines.push('你做出了那个选择。空气安静了一瞬——然后规律合拢。');
-        settlement.push('命中「' + g.name + '」的杀人规律 → 无有效灵异道具/能力 → 默认必死（确定性判定，不含随机数）');
+        if (godSave(state, '命中「' + g.name + '」的规律（' + (opt.label || '') + '）')) {
+          settlement.push('命中「' + g.name + '」的杀人规律 → 被你体内的鬼域挡下（剩余 ' + state.godLayers + ' 层）');
+          applyEffects(state, [{ k: 'stat', key: 'pollution', v: 6 }], '鬼域挡下的余波');
+          lines.push('规律合拢的那一刻，你脚下的地面换了颜色：一层鬼域铺开，把它压在原地。');
+        } else {
+          dead = true;
+          deadCause = 'encounter-trap';
+          lines.push('你做出了那个选择。空气安静了一瞬——然后规律合拢。');
+          settlement.push('命中「' + g.name + '」的杀人规律 → 无有效灵异道具/能力 → 默认必死（确定性判定，不含随机数）');
+        }
       } else {
         const r = doCheck(state, 'resist:' + g.id, shield.item, shield.base, [
           { name: '道具匹配', v: shield.bonus },
@@ -4343,7 +4593,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     }
 
     return {
-      narrative: narrative,
+      narrative: narrative.concat(state.notes ? state.notes.splice(0) : []),
       actionVariant: lastVariant,
       settlement: settlement.concat(state.lastMechLines || []),
       choices: availableActions(state),
@@ -4379,6 +4629,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       贡献: state.money.contribution,
       道具: state.items.map((i) => CONTENT.items[i.id].name + '×' + i.uses).join('、') || '无',
       契约: state.contracts.map((c) => CONTENT.ghosts[c].name).join('、') || '无',
+      鬼域: state.godLayers ? (state.godLayers + ' 层（替你挡死，用尽才会死）') : undefined,
       线索: state.clues.length + ' 条',
       安全屋: state.flags.safehouse + ' 级',
       灾厄印记: state.flags.marks,
@@ -4397,6 +4648,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       pack: state.pack, custom: state.custom, tuning: state.tuning, legacy: state.legacy,
       city: state.city, era: state.era, cityRandom: state.cityRandom, eraRandom: state.eraRandom,
       lastGhost: state.lastGhost || null,
+      godLayers: state.godLayers || 0,
       stats: state.stats, money: state.money, items: state.items,
       contracts: state.contracts, clues: state.clues, bestiary: state.bestiary,
       flags: state.flags, attempts: state.attempts, calamityFloor: state.calamityFloor,
@@ -4452,6 +4704,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     serialize: serialize,
     deserialize: deserialize,
     checksum: checksum,        // 供测试构造合法校验和的"老存档"（缺 city/era）
+    parseIntent: parseIntent,  // 自由行动：把玩家写的话映射成真实行动
+    parseEncounterIntent: parseEncounterIntent,  // 遭遇中的自由输入 → 映射到现有选项
     panelOf: panelOf,
     masteryCheck: masteryCheck,
     miracleCheck: miracleCheck,
@@ -5344,17 +5598,51 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     $('diffLabel').textContent = p['难度'];
   }
 
-  function addLog(kind, lines) {
+  /* ------------------------------------------------------ 剧情流（第 12 轮）
+   * 手机端问题：「点完选项不知道上面还有故事」。
+   * 解法：① 新剧情永远自动滚到可见处；② 本轮新增的行同时渲染到紧贴选项的「刚刚发生」卡片；
+   *      ③ 选完先只给一个「继续」按钮，玩家读完结果再进下一步，不再"一跳就到下一个选择"。
+   */
+  let lastLines = [];        // 本轮新增的行（供「刚刚发生」卡片）
+  let nowLineCount = 0;
+
+  function scrollLog() {
+    const box = $('logWrap');
+    if (!box) return;
+    box.scrollTop = box.scrollHeight;
+    const j = $('jumpNew');
+    if (j) j.style.display = 'none';
+  }
+
+  function addLog(kind, lines, opts) {
     const box = $('log');
     for (const line of [].concat(lines)) {
       if (line === undefined || line === null || line === '') continue;
       const d = el('div', 'line ' + kind, String(line));
       box.appendChild(d);
+      if (!(opts && opts.noNow)) lastLines.push({ kind: kind, text: String(line) });
     }
-    box.scrollTop = box.scrollHeight;
+    scrollLog();
   }
 
-  function renderChoices(choices) {
+  /** 把本轮新增的叙事渲染进「刚刚发生」卡片（紧贴选项，手机上也看得见） */
+  function renderNow() {
+    const box = $('now');
+    clear(box);
+    const rows = lastLines.filter((x) => x.kind !== 'set');
+    if (!rows.length) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    box.appendChild(el('div', 'nowhead', '刚刚发生 · 第 ' + (state ? state.turn : '?') + ' 天'));
+    rows.slice(-8).forEach((r) => {
+      const cls = r.kind === 'enc' ? 'line say ghost' : (r.kind === 'over' ? 'line say ghost' : 'line narr');
+      box.appendChild(el('div', cls, r.text));
+    });
+    nowLineCount = rows.length;
+  }
+
+  function hideNow() { const b = $('now'); if (b) { clear(b); b.style.display = 'none'; } }
+
+  function renderChoices(choices, mode) {
     const box = $('choices');
     clear(box);
     // 遭遇中不提供自定义入口：此刻必须做出选择，避免用描述性文本绕过判定
@@ -5363,6 +5651,16 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       const b = el('button', 'btn primary', '重开一局');
       b.onclick = () => showMenu();
       box.appendChild(b);
+      return;
+    }
+    // 结算后先只有「继续」：玩家读完结果再进下一步（不再"一跳就到下一个选择"）
+    if (mode === 'continue') {
+      const b = el('button', 'btn primary big', state && state.pending
+        ? '继续｜面对「' + state.pending.name + '」'
+        : '继续｜进入第 ' + (state.turn + 1) + ' 天');
+      b.onclick = continueNext;
+      box.appendChild(b);
+      box.appendChild(el('div', 'hint', '上面是刚刚发生的事；点「继续」才推进到下一步。'));
       return;
     }
     if (!choices.length) {
@@ -5432,8 +5730,37 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   }
 
   async function onChoice(id, customText) {
-    const rep = E.resolve(state, id, customText);
+    lastLines = [];                 // 本轮新增行：用于「刚刚发生」卡片
+    // 自由输入：先尝试识别成"真实行动"（不接 AI 也能有自由度）
+    let realId = id;
+    let intent = null;
+    if (id === '__custom__') {
+      if (state && state.pending && E.parseEncounterIntent) {
+        // 遭遇中：只允许把话对应到**现有选项**上，绝不凭空造一个绕过判定的选项
+        const ei = E.parseEncounterIntent(state, customText);
+        if (ei) {
+          realId = ei.optionId;
+          const kindName = { exit: '生路', neutral: '中性', trap: '陷阱' }[ei.kind] || ei.kind;
+          intent = { label: '[' + kindName + '] ' + ei.label, via: '你写的那句话' };
+        } else {
+          addLog('warn', '【此刻必须做出选择】引擎不会因为你说了什么而改变判定。');
+          addLog('muted', '你可以直接写你要做的事，但必须落在下面这些选项上；选项的文字/标签对得上，我就替你选它。');
+          return;
+        }
+      } else if (E.parseIntent) {
+        intent = E.parseIntent(state, customText);
+        if (intent && E.availableActions(state).some((a) => a.id === intent.actionId)) {
+          realId = intent.actionId;
+        }
+      }
+    }
+    const rep = E.resolve(state, realId, customText);
     if (rep.error) { addLog('warn', '【拒绝】' + rep.error); return; }
+    if (intent && realId !== '__custom__') {
+      addLog('muted', '（从你的话里识别到行动：' + intent.label + '｜依据：“' + intent.via + '”）');
+    } else if (id === '__custom__') {
+      addLog('muted', '（这句话只作为叙事描述，判定仍按当前局势照常结算）');
+    }
     // 叙事
     if (window.RS_AI.enabled && window.RS_AI.endpoint && rep.narrative.length) {
       try {
@@ -5455,14 +5782,193 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     if (rep.settlement && rep.settlement.length) addLog('set', rep.settlement.map((s) => '▸ ' + s));
     if (state.integrity.length) { addLog('warn', '【完整性告警】' + state.integrity.slice(-3).join(' / ')); }
     renderPanel();
-    renderScene(false);
-    renderEncounter();
-    if (state.over) renderOver();
-    renderChoices(rep.choices);
+    renderSceneArt(state);
+    if (state.over) { renderOver(); hideNow(); renderChoices([]); autoSave(); return; }
+    if (state.pending) renderEncounter();     // 进入遭遇：正文要显示在「刚刚发生」里
+    renderNow();
+    renderChoices(rep.choices, 'continue');   // 先读完结果，再让玩家点「继续」
     autoSave();
   }
 
-  /* ------------------------------------------------------------ 存档 */
+  /** 「继续」：清掉结果卡片，正式进入下一步（新的一天 / 一场遭遇） */
+  function continueNext() {
+    hideNow();
+    lastLines = [];
+    if (!state) return;
+    if (state.over) { renderOver(); renderChoices([]); return; }
+    if (state.pending) {
+      // 遭遇正文已经在「刚刚发生」里展示过，这里不再重复写进日志
+      renderSceneArt(state);
+      renderChoices(E.availableActions(state));
+      return;
+    }
+    renderScene(true);
+    renderSceneArt(state);
+    renderChoices(E.availableActions(state));
+  }
+
+  /** 遭遇正文（放进日志，供"继续"之后回看） */
+  function renderEncounterPreview() {
+    if (!state.pending) return;
+    addLog('enc', '【遭遇】' + state.pending.name + '（' + state.pending.level + ' 级）', { noNow: true });
+    addLog('', state.pending.text, { noNow: true });
+    if (N) { const mood = N.encounterMood(state); if (mood) addLog('scene', mood, { noNow: true }); }
+    if (state.pending.revealedClues.length) {
+      addLog('clue', state.pending.revealedClues.map((c) => '· 你掌握的线索：' + c), { noNow: true });
+    } else {
+      addLog('warn', '· 你对它一无所知——现在只能靠判断和运气。', { noNow: true });
+    }
+    renderSceneArt(state);
+  }
+
+  /* -------------------------------------------- 场景插画（内联 SVG 水墨图）
+   * 单文件不能带外部图片，所以「图片」由程序按种子确定性地画出来：
+   * 时期决定色调，城市/遭遇决定前景母题（门、走廊、雨巷、山影、牌位…）。
+   */
+  const ERA_PALETTE = {
+    ancient: ['#1a1410', '#2b2118', '#6b5a44'],
+    minguo: ['#1c1712', '#33261b', '#8a7350'],
+    y2017: ['#0d1117', '#151d28', '#3f556b'],
+    y2018: ['#0b1113', '#131f22', '#3d5f63'],
+    y2019: ['#100e18', '#1b1730', '#4b3f78'],
+    doomsday: ['#140a0a', '#26100f', '#7a2f28'],
+    after60: ['#12120f', '#22201a', '#7d7452'],
+  };
+  const MOTIF_BY_PLACE = {
+    school: 'corridor', hotel: 'corridor', apartment: 'window', city: 'skyline',
+    town: 'trees', village: 'trees', street: 'rain', shop: 'window', temple: 'shrine',
+    bus: 'road', oldhouse: 'door', yangjian: 'gate', office: 'skyline',
+  };
+  const MOTIF_BY_LEVEL = { S: 'gate', A: 'door', B: 'window', C: 'rain' };
+
+  function sceneSvg(s) {
+    const era = (C.eras && C.eras[s && s.era]) || null;
+    const pal = ERA_PALETTE[s && s.era] || ERA_PALETTE.y2018;
+    const city = (C.cities && C.cities[s && s.city]) || null;
+    const seed = (s && s.seedInt) || 1;
+    const turn = (s && s.turn) || 1;
+    const h = (i) => ((seed * 9301 + turn * 49297 + i * 233) % 233280) / 233280;
+    let motif = s && s.pending
+      ? (MOTIF_BY_LEVEL[(C.ghosts[s.pending.ghost] || {}).level] || 'door')
+      : (MOTIF_BY_PLACE[(city && city.place) || 'city'] || 'skyline');
+    if (s && s.over) motif = 'gate';
+    const p = [];
+    p.push('<svg viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">');
+    p.push('<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + pal[0] + '"/><stop offset="1" stop-color="' + pal[1] + '"/></linearGradient>' +
+      '<radialGradient id="glow" cx="50%" cy="30%" r="70%">' +
+      '<stop offset="0" stop-color="' + pal[2] + '" stop-opacity=".55"/><stop offset="1" stop-color="' + pal[2] + '" stop-opacity="0"/></radialGradient></defs>');
+    p.push('<rect width="400" height="168" fill="url(#sky)"/>');
+    p.push('<ellipse cx="' + (60 + h(1) * 280).toFixed(0) + '" cy="34" rx="150" ry="70" fill="url(#glow)"/>');
+    // 远景：楼群/山影
+    const base = 118;
+    for (let i = 0; i < 9; i++) {
+      const w = 22 + h(i + 20) * 30;
+      const hh = 24 + h(i + 40) * 62;
+      const x = i * 46 - 10 + h(i + 60) * 8;
+      p.push('<rect x="' + x.toFixed(0) + '" y="' + (base - hh).toFixed(0) + '" width="' + w.toFixed(0) + '" height="' + hh.toFixed(0) +
+        '" fill="' + pal[0] + '" opacity=".92"/>');
+      if (h(i + 80) > .55) {
+        p.push('<rect x="' + (x + 6).toFixed(0) + '" y="' + (base - hh + 10).toFixed(0) + '" width="4" height="5" fill="' + pal[2] + '" opacity=".7"/>');
+      }
+    }
+    p.push('<rect x="0" y="' + base + '" width="400" height="' + (168 - base) + '" fill="#05070a"/>');
+    // 前景母题
+    if (motif === 'corridor') {
+      p.push('<polygon points="120,168 280,168 230,96 170,96" fill="none" stroke="' + pal[2] + '" stroke-opacity=".45" stroke-width="1.2"/>');
+      for (let i = 0; i < 5; i++) {
+        const y = 168 - i * 14;
+        p.push('<line x1="' + (120 + i * 10) + '" y1="' + y + '" x2="' + (280 - i * 10) + '" y2="' + y + '" stroke="' + pal[2] + '" stroke-opacity=".18"/>');
+      }
+      p.push('<rect x="186" y="104" width="28" height="56" fill="#000" opacity=".55" stroke="' + pal[2] + '" stroke-opacity=".5"/>');
+    } else if (motif === 'door') {
+      p.push('<rect x="168" y="60" width="64" height="108" fill="#000" opacity=".62" stroke="' + pal[2] + '" stroke-opacity=".5" stroke-width="1.4"/>');
+      p.push('<circle cx="220" cy="116" r="3" fill="' + pal[2] + '" opacity=".8"/>');
+      p.push('<line x1="0" y1="150" x2="168" y2="150" stroke="' + pal[2] + '" stroke-opacity=".25"/>');
+      p.push('<line x1="232" y1="150" x2="400" y2="150" stroke="' + pal[2] + '" stroke-opacity=".25"/>');
+    } else if (motif === 'window') {
+      p.push('<rect x="140" y="52" width="120" height="86" fill="#000" opacity=".55" stroke="' + pal[2] + '" stroke-opacity=".45"/>');
+      p.push('<line x1="200" y1="52" x2="200" y2="138" stroke="' + pal[2] + '" stroke-opacity=".4"/>');
+      p.push('<line x1="140" y1="95" x2="260" y2="95" stroke="' + pal[2] + '" stroke-opacity=".4"/>');
+      p.push('<circle cx="' + (170 + h(9) * 60).toFixed(0) + '" cy="130" r="9" fill="' + pal[2] + '" opacity=".22"/>');
+    } else if (motif === 'trees') {
+      for (let i = 0; i < 4; i++) {
+        const x = 40 + i * 90 + h(i + 11) * 30;
+        p.push('<path d="M' + x.toFixed(0) + ' 168 L' + x.toFixed(0) + ' 92" stroke="#05070a" stroke-width="5"/>');
+        p.push('<path d="M' + x.toFixed(0) + ' 108 q-22 -18 -34 -6 M' + x.toFixed(0) + ' 96 q22 -20 34 -8" stroke="#05070a" stroke-width="4" fill="none"/>');
+      }
+    } else if (motif === 'rain') {
+      for (let i = 0; i < 26; i++) {
+        const x = h(i + 3) * 400; const y = h(i + 33) * 150;
+        p.push('<line x1="' + x.toFixed(0) + '" y1="' + y.toFixed(0) + '" x2="' + (x - 3).toFixed(0) + '" y2="' + (y + 12).toFixed(0) + '" stroke="#9fb3c8" stroke-opacity=".22"/>');
+      }
+      p.push('<rect x="150" y="92" width="14" height="76" fill="#05070a"/><ellipse cx="157" cy="86" rx="20" ry="8" fill="#05070a"/>');
+    } else if (motif === 'shrine') {
+      p.push('<rect x="120" y="70" width="160" height="98" fill="#05070a" opacity=".9"/>');
+      for (let i = 0; i < 5; i++) {
+        p.push('<rect x="' + (136 + i * 28) + '" y="86" width="12" height="34" fill="none" stroke="' + pal[2] + '" stroke-opacity=".55"/>');
+      }
+      p.push('<line x1="112" y1="70" x2="288" y2="70" stroke="' + pal[2] + '" stroke-opacity=".5"/>');
+    } else if (motif === 'gate') {
+      p.push('<rect x="120" y="24" width="160" height="144" fill="none" stroke="' + pal[2] + '" stroke-opacity=".6" stroke-width="2"/>');
+      p.push('<rect x="150" y="48" width="100" height="120" fill="#000" opacity=".62"/>');
+      for (let i = 0; i < 6; i++) p.push('<line x1="120" y1="' + (40 + i * 22) + '" x2="280" y2="' + (40 + i * 22) + '" stroke="' + pal[2] + '" stroke-opacity=".18"/>');
+    } else if (motif === 'road') {
+      p.push('<polygon points="0,168 400,168 240,110 160,110" fill="#05070a"/>');
+      p.push('<line x1="200" y1="112" x2="200" y2="166" stroke="' + pal[2] + '" stroke-opacity=".35" stroke-dasharray="6 8"/>');
+    } else {
+      p.push('<rect x="60" y="70" width="70" height="98" fill="#05070a"/>');
+      p.push('<rect x="270" y="52" width="80" height="116" fill="#05070a"/>');
+      p.push('<rect x="76" y="86" width="8" height="6" fill="' + pal[2] + '" opacity=".55"/>');
+      p.push('<rect x="292" y="74" width="8" height="6" fill="' + pal[2] + '" opacity=".45"/>');
+    }
+    // 雾气
+    p.push('<ellipse cx="120" cy="150" rx="220" ry="34" fill="' + pal[2] + '" opacity=".12"/>');
+    p.push('<ellipse cx="320" cy="158" rx="200" ry="28" fill="#05070a" opacity=".5"/>');
+    p.push('</svg>');
+    return p.join('');
+  }
+
+  function renderSceneArt(s) {
+    const box = $('scene');
+    if (!box || !s) return;
+    box.innerHTML = sceneSvg(s);
+  }
+
+  /* ------------------------------------------------------ 世界观速览（新手引导） */
+  const GLOSSARY = [
+    ['诡秘复苏', '现实世界的"规律"被厉鬼接管：它们不追人，只按自己的规矩杀人。'],
+    ['厉鬼与"规矩"', '每只鬼都有一条杀人规律（敲门鬼按敲门次数、鬼婴靠声音定位）。懂规矩就能活，不懂就是死。'],
+    ['驭鬼者', '把厉鬼纳入自己身体的人。力量来自鬼，代价是侵蚀（越用越像鬼，到 100 就不再是人）。'],
+    ['劫难值', '世界复苏的进度。它每回合自动上涨，到 100 会强制触发一次劫难判定，扛不住就死。可以用「处置灵异源头」主动压低，但每章只有 3 次。'],
+    ['侵蚀 / 人性', '侵蚀涨、人性上限就降。人性归零或侵蚀满 100 = 你变成鬼（复苏之鬼结局）。'],
+    ['低调值', '你被注意的程度。低于 30 时更容易撞上东西。'],
+    ['理智 / 体力 / 污染 / 因果', '理智归零会发疯；体力不够很多事做不了；污染来自与灵异接触；因果是你欠下的"债"，满 100 会被收走。'],
+    ['鬼眼', '觉醒的标志。没有鬼眼（或契约）时，驾驭鬼的成功率是 0%。'],
+    ['遭遇三选一', '陷阱＝必死（有对应道具才能赌一次）；中性＝擦身而过，但失败会留下不可逆侵蚀；生路＝需要先掌握足够线索，代价付得起才出现。'],
+    ['线索', '调查能挖到鬼的规律。掌握得越多，生路才会出现——这是唯一的活路来源。'],
+  ];
+
+  function openGuide() {
+    const box = $('toolbox');
+    box.style.display = '';
+    clear(box);
+    box.appendChild(el('div', 'sectionTitle', '世界观速览（没看过小说也能玩）'));
+    box.appendChild(el('div', 'hint', '你是灵异复苏时代的一个普通人。世界正在被"鬼的规矩"改写成另一种样子，你要靠线索和判断活到结局。'));
+    GLOSSARY.forEach(([k, v]) => {
+      const row = el('div', 'guideRow');
+      row.appendChild(el('div', 'guideKey', k));
+      row.appendChild(el('div', 'guideVal', v));
+      box.appendChild(row);
+    });
+    box.appendChild(el('div', 'sectionTitle', '怎么开始'));
+    box.appendChild(el('div', 'hint', '① 选难度 → ② 选开局 → ③ 选落地城市与时期（也可以都选"随机"）→ ④ 开始游戏。'));
+    box.appendChild(el('div', 'hint', '每天只能做一个主动作；选完会先给你看结果，点「继续」才进入下一天。写不出选项里的话时，直接在底部输入框里写你想做什么，我会尽量把它认成真实行动。'));
+    const close = el('button', 'btn small', '知道了，开始玩');
+    close.onclick = () => { box.style.display = 'none'; };
+    box.appendChild(close);
+  }
+
   function autoSave() {
     // 只在「每天开始」这一干净边界自动存档（遭遇中途不覆盖，避免歧义）
     if (state && !state.over && state.phase === 'day' && !state.actionTakenToday) {
@@ -5490,14 +5996,16 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     if (state.over) renderOver();
     renderPanel();
     lastSceneTurn = 0;
-    renderScene(true);
-    renderChoices(E.availableActions(state)); renderEncounter();
+    if (state.pending) { renderEncounterPreview(); renderChoices(E.availableActions(state)); }
+    else { renderScene(true); renderSceneArt(state); renderChoices(E.availableActions(state)); }
     return true;
   }
 
   /* ------------------------------------------------------------ 开局页 */
   function showMenu() {
     clear($('log'));
+    if ($('scene')) $('scene').innerHTML = sceneSvg({ seedInt: 20180923, turn: 0, era: 'y2018', city: 'dachang' });
+    if ($('now')) { clear($('now')); $('now').style.display = 'none'; }
     $('panel').style.display = 'none';
     clear($('choices'));
     const box = $('choices');
@@ -5711,6 +6219,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     renderPanel();
     lastSceneTurn = 0;
     renderScene(true);
+    renderSceneArt(state);
     renderChoices(E.availableActions(state));
   }
 
@@ -5907,6 +6416,16 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       addLog('muted', '【存档卡】' + txt.slice(0, 240) + '…（完整内容用「导出存档」保存）');
     };
     $('btnAI').onclick = function () { openToolbox('ai'); };
+    if ($('btnGuide')) $('btnGuide').onclick = openGuide;
+    if ($('jumpNew')) $('jumpNew').onclick = scrollLog;
+    // 手动往上翻时给出「回到最新」提示
+    const lw = $('logWrap');
+    if (lw) lw.addEventListener('scroll', function () {
+      const j = $('jumpNew');
+      if (!j) return;
+      const away = lw.scrollHeight - lw.scrollTop - lw.clientHeight > 90;
+      j.style.display = away ? '' : 'none';
+    });
     $('btnCustom').onclick = function () {
       const v = $('customInput').value;
       if (!v.trim()) return;
@@ -5915,6 +6434,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     };
     refreshAIState();   // 刷新后一律回到"未登录"，AI 配置留在加密保管库里
     showMenu();
+    // 首次进入自动弹世界观速览（没看过小说也能玩明白）
+    if (!LS.get('rs_seen_guide', 0)) { LS.set('rs_seen_guide', 1); openGuide(); }
   });
 })();
 </script>
