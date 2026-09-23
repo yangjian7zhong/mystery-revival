@@ -89,9 +89,9 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
 
 /* ==== 第 12 轮：剧情类界面（场景图 + 刚刚发生 + 手机优先） ==== */
 #stage{display:flex; flex-direction:column; gap:10px; min-height:0}
-.scene{width:100%; height:168px; border-radius:12px; overflow:hidden; border:1px solid #1d2530;
+.scene-art{width:100%; height:168px; border-radius:12px; overflow:hidden; border:1px solid #1d2530;
   background:linear-gradient(#0b0f14,#0e141b); flex:none}
-.scene svg{display:block; width:100%; height:100%}
+.scene-art svg{display:block; width:100%; height:100%}
 .logwrap{flex:1; min-height:120px; overflow:auto; scroll-behavior:smooth;
   border:1px solid #161c24; border-radius:12px; background:rgba(255,255,255,.012); padding:10px 12px}
 .nowcard{border:1px solid var(--accent); border-radius:12px; padding:10px 12px;
@@ -110,7 +110,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
 .speaker{color:#ffb59a; font-weight:600; margin-right:4px}
 
 @media (max-width:900px){
-  .scene{height:132px}
+  .scene-art{height:132px}
   .logwrap{min-height:96px; max-height:46vh}
   #choices .btn{padding:13px 14px; font-size:15px; line-height:1.5}
   .freebar .input{padding:11px 12px; font-size:15px}
@@ -127,11 +127,11 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
 .guideVal{flex:1; color:#c8d2dc; font-size:13px; line-height:1.55}
 @media (max-width:900px){ .guideRow{flex-direction:column; gap:2px} .guideKey{width:auto} }
 /* ==== 场景插画提亮与字幕条（第 13 轮：用户反馈"啥也没有"） ==== */
-.scene{position:relative; height:190px; border-color:#2a3646; box-shadow:0 10px 28px rgba(0,0,0,.45) inset}
+.scene-art{position:relative; height:190px; border-color:#2a3646; box-shadow:0 10px 28px rgba(0,0,0,.45) inset}
 .sceneCaption{position:absolute; left:10px; bottom:8px; right:10px;
   font-size:12.5px; letter-spacing:.6px; color:#f2e6c8; text-shadow:0 1px 4px #000, 0 0 12px #000;
   background:linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,0)); padding:3px 8px; border-radius:6px}
-@media (max-width:900px){ .scene{height:172px} .sceneCaption{font-size:12px} }
+@media (max-width:900px){ .scene-art{height:172px} .sceneCaption{font-size:12px} }
 /* ==== 第 13 轮：手机端把"剧情与插画"放到最前面 ====
    原来 main 是 column 排列 → 20 行属性面板排在首位，剧情与插画被顶到首屏之外（实测 y=946），
    用户以为"没有图片"。改成 column-reverse：手机先看到插画+剧情+选项，属性面板折叠到底部。 */
@@ -161,11 +161,11 @@ body.panelOpen #side{display:block}
 /* ==== 第 15 轮：消除"大空格只有一行字" ====
    原来 .scene 是固定 172~190 且图画很暗，看起来就是"一个空框里一行字幕"。
    现在：图更大（手机 210 / 桌面 240），日志区不再用 flex:1 撑满整屏（避免大片空白）。 */
-.scene{height:240px}
+.scene-art{height:240px}
 .logwrap{flex:0 1 auto; max-height:44vh; min-height:150px}
 #stage{gap:12px}
 @media (max-width:900px){
-  .scene{height:210px}
+  .scene-art{height:210px}
   .logwrap{max-height:38vh; min-height:130px}
 }
 /* ==== 第 16 轮：选项区不再像"不明所以的文字块" ==== */
@@ -215,7 +215,7 @@ body.panelOpen #side{display:block}
     </div>
   </aside>
   <section id="stage">
-    <div id="scene" class="scene"></div>
+    <div id="scene" class="scene-art"></div>
     <div id="logWrap" class="logwrap">
       <div id="log"></div>
     </div>
