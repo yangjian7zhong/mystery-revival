@@ -3452,11 +3452,13 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       state.chapterReduction = 0;
       state.clueGains = 0;
       state.humanityGains = 0;
+      // 本章收入上限：必须每"章"（7 天）重置一次。
+      // 原来这行写在章首判断外面 → 每天重置，等于"500 万/章"从不生效（收入上限形同虚设）。
+      state.chapterSpendings = 0;
       // 章首家庭收益（受每章人性回复上限 5 点约束）
       if (state.wife) gainHumanity(state, 3, '配偶陪伴（每章）');
       if (state.children > 0) gainHumanity(state, 2, '子嗣羁绊（每章）');
     }
-    state.chapterSpendings = 0;
     state.ledger = [];
     state.ledgerStart = {};
     for (const p of Object.keys(BOUNDS)) state.ledgerStart[p] = getPath(state, p);
