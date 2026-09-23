@@ -125,7 +125,25 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
 .guideRow{display:flex; gap:10px; padding:6px 2px; border-bottom:1px dashed #1c232c}
 .guideKey{flex:none; width:118px; color:#ffb59a; font-size:13px; font-weight:600}
 .guideVal{flex:1; color:#c8d2dc; font-size:13px; line-height:1.55}
-@media (max-width:900px){ .guideRow{flex-direction:column; gap:2px} .guideKey{width:auto} }</style>
+@media (max-width:900px){ .guideRow{flex-direction:column; gap:2px} .guideKey{width:auto} }
+/* ==== 场景插画提亮与字幕条（第 13 轮：用户反馈"啥也没有"） ==== */
+.scene{position:relative; height:190px; border-color:#2a3646; box-shadow:0 10px 28px rgba(0,0,0,.45) inset}
+.sceneCaption{position:absolute; left:10px; bottom:8px; right:10px;
+  font-size:12.5px; letter-spacing:.6px; color:#f2e6c8; text-shadow:0 1px 4px #000, 0 0 12px #000;
+  background:linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,0)); padding:3px 8px; border-radius:6px}
+@media (max-width:900px){ .scene{height:172px} .sceneCaption{font-size:12px} }
+/* ==== 第 13 轮：手机端把"剧情与插画"放到最前面 ====
+   原来 main 是 column 排列 → 20 行属性面板排在首位，剧情与插画被顶到首屏之外（实测 y=946），
+   用户以为"没有图片"。改成 column-reverse：手机先看到插画+剧情+选项，属性面板折叠到底部。 */
+.tools #btnPanel{display:none}
+body.panelOpen #side{display:block}
+@media (max-width:900px){
+  /* 手机：先插画与剧情，属性面板折叠到底部，由「属性」按钮展开 */
+  main{flex-direction:column-reverse}
+  #side{order:-1; display:none}
+  body.panelOpen #side{display:block}
+  .tools #btnPanel{display:inline-block}
+}</style>
 </head>
 <body>
 <header>
@@ -134,6 +152,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   <span class="tag" id="diffLabel">—</span>
   <span class="spacer"></span>
   <div class="tools">
+    <button class="btn small" id="btnPanel">属性</button>
     <button class="btn small" id="btnGuide">世界观</button>
     <span class="tag" id="aiState">AI 叙事：关</span>
     <button class="btn small" id="btnAI">AI 叙事设置</button>
@@ -4607,7 +4626,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   /* ------------------------------------------------------------- 面板数据 */
   function panelOf(state) {
     const city = cityOf(state); const era = eraOf(state);
-    return {
+    const out = {
       回合: state.turn + ' 天（第 ' + state.chapter + ' 章）',
       落地: city.name + (state.cityRandom ? '（随机）' : ''),
       时期: era.short + (state.eraRandom ? '（随机）' : ''),
@@ -4629,11 +4648,13 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       贡献: state.money.contribution,
       道具: state.items.map((i) => CONTENT.items[i.id].name + '×' + i.uses).join('、') || '无',
       契约: state.contracts.map((c) => CONTENT.ghosts[c].name).join('、') || '无',
-      鬼域: state.godLayers ? (state.godLayers + ' 层（替你挡死，用尽才会死）') : undefined,
       线索: state.clues.length + ' 条',
       安全屋: state.flags.safehouse + ' 级',
       灾厄印记: state.flags.marks,
     };
+    // 只在真正有鬼域时显示这一行（否则面板会出现"鬼域 undefined"）
+    if (state.godLayers) out['鬼域'] = state.godLayers + ' 层（替你挡死，用尽才会死）';
+    return out;
   }
 
   /* ------------------------------------------------------- 存档：校验和 */
@@ -5112,6 +5133,121 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       '你把自己当成诱饵，等它先动——然后记下它怎么动。',
       '你拆掉了那处源头赖以存在的东西，天色当场亮了一格。',
       '你把整件事写成一份处置报告，签上自己的名字（用代号）。'],
+
+    /* ===== 第 13 轮：加厚剧情（用户反馈"剧情描述不够详细"）=====
+     * 原则：不是把句子写长，而是加"可感知的具体信息"——时间、光线、声音、气味、
+     * 触感、街道上的人、以及这件事对身体的直接影响。每句 2~3 个分句。 */
+
+    // 每天开场的环境细节（与 timeOfDay/weather 叠加使用）
+    dayDetail: [
+      '楼道的感应灯要等你走到第三级台阶才亮，亮起来的时候总有一盏是坏的。你数过，坏的那盏每次都不一样。',
+      '街上的雾贴着地面走，把路灯的光压成一片浑浊的黄。远处有辆电动车驶过，声音先到，车灯后到，中间隔了将近两秒。',
+      '你能闻见一种很淡的、类似旧棉被受潮的味道——它只在你独自一人的时候出现，人一多就没了。',
+      '楼下的早点摊照常支着，老板一边翻面一边和熟客说笑。锅里的油在响，声音正常得让你有点不安。',
+      '风穿过晾衣绳，把一排衣服吹得整整齐齐地朝同一个方向摆。你盯着看了几秒，才发现今天没有风。',
+      '手机信号满格，但通讯录里有一个名字变成了空白。点进去，号码还在，头像也还在，只是名字没有了。',
+      '你走过一段翻新过的人行道，新旧水泥的接缝正好横在脚下。你下意识跨了过去——很多人在这条缝上摔过东西。',
+      '便利店的热饮柜嗡嗡作响。玻璃门上的倒影里，你比实际位置偏了半步；你挪开一步，倒影也跟着挪，但它总是慢一点。',
+    ],
+
+    // 时期专属：让"这一年"真的像那一年
+    era_ancient: [
+      '这个年代没有电，夜里只有油灯和月光。人在暗处待久了，会开始觉得黑暗本身是有厚度的——像水，能推开，也能灌进来。',
+      '官道两侧的树林在夜里会自己安静下来。老人们说那不是安静，是让路。让给谁，没人肯讲。',
+      '那时候的人把灾祸记在黄纸上，焚了就算送走。纸灰不会飞远，第二天早上还在院门口堆着，像没被收下。',
+    ],
+    era_minguo: [
+      '乱世里人命便宜，消息也便宜。茶馆里谁都在讲鬼，讲到一半会有人接一句「我表叔就是这么没的」，然后全场安静两秒，接着说。',
+      '报纸上的灵异新闻被排在社会新闻的最下角，一行字，没有照片。编辑知道写了也没人信，但他还是每期都留那个角落。',
+      '租界里的洋人管这叫集体癔症。报馆里有人偷偷把讣告按日期重抄了一遍，发现有一栏名字的笔迹完全一样。',
+    ],
+    era_y2017: [
+      '智能手机刚刚成为身体的一部分。你在论坛上刷新到一条三分钟前发的帖子，图片已经变成灰色，评论停留在四十七条。',
+      '城市还在正常运行：地铁准点、外卖准时、加班照旧。没人把灵异两个字放进日常词汇里，除了几个论坛 ID。',
+      '群聊里有人发了一段十秒的录音，说录的是自家楼道。点开只有安静的电流声，但所有人都听完了，没人回消息。',
+    ],
+    era_y2018: [
+      '总部刚刚成立，通知发到每个人手上的时候还带着打印机的温度。上面写着三行要求，第二行被涂掉了一半。',
+      '大昌市的人开始习惯在包里放一支手电和一包盐。没人说明为什么要放盐，但所有人都知道要放。',
+      '单位发的应急手册第三版比第二版薄了六页。有人对照过，少的全是「遇到异常现象时该怎么做」那一章。',
+    ],
+    era_y2019: [
+      '队长制开始实行：每个区一个负责人，谁的区域出事谁去。公章盖下去的那一刻，责任就落到具体某个人头上。',
+      '城市的灯光照旧，但路灯下的影子数量时不时会多出半个。有人统计过，说这半个人影集中在几个街区。',
+      '各区开始互相封锁消息。你收到的通报里，最常出现的词是「已处置」，后面没有细节。',
+    ],
+    era_doomsday: [
+      '封锁线用水泥和钢板垒了两层，中间夹着黄沙。守着的人不问你从哪来，只问你身上有没有味道。',
+      '广播每天三次播报安全区编号与配给时间。播报员的声音一直是同一个人，从第一天到现在，没有换过。',
+      '配给口排队的人互相不说话，只用手势。有人带了一张写着名字的纸，举在胸前，像在证明自己还在。',
+    ],
+    era_after60: [
+      '六十年过去，那一代人的名字都刻在碑上了。碑很好找，问题是碑上的字比你记忆里的少一个。',
+      '城市往外扩了好几圈，老城区被围起来做了纪念园区。导览手册第七页有一段空白，官方说法是排版错误。',
+      '新一代人把那六十年叫作静默期。他们只在课本上读到过，合上书之后对那段历史没有任何感觉——这正是目的。',
+    ],
+
+    // 城市/地点专属细节（按 state.place 取）
+    place_school: ['教学楼的广播系统偶尔会自己启动，念一段没有上下文的通知，念完自动关。',
+      '走廊尽头的窗户被木板钉死了，木板上有一层新的粉笔灰——这个高度，得是有人站在梯子上写的。',
+      '操场的塑胶跑道被人从中间翻开一米宽，翻口很整齐。校工说没报修过，但翻口边上的积水是干净的，干净得发亮。'],
+    place_apartment: ['隔壁的门这几天一直虚掩着，缝隙里透出一线光，但那户人家半年前就搬走了。',
+      '信箱里塞着一封没有邮票的信，收件人一栏写着门牌号加七，正对的是你家。',
+      '楼道的声控灯在没人走动时也会亮一下，时间很短。住四楼的老太太说那是有人上楼，只是在四楼半停住了。'],
+    place_city: ['主干道上的监控杆有一根歪着，角度正好指着路口那栋废楼。没人报修。',
+      '天桥底下有个铺盖卷，铺得很整齐，旁边放着一双摆正的鞋。人不在，鞋是湿的。',
+      '路口的红绿灯跳得比别的路口慢半拍。你站在那儿等的时候，会觉得周围的车都照着你的节奏在走。'],
+    place_town: ['镇口的老槐树上系着红布，红布是新的，但树皮上的刻痕是旧的——刻痕比红布深得多。',
+      '夜里能听见祠堂方向有人敲更。镇上说早就不打更了，可它每天准点响，从来不误。',
+      '镇上的井封了三十多年，井口压着整块青石。你路过的时候，石面上有一圈新的水痕，是往里渗的。'],
+    place_village: ['村后的坡地不长草，土是翻过的，翻得太匀了，像有人一遍遍筛过。',
+      '晒谷场的老仓房门锁着，门缝里塞着一只手套，手套里侧写着两个字，被雨泡得认不出了。',
+      '村里人夜里睡觉不关灯，也不拉窗帘。他们说灯是给活人看的，留一盏，外面就知道屋里有人。'],
+    place_hotel: ['酒店的消防通道图被人用笔改过：十二层的位置画了一个圈，圈里写着不要敲门。',
+      '走廊的地毯踩上去没有声音，但你能听见自己的脚步在头顶上重复一遍。',
+      '前台的交班记录上，同一间房的退房时间连写了四天，笔迹一模一样，签名却各不相同。'],
+    place_street: ['步行街的电话亭还能拨号，投币口里塞满了硬币，没有人取。',
+      '巷口裁缝铺的卷闸门只拉下一半，里面挂着成排的成衣，尺寸全是一模一样的。',
+      '地上的盲道砖有一块装反了，凸点朝下。你记住位置以后，每次路过都会绕开——不是怕绊，是怕它。'],
+    place_shop: ['药铺柜台后的抽屉贴着手写标签，最底下那格写着暂不外售，墨迹还没干。',
+      '空气里是甘草和铁锈混在一起的味道，你站久了会觉得后颈发凉——那不是风。',
+      '柜台边放着一本翻旧的册子，每一页只写一个日期和一个数字。最新那页的日期是明天。'],
+    place_temple: ['祠堂的香是断的，插在炉里一半燃尽一半完好，像被谁按掉过。',
+      '山门的石阶有四十级，老人说要走走数，数到四十就别再数了——再往上数的，回来时就不一样了。',
+      '偏殿的地面被香客踩出了凹坑，凹坑分布得很规律，像围着某个不存在的东西绕圈。'],
+    place_bus: ['候车亭的线路牌上有一条线被黑胶布贴着，胶布下面能看出数字，是 0。',
+      '末班车到站时会先安静两秒，再开门。司机不看你，只看着前方，右手一直搭在档位上。',
+      '调度室的墙上挂着排班表，最底下那行没有名字，只有一个手写的补字，笔迹和别处不同。'],
+    place_oldhouse: ['地下室的门是从里面上闩的，闩是新的，木头是旧的，中间的钉子冒了头。',
+      '二楼的房间空着，家具上盖着白布。白布上有一处凹陷，形状像有人刚坐过。',
+      '阁楼的木楼梯第七级踩上去会响，但只在白天响。晚上踩同一级，安静得像踩在棉花上。'],
+    place_yangjian: ['阴阳路的入口没有形状，只有一片比周围暗一格的地方，边界清楚得像裁出来的。',
+      '黄金门的背面刻满了名字，刻痕深浅不一；你找到一个笔画最浅的，发现自己认得。',
+      '那扇门开着的时候，门内的风是往外吹的——很轻，但一直是那个方向，从不倒灌。'],
+
+    // 行动之后的余波（接在行动结果后面，给一句"然后呢"）
+    aftermath: [
+      '你做完这件事，花了一点时间才让自己的呼吸回到原来的节奏。',
+      '事后回想，你记不清自己走过去的时候有没有回头，但身体记得——后颈那圈僵着的感觉过了很久才散。',
+      '你把手机拿出来看了一眼时间，屏幕上的数字正常跳动，只是日期比你以为的晚了一天。',
+      '周围没什么变化。这种"没什么变化"本身，就足够让人一整天都犯困。',
+      '你把手上的东西擦干净，随手丢进路边的桶里。桶里的垃圾堆得很整齐，整齐得不像被人丢进去过。',
+      '回去的路上你刻意绕着走，绕的那条路比平时远十分钟，但你今晚不想省这十分钟。',
+      '你把这件事在心里翻来覆去地想，想到最后只剩下一个细节：它没有影子。',
+      '你做完了，然后坐下来，等那种被盯着的感觉自己退下去。它退得很慢。',
+    ],
+
+    // 遭遇时的感官细节（比 encounterMood 更具体）
+    encounterSense: [
+      '最先来的是声音：不是从某个方向传来的，而是从你耳朵内部长出来的，像有人贴着你的颅骨说话。',
+      '空气的味道变了，变成一股很淡的、类似旧照片受潮的气味。你下意识屏住呼吸，那味道反而更清楚。',
+      '你注意到自己脚下的影子少了一块。没有光在动，也没有东西挡在前面。',
+      '皮肤上先起了反应——手臂外侧那一片汗毛整齐地立起来，像有人用手掌贴过来，隔着空气也烫。',
+      '周围的声音不是消失了，而是"慢了"：车声、水声、你自己的呼吸，全部拖长到彼此分不清。',
+      '你的手机在口袋里震了一下，拿出来看是低电量提示。电量还剩 84%。',
+      '视线边缘有一团一直没散开的东西。你不敢直接看，只能用眼角余光把它框住——它也在用同样的方式框住你。',
+      '你忽然很清楚地知道，这栋楼里除了你，还有别的东西正在数数，而且数的是同一个数。',
+    ],
   };
 
   /* ------------------------------------------------------------ 取句逻辑 */
@@ -5178,6 +5314,12 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     const tags = [];
     lines.push(pick('timeOfDay', s) + '，' + pick('weather', s) + '。'); tags.push('timeOfDay', 'weather');
     lines.push(pick('place', s)); tags.push('place');
+    // 第 13 轮：加厚——环境细节 + 时期感 + 地点专属细节（带库就取，没有就跳过）
+    if (B.dayDetail) { lines.push(pick('dayDetail', s)); tags.push('dayDetail'); }
+    const eraBank = 'era_' + (s.era || '');
+    if (B[eraBank]) { lines.push(pick(eraBank, s)); tags.push(eraBank); }
+    const placeBank = 'place_' + (s.place || '');
+    if (B[placeBank]) { lines.push(pick(placeBank, s, 1)); tags.push(placeBank); }
 
     // 感官与异象：交替出现，保证不会每回合都只有一种味道
     if (s.turn % 2 === 1) { lines.push(pick('sense', s)); tags.push('sense'); }
@@ -5223,8 +5365,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   }
 
   /** 遭遇氛围句：随"掌握线索条数"变化，让同一只鬼的遭遇读起来不一样 */
-  function encounterMood(state) {
-    const p = state.pending;
+  function encounterMood(state) {    const p = state.pending;
     if (!p) return '';
     const known = (p.revealedClues || []).length;
     if (known === 0) return '你对它一无所知。所有判断都只能靠眼前这一点东西。';
@@ -5246,9 +5387,22 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     return out;
   }
 
+  /** 第 13 轮：遭遇的感官细节（接在遭遇正文之后，让场景"可感知"） */
+  function encounterSense(state) {
+    return B.encounterSense ? pick('encounterSense', state) : '';
+  }
+
+  /** 第 13 轮：行动之后的余波（1~2 句，让"做完了"这件事有下文） */
+  function aftermath(state, n) {
+    if (!B.aftermath) return [];
+    return pickN('aftermath', state, n || 1, 7);
+  }
+
   return {
     banks: B,
     scene: scene,
+    encounterSense: encounterSense,
+    aftermath: aftermath,
     actionLine: actionLine,
     encounterMood: encounterMood,
     eventLine: eventLine,
@@ -5688,6 +5842,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     if (N) {
       const mood = N.encounterMood(state);
       if (mood) addLog('scene', mood);
+      const sense = N.encounterSense ? N.encounterSense(state) : '';
+      if (sense) addLog('scene', sense);
     }
     if (state.pending.revealedClues.length) {
       addLog('clue', state.pending.revealedClues.map((c) => '· 你掌握的线索：' + c));
@@ -5780,6 +5936,11 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       if (extra) addLog('scene', extra);
     }
     if (rep.settlement && rep.settlement.length) addLog('set', rep.settlement.map((s) => '▸ ' + s));
+    // 第 13 轮：行动之后的余波（让"做完了"有下文，剧情更完整）
+    if (N && N.aftermath && !state.over) {
+      const af = N.aftermath(state, 1);
+      if (af.length) addLog('scene', af[0]);
+    }
     if (state.integrity.length) { addLog('warn', '【完整性告警】' + state.integrity.slice(-3).join(' / ')); }
     renderPanel();
     renderSceneArt(state);
@@ -5822,117 +5983,174 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   }
 
   /* -------------------------------------------- 场景插画（内联 SVG 水墨图）
-   * 单文件不能带外部图片，所以「图片」由程序按种子确定性地画出来：
-   * 时期决定色调，城市/遭遇决定前景母题（门、走廊、雨巷、山影、牌位…）。
+   * 单文件不能带外部图片，所以「图片」由程序按种子确定性地画出来。
+   * 第一版画得太暗（用户反馈"啥也没有"）→ 这一版：亮地平线、月亮光晕、暖色亮窗、
+   * 近黑剪影 + 亮边、更粗的前景轮廓、暗角与颗粒，并配一条字幕条说明"这是哪儿、什么时候"。
    */
   const ERA_PALETTE = {
-    ancient: ['#1a1410', '#2b2118', '#6b5a44'],
-    minguo: ['#1c1712', '#33261b', '#8a7350'],
-    y2017: ['#0d1117', '#151d28', '#3f556b'],
-    y2018: ['#0b1113', '#131f22', '#3d5f63'],
-    y2019: ['#100e18', '#1b1730', '#4b3f78'],
-    doomsday: ['#140a0a', '#26100f', '#7a2f28'],
-    after60: ['#12120f', '#22201a', '#7d7452'],
+    // [天空上, 天空下/地平线, 光色(月/窗/边光), 剪影]
+    ancient: ['#131a21', '#3b3226', '#f0d29a', '#080b0e'],
+    minguo: ['#1b1410', '#513f27', '#ffd489', '#0b0906'],
+    y2017: ['#0f1c2a', '#2f5470', '#d6ecff', '#060b13'],
+    y2018: ['#0d1d22', '#2e5a60', '#ffe9b8', '#04090c'],
+    y2019: ['#171130', '#3f3175', '#e8dcff', '#090714'],
+    doomsday: ['#200e0b', '#63291f', '#ffab74', '#0c0404'],
+    after60: ['#181810', '#4f4a33', '#fff0c8', '#0a0a07'],
   };
   const MOTIF_BY_PLACE = {
     school: 'corridor', hotel: 'corridor', apartment: 'window', city: 'skyline',
     town: 'trees', village: 'trees', street: 'rain', shop: 'window', temple: 'shrine',
-    bus: 'road', oldhouse: 'door', yangjian: 'gate', office: 'skyline',
+    bus: 'road', oldhouse: 'door', yangjian: 'gate',
   };
   const MOTIF_BY_LEVEL = { S: 'gate', A: 'door', B: 'window', C: 'rain' };
 
   function sceneSvg(s) {
-    const era = (C.eras && C.eras[s && s.era]) || null;
     const pal = ERA_PALETTE[s && s.era] || ERA_PALETTE.y2018;
     const city = (C.cities && C.cities[s && s.city]) || null;
-    const seed = (s && s.seedInt) || 1;
+    const seed = (s && s.seedInt) || 20180923;
     const turn = (s && s.turn) || 1;
     const h = (i) => ((seed * 9301 + turn * 49297 + i * 233) % 233280) / 233280;
     let motif = s && s.pending
       ? (MOTIF_BY_LEVEL[(C.ghosts[s.pending.ghost] || {}).level] || 'door')
-      : (MOTIF_BY_PLACE[(city && city.place) || 'city'] || 'skyline');
+      : (MOTIF_BY_PLACE[(city && city.place) || 'skyline'] || 'skyline');
     if (s && s.over) motif = 'gate';
+    const W = 400; const H = 190; const horizon = 132;
     const p = [];
-    p.push('<svg viewBox="0 0 400 168" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">');
-    p.push('<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0" stop-color="' + pal[0] + '"/><stop offset="1" stop-color="' + pal[1] + '"/></linearGradient>' +
-      '<radialGradient id="glow" cx="50%" cy="30%" r="70%">' +
-      '<stop offset="0" stop-color="' + pal[2] + '" stop-opacity=".55"/><stop offset="1" stop-color="' + pal[2] + '" stop-opacity="0"/></radialGradient></defs>');
-    p.push('<rect width="400" height="168" fill="url(#sky)"/>');
-    p.push('<ellipse cx="' + (60 + h(1) * 280).toFixed(0) + '" cy="34" rx="150" ry="70" fill="url(#glow)"/>');
-    // 远景：楼群/山影
-    const base = 118;
-    for (let i = 0; i < 9; i++) {
-      const w = 22 + h(i + 20) * 30;
-      const hh = 24 + h(i + 40) * 62;
-      const x = i * 46 - 10 + h(i + 60) * 8;
-      p.push('<rect x="' + x.toFixed(0) + '" y="' + (base - hh).toFixed(0) + '" width="' + w.toFixed(0) + '" height="' + hh.toFixed(0) +
-        '" fill="' + pal[0] + '" opacity=".92"/>');
-      if (h(i + 80) > .55) {
-        p.push('<rect x="' + (x + 6).toFixed(0) + '" y="' + (base - hh + 10).toFixed(0) + '" width="4" height="5" fill="' + pal[2] + '" opacity=".7"/>');
+    p.push('<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">');
+    p.push('<defs>' +
+      '<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + pal[0] + '"/><stop offset=".62" stop-color="' + pal[1] + '"/>' +
+      '<stop offset="1" stop-color="' + pal[2] + '" stop-opacity=".55"/></linearGradient>' +
+      '<radialGradient id="halo" cx="50%" cy="50%" r="50%">' +
+      '<stop offset="0" stop-color="' + pal[2] + '" stop-opacity=".85"/>' +
+      '<stop offset=".45" stop-color="' + pal[2] + '" stop-opacity=".18"/>' +
+      '<stop offset="1" stop-color="' + pal[2] + '" stop-opacity="0"/></radialGradient>' +
+      '<linearGradient id="fog" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="' + pal[2] + '" stop-opacity=".30"/>' +
+      '<stop offset="1" stop-color="' + pal[2] + '" stop-opacity="0"/></linearGradient>' +
+      '<radialGradient id="vig" cx="50%" cy="45%" r="72%">' +
+      '<stop offset=".55" stop-color="#000" stop-opacity="0"/>' +
+      '<stop offset="1" stop-color="#000" stop-opacity=".72"/></radialGradient>' +
+      '</defs>');
+    p.push('<rect width="' + W + '" height="' + H + '" fill="url(#sky)"/>');
+    // 月亮 / 光源：大而亮，第一眼就能看见
+    const mx = 62 + h(1) * 270;
+    const my = 34 + h(2) * 26;
+    p.push('<circle cx="' + mx.toFixed(0) + '" cy="' + my.toFixed(0) + '" r="66" fill="url(#halo)"/>');
+    p.push('<circle cx="' + mx.toFixed(0) + '" cy="' + my.toFixed(0) + '" r="15" fill="' + pal[2] + '" opacity=".92"/>');
+    p.push('<circle cx="' + (mx + 5).toFixed(0) + '" cy="' + (my - 3).toFixed(0) + '" r="3" fill="' + pal[0] + '" opacity=".35"/>');
+    // 远景楼群：近黑剪影 + 亮边 + 暖色亮窗
+    for (let i = 0; i < 11; i++) {
+      const bw = 20 + h(i + 20) * 34;
+      const bh = 30 + h(i + 40) * 74;
+      const bx = i * 38 - 14 + h(i + 60) * 10;
+      const by = horizon - bh;
+      p.push('<rect x="' + bx.toFixed(0) + '" y="' + by.toFixed(0) + '" width="' + bw.toFixed(0) + '" height="' + bh.toFixed(0) +
+        '" fill="' + pal[3] + '"/>');
+      p.push('<rect x="' + bx.toFixed(0) + '" y="' + by.toFixed(0) + '" width="' + bw.toFixed(0) + '" height="1.6" fill="' + pal[2] + '" opacity=".55"/>');
+      const winRows = Math.max(1, Math.floor(bh / 16));
+      for (let r = 0; r < winRows; r++) {
+        for (let c = 0; c < 2; c++) {
+          if (h(i * 7 + r * 3 + c) > .62) {
+            p.push('<rect x="' + (bx + 5 + c * 11).toFixed(0) + '" y="' + (by + 8 + r * 15).toFixed(0) +
+              '" width="5" height="7" fill="' + pal[2] + '" opacity="' + (.55 + h(i + r) * .35).toFixed(2) + '"/>');
+          }
+        }
       }
     }
-    p.push('<rect x="0" y="' + base + '" width="400" height="' + (168 - base) + '" fill="#05070a"/>');
-    // 前景母题
+    // 地平线亮带 + 地面
+    p.push('<rect x="0" y="' + horizon + '" width="' + W + '" height="' + (H - horizon) + '" fill="#05070a"/>');
+    p.push('<rect x="0" y="' + (horizon - 10) + '" width="' + W + '" height="12" fill="url(#fog)"/>');
+    p.push('<ellipse cx="' + (W / 2) + '" cy="' + (horizon + 22) + '" rx="230" ry="26" fill="' + pal[2] + '" opacity=".10"/>');
+    // 前景母题：粗轮廓，一眼可辨
+    const stroke = 'stroke="' + pal[2] + '" stroke-opacity=".85"';
     if (motif === 'corridor') {
-      p.push('<polygon points="120,168 280,168 230,96 170,96" fill="none" stroke="' + pal[2] + '" stroke-opacity=".45" stroke-width="1.2"/>');
-      for (let i = 0; i < 5; i++) {
-        const y = 168 - i * 14;
-        p.push('<line x1="' + (120 + i * 10) + '" y1="' + y + '" x2="' + (280 - i * 10) + '" y2="' + y + '" stroke="' + pal[2] + '" stroke-opacity=".18"/>');
+      p.push('<polygon points="132,' + H + ' 268,' + H + ' 226,96 174,96" fill="#04070a" opacity=".95" ' + stroke + ' stroke-width="2.2"/>');
+      for (let i = 1; i < 6; i++) {
+        const y = H - i * 15;
+        p.push('<line x1="' + (132 + i * 9) + '" y1="' + y + '" x2="' + (268 - i * 9) + '" y2="' + y + '" stroke="' + pal[2] + '" stroke-opacity=".22"/>');
       }
-      p.push('<rect x="186" y="104" width="28" height="56" fill="#000" opacity=".55" stroke="' + pal[2] + '" stroke-opacity=".5"/>');
+      p.push('<rect x="182" y="104" width="36" height="60" fill="#000" stroke="' + pal[2] + '" stroke-opacity=".8" stroke-width="2"/>');
+      p.push('<rect x="196" y="112" width="8" height="52" fill="' + pal[2] + '" opacity=".22"/>');
     } else if (motif === 'door') {
-      p.push('<rect x="168" y="60" width="64" height="108" fill="#000" opacity=".62" stroke="' + pal[2] + '" stroke-opacity=".5" stroke-width="1.4"/>');
-      p.push('<circle cx="220" cy="116" r="3" fill="' + pal[2] + '" opacity=".8"/>');
-      p.push('<line x1="0" y1="150" x2="168" y2="150" stroke="' + pal[2] + '" stroke-opacity=".25"/>');
-      p.push('<line x1="232" y1="150" x2="400" y2="150" stroke="' + pal[2] + '" stroke-opacity=".25"/>');
+      p.push('<rect x="158" y="52" width="84" height="116" fill="#03060a" ' + stroke + ' stroke-width="2.6"/>');
+      p.push('<rect x="168" y="62" width="64" height="96" fill="#0b0f14" opacity=".9"/>');
+      p.push('<circle cx="220" cy="112" r="4" fill="' + pal[2] + '" opacity=".95"/>');
+      p.push('<line x1="0" y1="168" x2="158" y2="168" stroke="' + pal[2] + '" stroke-opacity=".35" stroke-width="2"/>');
+      p.push('<line x1="242" y1="168" x2="400" y2="168" stroke="' + pal[2] + '" stroke-opacity=".35" stroke-width="2"/>');
+      p.push('<ellipse cx="200" cy="176" rx="70" ry="10" fill="' + pal[2] + '" opacity=".14"/>');
     } else if (motif === 'window') {
-      p.push('<rect x="140" y="52" width="120" height="86" fill="#000" opacity=".55" stroke="' + pal[2] + '" stroke-opacity=".45"/>');
-      p.push('<line x1="200" y1="52" x2="200" y2="138" stroke="' + pal[2] + '" stroke-opacity=".4"/>');
-      p.push('<line x1="140" y1="95" x2="260" y2="95" stroke="' + pal[2] + '" stroke-opacity=".4"/>');
-      p.push('<circle cx="' + (170 + h(9) * 60).toFixed(0) + '" cy="130" r="9" fill="' + pal[2] + '" opacity=".22"/>');
+      p.push('<rect x="132" y="48" width="136" height="100" fill="#03060a" ' + stroke + ' stroke-width="2.6"/>');
+      p.push('<line x1="200" y1="48" x2="200" y2="148" ' + stroke + ' stroke-width="2"/>');
+      p.push('<line x1="132" y1="98" x2="268" y2="98" ' + stroke + ' stroke-width="2"/>');
+      p.push('<circle cx="' + (168 + h(9) * 60).toFixed(0) + '" cy="136" r="12" fill="' + pal[2] + '" opacity=".35"/>');
     } else if (motif === 'trees') {
       for (let i = 0; i < 4; i++) {
-        const x = 40 + i * 90 + h(i + 11) * 30;
-        p.push('<path d="M' + x.toFixed(0) + ' 168 L' + x.toFixed(0) + ' 92" stroke="#05070a" stroke-width="5"/>');
-        p.push('<path d="M' + x.toFixed(0) + ' 108 q-22 -18 -34 -6 M' + x.toFixed(0) + ' 96 q22 -20 34 -8" stroke="#05070a" stroke-width="4" fill="none"/>');
+        const x = 44 + i * 92 + h(i + 11) * 24;
+        p.push('<path d="M' + x.toFixed(0) + ' 190 L' + x.toFixed(0) + ' 84" stroke="#04070a" stroke-width="8"/>');
+        p.push('<path d="M' + x.toFixed(0) + ' 108 q-26 -22 -40 -6 M' + x.toFixed(0) + ' 92 q26 -24 40 -8" stroke="#04070a" stroke-width="6" fill="none"/>');
+        p.push('<path d="M' + x.toFixed(0) + ' 108 q-26 -22 -40 -6" stroke="' + pal[2] + '" stroke-opacity=".3" stroke-width="1.4" fill="none"/>');
       }
     } else if (motif === 'rain') {
-      for (let i = 0; i < 26; i++) {
-        const x = h(i + 3) * 400; const y = h(i + 33) * 150;
-        p.push('<line x1="' + x.toFixed(0) + '" y1="' + y.toFixed(0) + '" x2="' + (x - 3).toFixed(0) + '" y2="' + (y + 12).toFixed(0) + '" stroke="#9fb3c8" stroke-opacity=".22"/>');
+      for (let i = 0; i < 34; i++) {
+        const x = h(i + 3) * W; const y = h(i + 33) * (H - 20);
+        p.push('<line x1="' + x.toFixed(0) + '" y1="' + y.toFixed(0) + '" x2="' + (x - 4).toFixed(0) + '" y2="' + (y + 16).toFixed(0) + '" stroke="' + pal[2] + '" stroke-opacity=".34" stroke-width="1.2"/>');
       }
-      p.push('<rect x="150" y="92" width="14" height="76" fill="#05070a"/><ellipse cx="157" cy="86" rx="20" ry="8" fill="#05070a"/>');
+      p.push('<path d="M156 168 L156 96 q0 -14 20 -14 q20 0 20 14 L196 168 Z" fill="#04070a" stroke="' + pal[2] + '" stroke-opacity=".8" stroke-width="2"/>');
+      p.push('<line x1="176" y1="82" x2="176" y2="96" stroke="' + pal[2] + '" stroke-opacity=".8" stroke-width="2"/>');
     } else if (motif === 'shrine') {
-      p.push('<rect x="120" y="70" width="160" height="98" fill="#05070a" opacity=".9"/>');
+      p.push('<rect x="112" y="60" width="176" height="108" fill="#04070a" stroke="' + pal[2] + '" stroke-opacity=".7" stroke-width="2.4"/>');
       for (let i = 0; i < 5; i++) {
-        p.push('<rect x="' + (136 + i * 28) + '" y="86" width="12" height="34" fill="none" stroke="' + pal[2] + '" stroke-opacity=".55"/>');
+        p.push('<rect x="' + (128 + i * 30) + '" y="80" width="15" height="44" fill="none" stroke="' + pal[2] + '" stroke-opacity=".8" stroke-width="2"/>');
       }
-      p.push('<line x1="112" y1="70" x2="288" y2="70" stroke="' + pal[2] + '" stroke-opacity=".5"/>');
+      p.push('<rect x="104" y="52" width="192" height="8" fill="' + pal[2] + '" opacity=".5"/>');
+      p.push('<circle cx="' + (150 + h(5) * 100).toFixed(0) + '" cy="140" r="7" fill="' + pal[2] + '" opacity=".5"/>');
     } else if (motif === 'gate') {
-      p.push('<rect x="120" y="24" width="160" height="144" fill="none" stroke="' + pal[2] + '" stroke-opacity=".6" stroke-width="2"/>');
-      p.push('<rect x="150" y="48" width="100" height="120" fill="#000" opacity=".62"/>');
-      for (let i = 0; i < 6; i++) p.push('<line x1="120" y1="' + (40 + i * 22) + '" x2="280" y2="' + (40 + i * 22) + '" stroke="' + pal[2] + '" stroke-opacity=".18"/>');
+      p.push('<rect x="112" y="16" width="176" height="158" fill="none" stroke="' + pal[2] + '" stroke-opacity=".9" stroke-width="3"/>');
+      p.push('<rect x="146" y="44" width="108" height="130" fill="#03060a" opacity=".95"/>');
+      for (let i = 0; i < 6; i++) p.push('<line x1="112" y1="' + (34 + i * 24) + '" x2="288" y2="' + (34 + i * 24) + '" stroke="' + pal[2] + '" stroke-opacity=".26" stroke-width="1.6"/>');
+      p.push('<ellipse cx="200" cy="164" rx="86" ry="12" fill="' + pal[2] + '" opacity=".16"/>');
     } else if (motif === 'road') {
-      p.push('<polygon points="0,168 400,168 240,110 160,110" fill="#05070a"/>');
-      p.push('<line x1="200" y1="112" x2="200" y2="166" stroke="' + pal[2] + '" stroke-opacity=".35" stroke-dasharray="6 8"/>');
+      p.push('<polygon points="24,190 376,190 232,112 168,112" fill="#04070a"/>');
+      p.push('<line x1="200" y1="114" x2="200" y2="188" stroke="' + pal[2] + '" stroke-opacity=".55" stroke-width="2" stroke-dasharray="7 9"/>');
+      p.push('<rect x="150" y="96" width="100" height="18" fill="#04070a" stroke="' + pal[2] + '" stroke-opacity=".5" stroke-width="1.6"/>');
     } else {
-      p.push('<rect x="60" y="70" width="70" height="98" fill="#05070a"/>');
-      p.push('<rect x="270" y="52" width="80" height="116" fill="#05070a"/>');
-      p.push('<rect x="76" y="86" width="8" height="6" fill="' + pal[2] + '" opacity=".55"/>');
-      p.push('<rect x="292" y="74" width="8" height="6" fill="' + pal[2] + '" opacity=".45"/>');
+      p.push('<rect x="48" y="66" width="86" height="102" fill="#04070a"/>');
+      p.push('<rect x="272" y="44" width="92" height="124" fill="#04070a"/>');
+      p.push('<rect x="48" y="66" width="86" height="2" fill="' + pal[2] + '" opacity=".6"/>');
+      p.push('<rect x="272" y="44" width="92" height="2" fill="' + pal[2] + '" opacity=".6"/>');
+      p.push('<rect x="66" y="84" width="9" height="8" fill="' + pal[2] + '" opacity=".75"/>');
+      p.push('<rect x="298" y="70" width="9" height="8" fill="' + pal[2] + '" opacity=".65"/>');
+      p.push('<rect x="322" y="96" width="9" height="8" fill="' + pal[2] + '" opacity=".5"/>');
     }
-    // 雾气
-    p.push('<ellipse cx="120" cy="150" rx="220" ry="34" fill="' + pal[2] + '" opacity=".12"/>');
-    p.push('<ellipse cx="320" cy="158" rx="200" ry="28" fill="#05070a" opacity=".5"/>');
+    // 雾气 + 暗角 + 颗粒
+    p.push('<ellipse cx="130" cy="168" rx="240" ry="34" fill="' + pal[2] + '" opacity=".10"/>');
+    p.push('<rect width="' + W + '" height="' + H + '" fill="url(#vig)"/>');
+    for (let i = 0; i < 60; i++) {
+      p.push('<circle cx="' + (h(i + 90) * W).toFixed(0) + '" cy="' + (h(i + 150) * H).toFixed(0) + '" r="0.9" fill="#ffffff" opacity="' + (.05 + h(i) * .10).toFixed(2) + '"/>');
+    }
     p.push('</svg>');
     return p.join('');
+  }
+
+  /** 字幕条：告诉玩家这张画是"哪儿、什么时候"，让插画不至于被当成一块背景色 */
+  function sceneCaption(s) {
+    if (!s) return '神秘复苏 · 灵异复苏时代';
+    const city = (C.cities && C.cities[s.city]) || null;
+    const era = (C.eras && C.eras[s.era]) || null;
+    const parts = [];
+    if (city) parts.push(city.name);
+    if (era) parts.push(era.short);
+    if (s.pending && C.ghosts[s.pending.ghost]) parts.push('遭遇·' + C.ghosts[s.pending.ghost].name);
+    return parts.join('　·　') || '神秘复苏';
   }
 
   function renderSceneArt(s) {
     const box = $('scene');
     if (!box || !s) return;
     box.innerHTML = sceneSvg(s);
+    const cap = el('div', 'sceneCaption', sceneCaption(s));
+    box.appendChild(cap);
   }
 
   /* ------------------------------------------------------ 世界观速览（新手引导） */
@@ -6417,6 +6635,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     };
     $('btnAI').onclick = function () { openToolbox('ai'); };
     if ($('btnGuide')) $('btnGuide').onclick = openGuide;
+    if ($('btnPanel')) $('btnPanel').onclick = function () { document.body.classList.toggle('panelOpen'); };
     if ($('jumpNew')) $('jumpNew').onclick = scrollLog;
     // 手动往上翻时给出「回到最新」提示
     const lw = $('logWrap');
