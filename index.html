@@ -323,6 +323,332 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       rewards: [{ k: 'flag', key: 'intel', v: 1 }],
       masteryClue: 'jq1',
     },
+
+    /* ============ 以下为同人衍生厉鬼（来源作品见 tie 字段，非原著正典） ============ */
+
+    qigui: {
+      id: 'qigui', name: '棋鬼', level: 'A', penalty: 45, tie: '盐池市·知鱼大厦（同人《秉烛夜游》）',
+      encounter: '整栋楼的走廊在移动。你脚下的地砖是木纹的，黑白格沿着墙壁铺到尽头——你站在棋盘上，有个声音说：该你走了。',
+      clues: [
+        { id: 'qg1', text: '单数日失踪三十二人，正对应棋盘上三十二枚子；双数日只少一个——那是被拉进去对弈的。' },
+        { id: 'qg2', text: '它能悔棋。悔棋不是重走一步，是把整局连同城里的人一起重启。' },
+        { id: 'qg3', text: '棋盘就是鬼域本身。只要还在楼上，你就还在局里；出口在"将死"之后才会出现。' },
+      ],
+      traps: [
+        { id: 'qg_t1', label: '随便走一步，先把先手拿到', tags: ['落子'] },
+        { id: 'qg_t2', label: '伸手吃掉那枚挡路的棋子', tags: ['吃子'] },
+        { id: 'qg_t3', label: '要求悔棋，把刚才那步收回来', tags: ['悔棋'] },
+      ],
+      neutral: [
+        { id: 'qg_n1', label: '不落子，先数清棋盘上有多少格', tags: ['观察'] },
+      ],
+      exits: [
+        { id: 'qg_e1', label: '按棋理走完这一手，不打乱它的规则（生路）', tags: ['守规矩'], needClues: 1,
+          cost: [{ k: 'stat', key: 'sanity', v: -12 }] },
+        { id: 'qg_e2', label: '点燃鬼烛，烧掉棋盘一角（生路）', tags: ['道具'], needClues: 2,
+          cost: [{ k: 'itemUse', id: 'guizhu' }, { k: 'stat', key: 'pollution', v: 8 }] },
+      ],
+      exitText: '你落下最后一子。棋盘收拢，走廊回到原本的长度——只是你记不清自己到底走了几步。',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'money', key: 'gold', v: 2 }, { k: 'money', key: 'contribution', v: 20 }],
+      masteryClue: 'qg1',
+    },
+
+    yachuang: {
+      id: 'yachuang', name: '压床鬼', level: 'B', penalty: 30, tie: '盐池市·出租屋（同人《秉烛夜游》）',
+      encounter: '夜里三点你醒了，但动不了。胸口有重量，床垫在你身下微微下陷——有人正坐在床边，低头看你。',
+      clues: [
+        { id: 'yc1', text: '它只在你仰睡的时候压上来。侧过身，它就无处用力。' },
+        { id: 'yc2', text: '它怕被数出声。你数到几，它就得停在几。' },
+        { id: 'yc3', text: '白天它睡在床垫夹层里——所以这张床不能要了。' },
+      ],
+      traps: [
+        { id: 'yc_t1', label: '用力挣扎着坐起来', tags: ['挣扎'] },
+        { id: 'yc_t2', label: '睁开眼去看清它的脸', tags: ['直视'] },
+        { id: 'yc_t3', label: '张嘴大喊', tags: ['出声'] },
+      ],
+      neutral: [
+        { id: 'yc_n1', label: '闭着眼，慢慢侧过身去', tags: ['侧身'] },
+      ],
+      exits: [
+        { id: 'yc_e1', label: '侧身翻身，把胸口让出来（生路）', tags: ['侧身'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -8 }] },
+        { id: 'yc_e2', label: '在心里默数到三十（生路）', tags: ['默数'], needClues: 2,
+          cost: [{ k: 'stat', key: 'sanity', v: -6 }] },
+      ],
+      exitText: '你侧过身，胸口的重量滑到一边去了。天亮后你掀开床垫——里面有一层压实的人形凹痕。',
+      rewards: [{ k: 'flag', key: 'intel', v: 1 }],
+      masteryClue: 'yc1',
+    },
+
+    guixiang: {
+      id: 'guixiang', name: '鬼相', level: 'A', penalty: 45, tie: '安河市·安河小区（同人《诡相无间》）',
+      encounter: '对面那栋楼的窗里站着你自己。你抬手，它也抬手——但它慢了半拍，而且笑得比你早了一点。',
+      clues: [
+        { id: 'gx1', text: '它以"相"为媒：凡是能被照出来的东西，都是它进场的门。' },
+        { id: 'gx2', text: '驾驭它的人每用一次，理智就少一截；它不是被压制的，是被交换的。' },
+        { id: 'gx3', text: '切割移植来的鬼画残片是它的锚。锚在，它就能一次次化相回来。' },
+      ],
+      traps: [
+        { id: 'gx_t1', label: '与它对视，看清它到底像不像你', tags: ['对视'] },
+        { id: 'gx_t2', label: '把那张照片撕掉', tags: ['毁像'] },
+        { id: 'gx_t3', label: '承认那就是自己', tags: ['承认'] },
+      ],
+      neutral: [
+        { id: 'gx_n1', label: '拉上窗帘，不再看那扇窗', tags: ['回避'] },
+      ],
+      exits: [
+        { id: 'gx_e1', label: '遮住所有能成像的东西：镜子、玻璃、屏幕（生路）', tags: ['遮相'], needClues: 2,
+          cost: [{ k: 'stat', key: 'sanity', v: -10 }] },
+        { id: 'gx_e2', label: '以自毁方式切断与"相"的联系（生路·灵异）', tags: ['灵异'], needClues: 3,
+          cost: [{ k: 'stat', key: 'erosion', v: 15 }, { k: 'stat', key: 'humanity', v: -8 }] },
+      ],
+      exitText: '你把最后一面镜子扣在桌上。窗里的那个"你"失去了所有可以借来的像，慢慢淡成一块脏玻璃。',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'money', key: 'contribution', v: 20 }],
+      masteryClue: 'gx2',
+    },
+
+    ganshigui: {
+      id: 'ganshigui', name: '赶尸鬼', level: 'B', penalty: 35, tie: '山水村·民国赶尸客栈（同人《赶尸人》）',
+      encounter: '凌晨四点四十四分，一辆末班车停在村口。车门开着，驾驶座上没有人，车厢里整整齐齐坐着一排盖白布的"乘客"。',
+      clues: [
+        { id: 'gsg1', text: '尸纹从手腕往上走，走到心口就换人。现在它停在小臂。' },
+        { id: 'gsg2', text: '客栈只收两样东西：一滴鬼血，和一具驭鬼者的尸体。' },
+        { id: 'gsg3', text: '赶尸不是搬运尸体，是搬运"还没有被登记的死亡"。铃响时不能回头。' },
+      ],
+      traps: [
+        { id: 'gsg_t1', label: '跟着那排白布一起上车', tags: ['上车'] },
+        { id: 'gsg_t2', label: '摇铃催它快走', tags: ['摇铃'] },
+        { id: 'gsg_t3', label: '掀开白布看看底下是谁', tags: ['掀布'] },
+      ],
+      neutral: [
+        { id: 'gsg_n1', label: '站在路边数人数，不出声', tags: ['观察'] },
+      ],
+      exits: [
+        { id: 'gsg_e1', label: '顺着尸纹的方向推，把它推回原处（生路）', tags: ['顺势'], needClues: 2,
+          cost: [{ k: 'stat', key: 'stamina', v: -15 }] },
+        { id: 'gsg_e2', label: '交出一滴血换一张路条（生路·代价）', tags: ['代价'], needClues: 1,
+          cost: [{ k: 'stat', key: 'pollution', v: 10 }] },
+      ],
+      exitText: '车开走了，轮胎没有声音。你低头看手腕——尸纹退到了指节，但没退干净。',
+      rewards: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'money', key: 'gold', v: 1 }],
+      masteryClue: 'gsg2',
+    },
+
+    jietianyuan: {
+      id: 'jietianyuan', name: '接线员', level: 'C', penalty: 15, tie: '步行街（同人《我在神秘复苏写鬼录》）',
+      encounter: '电话响了。屏幕上没有号码，只有一行字：请记录。你接起来，对面在念一串你从没做过的事——但每一件都正在发生。',
+      clues: [
+        { id: 'jty1', text: '它只在你接电话的时候进场。不接，它就只是一部响着的电话。' },
+        { id: 'jty2', text: '它记录的是"规律"本身：被它念出来的行为，会在第二天重复一次。' },
+        { id: 'jty3', text: '当册子上出现不是你写的字时，说明它已经开始记录你了。' },
+      ],
+      traps: [
+        { id: 'jty_t1', label: '接起来，听它念完', tags: ['接听'] },
+        { id: 'jty_t2', label: '拔掉电话线，再看一眼屏幕', tags: ['拔线'] },
+        { id: 'jty_t3', label: '在册子上写下它的名字', tags: ['署名'] },
+      ],
+      neutral: [
+        { id: 'jty_n1', label: '让它响，只在旁边数它响了几声', tags: ['静默'] },
+      ],
+      exits: [
+        { id: 'jty_e1', label: '按它念的顺序，一件都不去做（生路）', tags: ['不响应'], needClues: 1,
+          cost: [{ k: 'stat', key: 'sanity', v: -8 }] },
+        { id: 'jty_e2', label: '把它的规律抄进自己的册子（生路·情报）', tags: ['抄录'], needClues: 2,
+          cost: [{ k: 'stat', key: 'stamina', v: -10 }] },
+      ],
+      exitText: '你一次都没接。第十六声之后它停了，听筒里最后传来一句："已记录。"',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }],
+      masteryClue: 'jty2',
+    },
+
+    xulie: {
+      id: 'xulie', name: '序列之鬼', level: 'A', penalty: 45, tie: '药香街（同人《我在神秘复苏里喝魔药》）',
+      encounter: '药铺柜台上摆着七只瓶子。"喝下去，你就上一个序列。"柜台后面的人没有脸，但他知道你的名字。',
+      clues: [
+        { id: 'xl1', text: '每喝一瓶都强一分，也离失控近一分——瓶子上的刻度就是你的理智。' },
+        { id: 'xl2', text: '同一序列的人会互相吸引：你喝下去之后，它们会自己找上门。' },
+        { id: 'xl3', text: '药效只维持到"下一位"出现为止。序列里同时只能有一个活着的。' },
+      ],
+      traps: [
+        { id: 'xl_t1', label: '一口把第一瓶喝完', tags: ['饮药'] },
+        { id: 'xl_t2', label: '把瓶子砸了，看看漏出来什么', tags: ['毁物'] },
+        { id: 'xl_t3', label: '讨价还价，再要一瓶', tags: ['贪求'] },
+      ],
+      neutral: [
+        { id: 'xl_n1', label: '先问清楚第一瓶的代价', tags: ['询问'] },
+      ],
+      exits: [
+        { id: 'xl_e1', label: '只喝最低序列，绝不追加（生路）', tags: ['克制'], needClues: 2,
+          cost: [{ k: 'stat', key: 'pollution', v: 12 }, { k: 'stat', key: 'erosion', v: 6 }] },
+        { id: 'xl_e2', label: '用鬼血稀释药性，只取一分（生路·灵异）', tags: ['灵异'], needClues: 3,
+          cost: [{ k: 'stat', key: 'erosion', v: 10 }] },
+      ],
+      exitText: '你只喝了半瓶，把剩下的倒回柜台。那没有脸的人点了下头——"聪明的下一位。"',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'money', key: 'gold', v: 2 }],
+      masteryClue: 'xl1',
+    },
+
+    lingqi: {
+      id: 'lingqi', name: '劫修', level: 'A', penalty: 40, tie: '青云山（同人《我在神秘复苏炼气修仙》）',
+      encounter: '山里的灵气今晚浓得发白。松树下有人打坐，他呼吸的时候，周围的草都朝他的方向弯过去——但他已经死了很久了。',
+      clues: [
+        { id: 'lq1', text: '它靠"灵机"定位。你越是运功，越像在黑夜里点灯。' },
+        { id: 'lq2', text: '它怕的是"断气不吸"——功法停住，它就找不到你。' },
+        { id: 'lq3', text: '山门结界的破口就是它的入口，破口在东南角。' },
+      ],
+      traps: [
+        { id: 'lq_t1', label: '跟着它一起打坐，比较谁的功法高', tags: ['打坐'] },
+        { id: 'lq_t2', label: '运功去抢它吸走的灵气', tags: ['争夺'] },
+        { id: 'lq_t3', label: '动手打断它的呼吸', tags: ['攻击'] },
+      ],
+      neutral: [
+        { id: 'lq_n1', label: '闭气收功，把自己当成一块石头', tags: ['闭气'] },
+      ],
+      exits: [
+        { id: 'lq_e1', label: '断气不吸，把灵机让给它（生路）', tags: ['让机'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -12 }] },
+        { id: 'lq_e2', label: '用结界残片把东南角补上（生路·道具）', tags: ['道具'], needClues: 2,
+          cost: [{ k: 'itemUse', id: 'fu' }, { k: 'stat', key: 'sanity', v: -8 }] },
+      ],
+      exitText: '你收了功，山里的白气慢慢散去。松树下的那个人还坐着，只是草不再朝他弯了。',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'money', key: 'contribution', v: 15 }],
+      masteryClue: 'lq2',
+    },
+
+    yinqigui: {
+      id: 'yinqigui', name: '阴气鬼', level: 'B', penalty: 30, tie: '阴气谷·老宅（同人《我在神秘复苏修炼阴气法》）',
+      encounter: '你在老宅地下室布好阵，按功法吸下第一口阴气。风停了，灯不晃了——你听见身后有人跟着你一起呼吸。',
+      clues: [
+        { id: 'yq1', text: '阴气入体会让你越来越"像鬼"：皮肤变白，影子变淡。' },
+        { id: 'yq2', text: '它是顺着你的吸势进来的。你吸得越深，它进得越深。' },
+        { id: 'yq3', text: '法成那天它会来续约——所谓续约，是换你一口气。' },
+      ],
+      traps: [
+        { id: 'yq_t1', label: '加大吸力，把阴气都抢过来', tags: ['猛吸'] },
+        { id: 'yq_t2', label: '立刻停止运功', tags: ['停功'] },
+        { id: 'yq_t3', label: '转过头去确认身后', tags: ['回头'] },
+      ],
+      neutral: [
+        { id: 'yq_n1', label: '什么都不动，只数自己的呼吸', tags: ['静守'] },
+      ],
+      exits: [
+        { id: 'yq_e1', label: '反运功法，把吸进来的吐出去（生路）', tags: ['反运'], needClues: 2,
+          cost: [{ k: 'stat', key: 'stamina', v: -15 }, { k: 'stat', key: 'pollution', v: 6 }] },
+        { id: 'yq_e2', label: '用镇邪符封住阵眼（生路·道具）', tags: ['道具'], needClues: 1,
+          cost: [{ k: 'itemUse', id: 'fu' }] },
+      ],
+      exitText: '你把那口阴气吐了回去，喉咙里凉得像喝了铁水。身后的呼吸声停了，但你的影子确实比昨天淡。',
+      rewards: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'money', key: 'gold', v: 1 }],
+      masteryClue: 'yq2',
+    },
+
+    yiwang: {
+      id: 'yiwang', name: '遗忘鬼', level: 'A', penalty: 40, tie: '忘川渡（同人《遗忘世间》，原著李乐平同源）',
+      encounter: '你翻手机相册，发现昨天的照片里少了一个人——但你记得那儿站过人。你想不起他是谁，只觉得少了点什么。',
+      clues: [
+        { id: 'yw1', text: '它不吃人，吃"被记住的部分"。被遗忘的人不会死，只是再没人记得。' },
+        { id: 'yw2', text: '念出名字能让记忆回流一刻。哪怕只念一次。' },
+        { id: 'yw3', text: '写下来的东西它能吃，但抄两份、分开放，它就只能吃一份。' },
+      ],
+      traps: [
+        { id: 'yw_t1', label: '拼命回想那个人的名字', tags: ['回想'] },
+        { id: 'yw_t2', label: '翻遍所有照片找他的痕迹', tags: ['翻找'] },
+        { id: 'yw_t3', label: '承认"也许本来就没有这个人"', tags: ['承认'] },
+      ],
+      neutral: [
+        { id: 'yw_n1', label: '把今天的事写在纸上，抄三份', tags: ['记录'] },
+      ],
+      exits: [
+        { id: 'yw_e1', label: '写下名字并念出来（生路）', tags: ['念名'], needClues: 2,
+          cost: [{ k: 'stat', key: 'sanity', v: -10 }] },
+        { id: 'yw_e2', label: '把名字交给"无主之物"保管（生路·灵异）', tags: ['灵异'], needClues: 3,
+          cost: [{ k: 'stat', key: 'erosion', v: 10 }] },
+      ],
+      exitText: '你念出那个名字，胸口那处空着的地方剧烈地疼了一下——他回来了，只是只剩一个轮廓。',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'money', key: 'contribution', v: 15 }],
+      masteryClue: 'yw1',
+    },
+
+    zhenname: {
+      id: 'zhenname', name: '真名鬼', level: 'S', penalty: 60, tie: '名主祠（同人《鬼名有主》）',
+      encounter: '有人问你叫什么。你张开嘴，却发现自己想不起名字——不，是那个名字"已经有主"了。而它的主人，正在走近。',
+      clues: [
+        { id: 'zn1', text: '名字是所有权凭证。谁被叫到名字，谁就被"收走"。' },
+        { id: 'zn2', text: '它靠别人叫出的名字进入现实。没有名字，它就没有入口。' },
+        { id: 'zn3', text: '沉默就是防御——从头到尾不具名，它就找不到你。' },
+      ],
+      traps: [
+        { id: 'zn_t1', label: '报出自己的名字，证明自己是谁', tags: ['具名'] },
+        { id: 'zn_t2', label: '替旁边那个人答应一声', tags: ['代答'] },
+        { id: 'zn_t3', label: '在纸上写下自己的名字', tags: ['署名'] },
+      ],
+      neutral: [
+        { id: 'zn_n1', label: '一个字都不说，只摇头', tags: ['沉默'] },
+      ],
+      exits: [
+        { id: 'zn_e1', label: '全程不具名，只用代号行事（生路）', tags: ['代号'], needClues: 2,
+          cost: [{ k: 'stat', key: 'sanity', v: -12 }, { k: 'stat', key: 'stamina', v: -10 }] },
+        { id: 'zn_e2', label: '把名字写给"无主之物"（生路·灵异）', tags: ['灵异'], needClues: 3,
+          cost: [{ k: 'stat', key: 'erosion', v: 18 }, { k: 'stat', key: 'humanity', v: -6 }] },
+      ],
+      exitText: '你没有说出任何名字。祠堂里的脚步声绕了三圈，最后停在门外——它没有可以拿走的东西。',
+      rewards: [{ k: 'flag', key: 'intel', v: 3 }, { k: 'money', key: 'gold', v: 3 }, { k: 'money', key: 'contribution', v: 30 }],
+      masteryClue: 'zn2',
+    },
+
+    tonggui: {
+      id: 'tonggui', name: '瞳鬼', level: 'A', penalty: 45, tie: '大昌市第七中学（同人《诡枪》）',
+      encounter: '有人用枪指着你。枪口里没有子弹，只有一只蓝色的眼睛，正在慢慢睁开——它看见你了。',
+      clues: [
+        { id: 'tg1', text: '蓝眼以精气神为食粮。你越清醒、越用功，它吃得越饱。' },
+        { id: 'tg2', text: '子弹是具象化出来的：控魂、愈体、蚀灵——三种颜色三种用处。' },
+        { id: 'tg3', text: '它只对"已经被看见"的目标生效。闭眼、挡视线，它就打空。' },
+      ],
+      traps: [
+        { id: 'tg_t1', label: '直视枪口里的那只眼睛', tags: ['直视'] },
+        { id: 'tg_t2', label: '侧身闪躲，往暗处跑', tags: ['闪避'] },
+        { id: 'tg_t3', label: '举手投降，慢慢靠过去', tags: ['靠近'] },
+      ],
+      neutral: [
+        { id: 'tg_n1', label: '闭上眼，靠声音判断它的位置', tags: ['闭眼'] },
+      ],
+      exits: [
+        { id: 'tg_e1', label: '不进它的视线：闭眼贴墙退出射界（生路）', tags: ['脱视线'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -10 }] },
+        { id: 'tg_e2', label: '用铁器挡住瞳线（生路·材质）', tags: ['金属'], needClues: 2,
+          cost: [{ k: 'stat', key: 'stamina', v: -8 }] },
+      ],
+      exitText: '你贴着墙退出射界的时候，那只眼睛还睁着——但它找不到焦距，慢慢又合上了。',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'money', key: 'gold', v: 1 }],
+      masteryClue: 'tg2',
+    },
+
+    xuanze: {
+      id: 'xuanze', name: '两难鬼', level: 'B', penalty: 30, tie: '大澳市（同人《遵从内心的选择》）',
+      encounter: '你面前有两条路，路上各站着一个人——都是你认识的人。中间立着一块牌子：只能救一个。',
+      clues: [
+        { id: 'xz1', text: '它不杀人，它让你选。每选一次，它就长大一分。' },
+        { id: 'xz2', text: '"不选"也是一种选择，而且代价最重：两个都留下。' },
+        { id: 'xz3', text: '它给的选项永远是真的——正因如此才无解。' },
+      ],
+      traps: [
+        { id: 'xz_t1', label: '立刻选一个，别耽误时间', tags: ['速选'] },
+        { id: 'xz_t2', label: '试图两个都救', tags: ['两全'] },
+        { id: 'xz_t3', label: '转身离开这条路', tags: ['回避'] },
+      ],
+      neutral: [
+        { id: 'xz_n1', label: '站着不动，先问他们各自一句话', tags: ['询问'] },
+      ],
+      exits: [
+        { id: 'xz_e1', label: '承认自己只能救一个，并承担这个选择（生路）', tags: ['承担'], needClues: 1,
+          cost: [{ k: 'stat', key: 'humanity', v: -6 }] },
+        { id: 'xz_e2', label: '把选择权交回给对面那个人（生路）', tags: ['让权'], needClues: 2,
+          cost: [{ k: 'stat', key: 'sanity', v: -10 }] },
+      ],
+      exitText: '你救了一个，另一个没有怨你——他甚至还朝你笑了一下。路口的牌子不见了。',
+      rewards: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'humanity', v: 3 }],
+      masteryClue: 'xz1',
+    },
   };
 
   /* ------------------------------------------------------------- 开局包 */
@@ -377,6 +703,201 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     { turn: 30, ghost: 'guiguan', label: '黄岗村·鬼棺事件' },
     { turn: 40, ghost: 'eshigui', label: '大昌市沦陷·饿死鬼事件' },
   ];
+
+  /* ============================================================ 落地（城市）
+   * 两轴设计之一：落地决定"你在哪座城"，影响本地厉鬼权重、开局条件与世界推进。
+   * src=原著：地名与归属事件均出自原著时间线；src=同人作品名：出自对应衍生作。
+   * ghosts：本地关联厉鬼（遭遇时优先出现）；mods.encounter/advance：遭遇率与世界推进修正。
+   */
+  const cities = {
+    dachang: { id: 'dachang', name: '大昌市', src: '原著', place: 'school',
+      desc: '敲门鬼事件与饿死鬼沦陷的主场。第七中学、富仁商场、尚通大厦都在这里。',
+      ghosts: ['qiaomen', 'guiying', 'wutou', 'eshigui'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 0, advance: 0 } },
+    dajing: { id: 'dajing', name: '大京市', src: '原著', place: 'hotel',
+      desc: '总部与国际驭鬼者培训基地所在，平安酒店与王小明实验基地都在城里。',
+      ghosts: ['guiguan', 'zhenname'], effects: [{ k: 'money', key: 'contribution', v: 30 }], mods: { encounter: 4, advance: 0 } },
+    zhongshan: { id: 'zhongshan', name: '中山市', src: '原著', place: 'hotel',
+      desc: '凯撒大酒店与人头气球事件。这家酒店的时间与空间都不太对。',
+      ghosts: ['wutou', 'guixiang'], effects: [{ k: 'flag', key: 'marks', v: 0 }], mods: { encounter: 5, advance: 0 } },
+    dahan: { id: 'dahan', name: '大汉市', src: '原著', place: 'city',
+      desc: '烂尾楼里叠着一座"鬼邮局"，双桥镇是它的门。信使的规矩比城里任何单位都严。',
+      ghosts: ['guiguan', 'jietianyuan'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 2, advance: 0 } },
+    dahai: { id: 'dahai', name: '大海市', src: '原著', place: 'city',
+      desc: '福寿园与码头。幽灵船最后就是在市中心现身的，海风里一直有铁锈味。',
+      ghosts: ['eshigui', 'zhenname'], effects: [{ k: 'money', key: 'gold', v: 1 }], mods: { encounter: 4, advance: 1 } },
+    dachuan: { id: 'dachuan', name: '大川市', src: '原著', place: 'apartment',
+      desc: '明月小区 7 栋 301 室。这里被"鬼影头"侵蚀过，301 室留下的民国遗物还在。',
+      ghosts: ['guiguan', 'yiwang'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 3, advance: 0 } },
+    zhongzhou: { id: 'zhongzhou', name: '中州市', src: '原著', place: 'town',
+      desc: '鬼湖源头与太平古镇鬼街。纸钱、纸船、渡船，湖底还压着一口黑棺材。',
+      ghosts: ['yinqigui', 'zhenname'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 5, advance: 1 } },
+    daao: { id: 'daao', name: '大澳市', src: '原著', place: 'city',
+      desc: '赌场之城。这里的局都是真的，只是赢的人不总是活着走出去。',
+      ghosts: ['xuanze', 'guixiang'], effects: [{ k: 'money', key: 'cash', v: 150 }], mods: { encounter: 3, advance: 0 } },
+    dadong: { id: 'dadong', name: '大东市', src: '原著', place: 'city',
+      desc: '第二次队长会议召开地。饿死鬼曾从这里的收容点脱困。',
+      ghosts: ['eshigui', 'xuanze'], effects: [{ k: 'money', key: 'contribution', v: 20 }], mods: { encounter: 3, advance: 0 } },
+    xiaochun: { id: 'xiaochun', name: '小春市', src: '原著', place: 'bus',
+      desc: '灵异公交车的站点之一。车不报站，上去了就别问终点。',
+      ghosts: ['jietianyuan', 'jingqiaoqiao'], effects: [{ k: 'stat', key: 'stealth', v: 5 }], mods: { encounter: 2, advance: 0 } },
+    xiaofeng: { id: 'xiaofeng', name: '小丰市', src: '原著', place: 'city',
+      desc: '黑色雨伞事件的发生地，至今没有解决。街上有人撑着伞站在雨里不动。',
+      ghosts: ['jingqiaoqiao', 'yiwang'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 3, advance: 0 } },
+    baishuizhen: { id: 'baishuizhen', name: '白水镇', src: '原著', place: 'town',
+      desc: '亡魂之路与"三年前的世界"。镇子会把人按记忆重新铺一遍——这里死过队长。',
+      ghosts: ['jingqiaoqiao', 'yiwang', 'yinqigui'], effects: [{ k: 'stat', key: 'stealth', v: -10 }, { k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 8, advance: 1 } },
+    taiping: { id: 'taiping', name: '太平古镇', src: '原著', place: 'town',
+      desc: '招魂人一脉守着鬼街。这地方对"阴"的东西有一套自己的规矩。',
+      ghosts: ['yinqigui', 'guixiang'], effects: [{ k: 'flag', key: 'favor', v: 2 }], mods: { encounter: 2, advance: 0 } },
+    huanggang: { id: 'huanggang', name: '黄岗村', src: '原著', place: 'village',
+      desc: '鬼棺事件现场。棺材还埋在村后的坡上，位置只有村里老人知道。',
+      ghosts: ['guiguan', 'ganshigui'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 4, advance: 0 } },
+    zongbu: { id: 'zongbu', name: '总部城市', src: '原著', place: 'city',
+      desc: '总部与执法队长的办公地。这里的资源最多，规矩也最多。',
+      ghosts: ['zhenname', 'guiguan'], effects: [{ k: 'money', key: 'contribution', v: 60 }, { k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 2, advance: 0 } },
+    shenhu: { id: 'shenhu', name: '神户市', src: '原著', place: 'city',
+      desc: '岛国除灵社的地盘。敲门鬼曾在这里出现，除灵社的人则一直在等一个借口。',
+      ghosts: ['qiaomen', 'tonggui'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 6, advance: 1 } },
+
+    yanchi: { id: 'yanchi', name: '盐池市', src: '同人《神秘复苏：秉烛夜游》', place: 'city',
+      desc: '知鱼大厦与蓝天游乐园。整座城在双数日被拉进一盘棋，没人敢问执棋的是谁。',
+      ghosts: ['qigui', 'yachuang'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 5, advance: 1 } },
+    anhe: { id: 'anhe', name: '安河市', src: '同人《神秘复苏之诡相无间》', place: 'apartment',
+      desc: '安河小区的镜子特别多。七十年间，这里的守夜人一个接一个把"相"接手下去。',
+      ghosts: ['guixiang'], effects: [{ k: 'stat', key: 'sanity', v: -5 }], mods: { encounter: 4, advance: 0 } },
+    shanshui: { id: 'shanshui', name: '山水村', src: '同人《神秘复苏：赶尸人》', place: 'village',
+      desc: '民国赶尸客栈还在营业，收两样东西：一滴鬼血，一具驭鬼者的尸体。',
+      ghosts: ['ganshigui', 'guiguan'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 5, advance: 0 } },
+    buxingjie: { id: 'buxingjie', name: '步行街', src: '同人《我在神秘复苏写鬼录》', place: 'street',
+      desc: '这里的电话亭还能用，接线员会一条一条念出鬼的规律——如果你肯接。',
+      ghosts: ['jietianyuan'], effects: [{ k: 'flag', key: 'intel', v: 2 }], mods: { encounter: 2, advance: 0 } },
+    yaoxiang: { id: 'yaoxiang', name: '药香街', src: '同人《我在神秘复苏里喝魔药》', place: 'shop',
+      desc: '柜台上永远摆着七只瓶子。喝一口就能上一个序列，代价写在瓶子背面。',
+      ghosts: ['xulie'], effects: [{ k: 'itemAdd', id: 'fu' }], mods: { encounter: 4, advance: 0 } },
+    qingyun: { id: 'qingyun', name: '青云山', src: '同人《我在神秘复苏炼气修仙》', place: 'temple',
+      desc: '灵气浓得发白的山。山门结界有一处破口，东南角，很多年没人来补。',
+      ghosts: ['lingqi'], effects: [{ k: 'stat', key: 'sanity', v: 5 }], mods: { encounter: 3, advance: 0 } },
+    yinqigu: { id: 'yinqigu', name: '阴气谷', src: '同人《我在神秘复苏修炼阴气法》', place: 'oldhouse',
+      desc: '谷底老宅的地下室是天然阵眼。这里的人练功，练的是把自己练成另一种东西。',
+      ghosts: ['yinqigui'], effects: [{ k: 'stat', key: 'erosion', v: 5 }], mods: { encounter: 4, advance: 1 } },
+    wangchuan: { id: 'wangchuan', name: '忘川渡', src: '同人《神秘复苏之遗忘世间》', place: 'town',
+      desc: '渡口没有船，只有一排写满名字的木牌。牌上的字正在一个一个变淡。',
+      ghosts: ['yiwang'], effects: [{ k: 'stat', key: 'humanity', v: 5 }], mods: { encounter: 3, advance: 0 } },
+    mingzhuci: { id: 'mingzhuci', name: '名主祠', src: '同人《神秘复苏：鬼名有主》', place: 'temple',
+      desc: '祠堂里供奉的牌位全是空的。这里的规矩只有一条：别说出自己的名字。',
+      ghosts: ['zhenname'], effects: [{ k: 'stat', key: 'stealth', v: 5 }], mods: { encounter: 5, advance: 1 } },
+  };
+
+  /* ============================================================ 时期（原著时间线）
+   * 两轴设计之二：时期决定"这是灵异复苏的哪一段"，决定世界时钟里的厉鬼序列、
+   * 世界推进速度、遭遇强度，以及部分结局是否可能出现。
+   * events 结构同 worldClock（turn/ghost/label），是本时期的世界时钟。
+   */
+  const eras = {
+    ancient: {
+      id: 'ancient', name: '古代·灵异初交汇', short: '古代', src: '原著',
+      desc: '灵异世界与现实开始交汇。白水镇之主与阴阳路之主立下最初的规矩——那时候还没有总部，也没有驭鬼者这个词。',
+      events: [
+        { turn: 1, ghost: 'yinqigui', label: '古宅·阴气初聚' },
+        { turn: 10, ghost: 'ganshigui', label: '官道·赶尸夜行' },
+        { turn: 20, ghost: 'guixiang', label: '照壁上的相' },
+        { turn: 30, ghost: 'yiwang', label: '无人记得的人' },
+        { turn: 40, ghost: 'qigui', label: '古阵·棋局' },
+      ],
+      effects: [{ k: 'stat', key: 'stealth', v: 5 }, { k: 'flag', key: 'intel', v: -1 }],
+      mods: { encounter: -6, advance: -1 }, banned: ['w_golden', 'w_rules'],
+    },
+    minguo: {
+      id: 'minguo', name: '民国·灵异大爆发', short: '民国', src: '原著',
+      desc: '乱世里的灵异大爆发，民国七老镇压上一轮时代并布下后手。太平古镇招魂人一脉守着鬼街，王家古宅的血脉诅咒刚刚开始。',
+      events: [
+        { turn: 1, ghost: 'yachuang', label: '客栈·夜半压身' },
+        { turn: 10, ghost: 'ganshigui', label: '赶尸客栈·停尸间' },
+        { turn: 20, ghost: 'guixiang', label: '古宅·人偶与相' },
+        { turn: 30, ghost: 'qigui', label: '镇上·赌命棋局' },
+        { turn: 40, ghost: 'guiguan', label: '坟场·鬼棺初现' },
+      ],
+      effects: [{ k: 'stat', key: 'causality', v: 10 }, { k: 'stat', key: 'humanity', v: -5 }],
+      mods: { encounter: 4, advance: 0 }, banned: ['w_golden'],
+    },
+    y2017: {
+      id: 'y2017', name: '2017·复苏前夜', short: '2017', src: '原著',
+      desc: '叶真接管「灵异论坛」，方世明创建「朋友圈」。总部早期核心刚刚成形，普通人还以为这只是都市传说。',
+      events: [
+        { turn: 1, ghost: 'yachuang', label: '出租屋·夜半压身' },
+        { turn: 10, ghost: 'jietianyuan', label: '步行街·那通电话' },
+        { turn: 20, ghost: 'qigui', label: '商场·棋盘鬼域' },
+        { turn: 30, ghost: 'wutou', label: '富仁商场·无头鬼影' },
+        { turn: 40, ghost: 'guiying', label: '老楼·第三阶段的哭声' },
+      ],
+      effects: [{ k: 'money', key: 'contribution', v: 10 }, { k: 'flag', key: 'intel', v: 1 }],
+      mods: { encounter: -3, advance: -1 }, banned: [],
+    },
+    y2018: {
+      id: 'y2018', name: '2018·复苏初期', short: '2018', src: '原著',
+      desc: '敲门鬼事件、鬼眼觉醒、人皮纸……最后是大昌市沦陷与饿死鬼。这一年之后，没人再说"传言"。',
+      events: [
+        { turn: 1, ghost: 'guiying', label: '出租屋·夜半的哭声' },
+        { turn: 10, ghost: 'qiaomen', label: '第七中学·敲门鬼事件' },
+        { turn: 20, ghost: 'wutou', label: '富仁商场·无头鬼影事件' },
+        { turn: 30, ghost: 'guiguan', label: '黄岗村·鬼棺事件' },
+        { turn: 40, ghost: 'eshigui', label: '大昌市沦陷·饿死鬼事件' },
+      ],
+      effects: [], mods: { encounter: 0, advance: 0 }, banned: [],
+    },
+    y2019: {
+      id: 'y2019', name: '2019+·全面复苏', short: '全面复苏', src: '原著',
+      desc: '鬼邮局、鬼湖、队长会议、白水镇。灵异不再是事件，而是常态；总部开始用队长分片守城。',
+      events: [
+        { turn: 1, ghost: 'xulie', label: '药铺·第七只瓶子' },
+        { turn: 10, ghost: 'guixiang', label: '安河小区·窗里的你' },
+        { turn: 20, ghost: 'guiguan', label: '鬼邮局·四楼送信' },
+        { turn: 30, ghost: 'jingqiaoqiao', label: '白水镇·亡魂之路' },
+        { turn: 40, ghost: 'zhenname', label: '名主祠·有人在问你的名字' },
+      ],
+      effects: [{ k: 'money', key: 'contribution', v: 30 }, { k: 'stat', key: 'calamity', v: 5 }],
+      mods: { encounter: 6, advance: 1 }, banned: [],
+    },
+    doomsday: {
+      id: 'doomsday', name: '末日·幽灵船与诺亚方舟', short: '末日', src: '原著',
+      desc: '国王组织推行「诺亚方舟计划」，幽灵船靠岸，队长一个接一个折损。总部用大洪水计划反制，城市开始按区设防。',
+      events: [
+        { turn: 1, ghost: 'yachuang', label: '避难所·睡不安稳' },
+        { turn: 10, ghost: 'eshigui', label: '封锁区·饿死鬼脱困' },
+        { turn: 20, ghost: 'ganshigui', label: '码头·幽灵船的乘客' },
+        { turn: 30, ghost: 'qigui', label: '指挥部·一盘棋' },
+        { turn: 40, ghost: 'zhenname', label: '收容点·谁在叫你的名字' },
+      ],
+      effects: [{ k: 'stat', key: 'calamity', v: 15 }, { k: 'money', key: 'gold', v: 1 }],
+      mods: { encounter: 10, advance: 2 }, banned: ['w_golden'],
+    },
+    after60: {
+      id: 'after60', name: '六十年后·封锁失效', short: '六十年后', src: '原著',
+      desc: '十八层鬼域防线撑了六十年，然后漏了。灵异回归，记者贺峰开始调查那个只剩名字的传说。',
+      events: [
+        { turn: 1, ghost: 'yinqigui', label: '旧址·阴气回流' },
+        { turn: 10, ghost: 'lingqi', label: '青云山·灵气发白' },
+        { turn: 20, ghost: 'xulie', label: '药香街·重新开张' },
+        { turn: 30, ghost: 'yiwang', label: '渡口·正在变淡的牌位' },
+        { turn: 40, ghost: 'qiaomen', label: '旧教学楼·又是三下' },
+      ],
+      effects: [{ k: 'stat', key: 'humanity', v: -10 }, { k: 'stat', key: 'ghostEye', v: 1 }],
+      mods: { encounter: 8, advance: 2 }, banned: [],
+    },
+  };
+
+  /** 落地/时期解析：'random' 或空 → 按种子确定性地随机（同种子必得同一城市/时期） */
+  function resolveAxis(table, want, seed, purpose) {
+    const ids = Object.keys(table);
+    if (want && want !== 'random' && table[want]) return table[want];
+    if (want && want !== 'random' && !table[want]) return table[ids[hashIdx(seed + ':' + purpose, ids.length)]];
+    return table[ids[hashIdx(seed + ':' + purpose, ids.length)]];
+  }
+  function hashIdx(str, mod) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return Math.abs(h) % mod;
+  }
 
   /* ------------------------------------------------------------- 结局 */
   const endings = {
@@ -567,6 +1088,10 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     legacyOptions: legacyOptions,
     resolveTuning: resolveTuning,
     worldClock: worldClock,
+    cities: cities,
+    eras: eras,
+    resolveAxis: resolveAxis,
+    hashIdx: hashIdx,
     endings: endings,
     worldEndingChecks: worldEndingChecks,
     narrative: narrative,
@@ -2369,6 +2894,12 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     const tuning = CONTENT.resolveTuning(difficulty, opts.custom);
     const seed = String(opts.seed || makeSeed());
 
+    // 两轴：落地（城市）与时期。'random'/缺省 → 按种子确定性抽取，同种子必得同一组合。
+    const city = CONTENT.resolveAxis(CONTENT.cities, opts.city, seed, 'cityPick');
+    const era = CONTENT.resolveAxis(CONTENT.eras, opts.era, seed, 'eraPick');
+    const cityRandom = !opts.city || opts.city === 'random';
+    const eraRandom = !opts.era || opts.era === 'random';
+
     const stats = Object.assign({}, pack.stats);
     const money = Object.assign({ contribution: 0 }, pack.money);
 
@@ -2384,6 +2915,10 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       tuning: tuning,
       custom: opts.custom || null,
       pack: packId,
+      city: city.id,
+      era: era.id,
+      cityRandom: cityRandom,
+      eraRandom: eraRandom,
       contentLevel: opts.contentLevel || 'A',
       stats: stats,
       money: money,
@@ -2394,7 +2929,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       relationships: [],
       wife: null,
       children: 0,
-      place: pack.place || 'city',
+      place: city.place || pack.place || 'city',
       flags: Object.assign({ safehouse: 0, disguise: 0, intel: 0, marks: 0, favor: 0 }, pack.flags || {}),
       attempts: {},
       chapterReduction: 0,   // 本章已使用的劫难降低量（上限 5）
@@ -2426,8 +2961,47 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     const leg = state.legacy && CONTENT.legacyOptions ? CONTENT.legacyOptions[state.legacy] : null;
     if (leg) applyEffects(state, leg.effects, '二周目继承·' + leg.name);
 
+    // 落地与时期的环境修正（同样只改初始值，全部经唯一写入点记账）
+    if (era.effects && era.effects.length) applyEffects(state, era.effects, '时期·' + era.name);
+    if (city.effects && city.effects.length) applyEffects(state, city.effects, '落地·' + city.name);
+
     startTurn(state);        // 进入第 1 天
     return state;
+  }
+
+  /** 缓存：从 state 取落地/时期定义（老存档没有这两个字段 → 退回原著 2018 + 普通城市） */
+  function cityOf(state) {
+    if (!state.city) state.city = 'dachang';
+    return CONTENT.cities[state.city] || CONTENT.cities.dachang;
+  }
+  function eraOf(state) {
+    if (!state.era) state.era = 'y2018';
+    return CONTENT.eras[state.era] || CONTENT.eras.y2018;
+  }
+  /**
+   * 某只鬼此刻是否允许出现（分级门禁）：
+   *  · 在本时期世界时钟上有排期的鬼：S/A 级必须等到排期那天，C/B 级可以提前游荡进来；
+   *  · 不在时钟上的鬼（城市本地鬼、跨时期游荡鬼）：S 级第 20 天后、A 级第 3 天后才出现。
+   * 目的：城市与时期是可自选/可随机的，不能让一次随机的落地选择在开局第一天
+   * 就撞上 S 级本地鬼（如名主祠的真名鬼，罚分 60 ≈ 当场暴毙）。
+   */
+  function ghostAllowedNow(state, gid) {
+    const g = CONTENT.ghosts[gid];
+    if (!g) return false;
+    const sched = eraOf(state).events.filter((e) => e.ghost === gid)[0];
+    if (sched) return state.turn >= sched.turn || g.level === 'C' || g.level === 'B';
+    if (g.level === 'S') return state.turn >= 20;
+    if (g.level === 'A') return state.turn >= 3;
+    return true;
+  }
+
+  /** 该局可出现的厉鬼池：时期时钟里的鬼 ∪ 落地城市的本地鬼 */
+  function ghostPoolOf(state) {
+    const era = eraOf(state); const city = cityOf(state);
+    const out = [];
+    for (const ev of era.events) if (out.indexOf(ev.ghost) < 0) out.push(ev.ghost);
+    for (const g of (city.ghosts || [])) if (out.indexOf(g) < 0) out.push(g);
+    return out;
   }
 
   /* --------------------------------------------------- 唯一写入点 setPath */
@@ -2597,7 +3171,9 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     else if (state.chapter >= 5) base = 5;
     base = Math.max(1, Math.round(base * tu.worldMult));
     base += state.flags.marks * 1;                 // 灾厄印记：后续增长 +20%（简化为 +1/层）
-    return base;
+    base += ((cityOf(state).mods && cityOf(state).mods.advance) || 0)
+      + ((eraOf(state).mods && eraOf(state).mods.advance) || 0);
+    return Math.max(1, base);
   }
 
   /* -------------------------------------------------- 玩法轮换（12.1） */
@@ -2742,7 +3318,9 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
 
   function checkWorldEndings(state) {
     if (state.over) return;
+    const banned = eraOf(state).banned || [];
     for (const c of CONTENT.worldEndingChecks) {
+      if (banned.indexOf(c.id) >= 0) continue;   // 某些时期不存在这条路（如古代没有"总部黄金收容"）
       if (c.when(state)) {
         const def = CONTENT.endings[c.id];
         return endGame(state, c.id, def ? def.text : '世界线走到了尽头。');
@@ -3155,22 +3733,34 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   }
 
   function activeGhost(state) {
-    const list = CONTENT.worldClock;
+    const list = eraOf(state).events;
     let current = null;
     for (const ev of list) if (state.turn >= ev.turn) current = ev;
     return current ? current.ghost : list[0].ghost;
   }
 
   /**
-   * 本次遭遇是哪只鬼：主线时钟那只，或有概率是"游荡过来"的其他鬼。
-   * 没有这条，时钟之外的厉鬼（如静悄悄）永远不会出现 → 内容死掉。
+   * 本次遭遇是哪只鬼（三档）：
+   *  ① 25% 落地城市的本地鬼（每座城的"看家鬼"，让城市选择真能改变遭遇内容）
+   *  ② 35% 当前时期鬼池里的游荡鬼（否则时钟之外的厉鬼永远不会出现 → 内容死掉）
+   *  ③ 其余走本时期世界时钟的主线鬼
+   * 本地鬼按等级设门禁：S 级第 20 天前不出现、A 级第 3 天前不出现，
+   * 否则选一座"本地鬼是 S 级"的城市（如名主祠的真名鬼）会在开局第一天就被打死。
    */
   function encounterGhostId(state) {
     const r = roll100(state, 'ghostPick', 0);
-    if (r <= 45) {
-      const pool = Object.keys(CONTENT.ghosts);
-      const idx = hashStr(state.seed + ':' + state.turn + ':wander') % pool.length;
-      return pool[idx];
+    const city = cityOf(state);
+    if (r <= 25 && city.ghosts && city.ghosts.length) {
+      const local = city.ghosts.filter((gid) => ghostAllowedNow(state, gid));
+      if (local.length) {
+        return local[hashStr(state.seed + ':' + state.turn + ':city') % local.length];
+      }
+    }
+    if (r <= 60) {
+      const pool = ghostPoolOf(state).filter((gid) => ghostAllowedNow(state, gid));
+      if (pool.length) {
+        return pool[hashStr(state.seed + ':' + state.turn + ':wander') % pool.length];
+      }
     }
     return activeGhost(state);
   }
@@ -3181,6 +3771,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     let c = tu.encounterBase + Math.floor(state.stats.calamity / 5) + Math.floor(state.stats.pollution / 10);
     c -= state.flags.safehouse * 5;
     c += state.stats.stealth < 30 ? 10 : 0;
+    c += (cityOf(state).mods && cityOf(state).mods.encounter) || 0;
+    c += (eraOf(state).mods && eraOf(state).mods.encounter) || 0;
     return clamp(c, 3, tu.encounterCap);
   }
 
@@ -3419,8 +4011,11 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
 
   /* ------------------------------------------------------------- 面板数据 */
   function panelOf(state) {
+    const city = cityOf(state); const era = eraOf(state);
     return {
       回合: state.turn + ' 天（第 ' + state.chapter + ' 章）',
+      落地: city.name + (state.cityRandom ? '（随机）' : ''),
+      时期: era.short + (state.eraRandom ? '（随机）' : ''),
       难度: tuningOf(state).name + (state.over ? '' : ''),
       鬼侵蚀: state.stats.erosion,
       人性: state.stats.humanity + ' / ' + clamp(100 - state.stats.erosion, 0, 100),
@@ -3451,6 +4046,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     const payload = {
       v: state.v, seed: state.seed, turn: state.turn, difficulty: state.difficulty,
       pack: state.pack, custom: state.custom, tuning: state.tuning, legacy: state.legacy,
+      city: state.city, era: state.era, cityRandom: state.cityRandom, eraRandom: state.eraRandom,
       stats: state.stats, money: state.money, items: state.items,
       contracts: state.contracts, clues: state.clues, bestiary: state.bestiary,
       flags: state.flags, attempts: state.attempts, calamityFloor: state.calamityFloor,
@@ -3479,6 +4075,9 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     if (obj.p.v !== 1) return { error: '存档版本不兼容' };
     const s = createGame({
       seed: obj.p.seed, pack: obj.p.pack, difficulty: obj.p.difficulty, custom: obj.p.custom,
+      // 老存档没有 city/era 字段（本功能上线前存的档）：固定回退到 2018·复苏初期 + 大昌市，
+      // 不能用随机——否则读一次档就换了一座城/一个时期，进度语义全变。
+      city: obj.p.city || 'dachang', era: obj.p.era || 'y2018',
     });
     if (obj.p.tuning) s.tuning = obj.p.tuning;
     s.peakGold = Math.max(s.peakGold || 0, getPath(s, 'money.gold'));
@@ -3501,6 +4100,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     resolve: resolve,
     serialize: serialize,
     deserialize: deserialize,
+    checksum: checksum,        // 供测试构造合法校验和的"老存档"（缺 city/era）
     panelOf: panelOf,
     masteryCheck: masteryCheck,
     miracleCheck: miracleCheck,
@@ -4300,6 +4900,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   let state = null;
   let selected = {
     difficulty: 'standard', pack: 'ordinary', level: 'A', seed: '',
+    city: 'random', era: 'random',
     custom: { encounter: 'normal', judge: 'normal', mercy: 'normal' },
     legacy: null,
   };
@@ -4316,12 +4917,29 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   /* ------------------------------------------------------------ 场景文本 */
   const N = window.RSNarrative || null;
 
+  /** 本时期的"世界时钟"（时期不同，主线厉鬼序列就不同）；老存档无时期 → 退回原著 2018 */
+  function eraClock(s) {
+    const era = (C.eras && C.eras[s && s.era]) || null;
+    return (era && era.events && era.events.length) ? era.events : C.worldClock;
+  }
+  function cityInfo(s) {
+    return (C.cities && C.cities[s && s.city]) || null;
+  }
+  function eraInfo(s) {
+    return (C.eras && C.eras[s && s.era]) || null;
+  }
+
   /** 场景描写：优先用叙事生成器（组合 + 轮转 + 状态反应），没有则退回素材库 */
   function sceneLines(s) {
     if (N) {
       const r = N.scene(s);
-      const ev = C.worldClock.filter((e) => e.turn <= s.turn).slice(-1)[0];
+      const clock = eraClock(s);
+      const ev = clock.filter((e) => e.turn <= s.turn).slice(-1)[0];
       if (ev && s.turn - ev.turn <= 2) r.lines.push('【世界事件】' + ev.label + ' 正在进行。');
+      const era = eraInfo(s);
+      if (era && s.turn === 1) r.lines.push('【时期】' + era.name + '——' + era.desc);
+      const city = cityInfo(s);
+      if (city && s.turn === 1) r.lines.push('【落地】' + city.name + '（' + city.src + '）——' + city.desc);
       return r.lines;
     }
     const n = C.narrative;
@@ -4340,7 +4958,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     if (!force && lastSceneTurn === state.turn) return;
     lastSceneTurn = state.turn;
     const lines = sceneLines(state);
-    const startEv = C.worldClock.find((e) => e.turn === state.turn);
+    const startEv = eraClock(state).find((e) => e.turn === state.turn);
     if (startEv) {
       addLog('event', '════ 【重大事件】' + startEv.label + ' ════');
       addLog('event', '你正在被卷进去。它不是背景，它是接下来的一切。');
@@ -4558,6 +5176,59 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       box.appendChild(b);
     }
 
+    // ---- 落地（城市）：可自选，也可随机 ----
+    if (C.cities) {
+      box.appendChild(el('div', 'sectionTitle', '落地（你在哪座城）· 可自选或随机'));
+      const cRow = el('div', 'row');
+      const rc = el('button', 'btn small' + (selected.city === 'random' ? ' on' : ''), '随机落地');
+      rc.onclick = () => { selected.city = 'random'; showMenu(); };
+      cRow.appendChild(rc);
+      box.appendChild(cRow);
+      const groups = [['原著城市', '原著'], ['同人衍生（含其城市与厉鬼）', '同人']];
+      for (const [title, key] of groups) {
+        const ids = Object.keys(C.cities).filter((id) => (key === '原著'
+          ? C.cities[id].src === '原著'
+          : C.cities[id].src !== '原著'));
+        const row = el('div', 'row');
+        row.appendChild(el('span', 'muted', title + '：'));
+        ids.forEach((id) => {
+          const c = C.cities[id];
+          const b = el('button', 'btn small' + (selected.city === id ? ' on' : ''), c.name);
+          b.title = c.src + '　' + c.desc;
+          b.onclick = () => { selected.city = id; showMenu(); };
+          row.appendChild(b);
+        });
+        box.appendChild(row);
+      }
+      const curC = selected.city === 'random' ? null : C.cities[selected.city];
+      box.appendChild(el('div', 'hint', curC
+        ? ('落地：' + curC.name + '（' + curC.src + '）' + curC.desc +
+           '　本地厉鬼：' + curC.ghosts.map((g) => (C.ghosts[g] ? C.ghosts[g].name : g)).join('、'))
+        : '落地：随机（按种子抽签，同种子必得同一座城）'));
+    }
+
+    // ---- 时期（原著时间线）：可自选，也可随机 ----
+    if (C.eras) {
+      box.appendChild(el('div', 'sectionTitle', '时期（原著时间线）· 可自选或随机'));
+      const eRow = el('div', 'row');
+      const re = el('button', 'btn small' + (selected.era === 'random' ? ' on' : ''), '随机时期');
+      re.onclick = () => { selected.era = 'random'; showMenu(); };
+      eRow.appendChild(re);
+      Object.keys(C.eras).forEach((id) => {
+        const e = C.eras[id];
+        const b = el('button', 'btn small' + (selected.era === id ? ' on' : ''), e.short);
+        b.title = e.name + '　' + e.desc;
+        b.onclick = () => { selected.era = id; showMenu(); };
+        eRow.appendChild(b);
+      });
+      box.appendChild(eRow);
+      const curE = selected.era === 'random' ? null : C.eras[selected.era];
+      box.appendChild(el('div', 'hint', curE
+        ? ('时期：' + curE.name + '　' + curE.desc + '　世界时钟：' +
+           curE.events.map((e) => (C.ghosts[e.ghost] ? C.ghosts[e.ghost].name : e.ghost) + '@' + e.turn + '天').join(' → '))
+        : '时期：随机（按种子抽签）'));
+    }
+
     box.appendChild(el('div', 'sectionTitle', '内容分级'));
     const lvRow = el('div', 'row');
     [['A', 'A 影视级（默认）'], ['B', 'B 写实级'], ['C', 'C 无限制']].forEach(([id, label]) => {
@@ -4647,11 +5318,15 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       pack: selected.pack, difficulty: selected.difficulty,
       custom: selected.difficulty === 'custom' ? selected.custom : null,
       seed: selected.seed || undefined, contentLevel: selected.level,
+      city: selected.city, era: selected.era,
       legacy: legacy,
     });
     $('panel').style.display = '';
     clear($('log'));
     addLog('', '【开局】' + C.packs[selected.pack].blurb);
+    const ci = cityInfo(state), ei = eraInfo(state);
+    if (ci) addLog('', '【落地】' + ci.name + '（' + ci.src + '，' + (state.cityRandom ? '随机' : '自选') + '）——' + ci.desc);
+    if (ei) addLog('', '【时期】' + ei.name + '（' + ei.src + '，' + (state.eraRandom ? '随机' : '自选') + '）——' + ei.desc);
     // 继承提示必须写在 clear(log) 之后，否则会被清掉（玩家花了点数却看不到反馈）
     if (legacy) {
       addLog('', '【二周目继承】' + C.legacyOptions[legacy].name + '：' + C.legacyOptions[legacy].desc +
