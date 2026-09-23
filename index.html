@@ -1,0 +1,4874 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>神秘复苏模拟器 v3.1</title>
+<style>/* 神秘复苏模拟器 · 样式（暗色、克制、移动端可读） */
+:root{
+  --bg:#0d1117; --panel:#131a22; --panel2:#0f151c; --line:#1f2b36;
+  --fg:#c9d1d9; --dim:#8b949e; --accent:#26c6da; --warn:#ffb300;
+  --danger:#ef5350; --ok:#66bb6a; --story:#b0bec5;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--fg);
+  font:15px/1.75 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+  display:flex; flex-direction:column; min-height:100vh;
+}
+header{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel2);
+  position:sticky; top:0; z-index:10;
+}
+header h1{font-size:16px; margin:0; letter-spacing:.5px}
+header .tag{font-size:12px; color:var(--dim); border:1px solid var(--line); padding:1px 8px; border-radius:99px}
+header .spacer{flex:1}
+header .tools{display:flex; gap:8px; flex-wrap:wrap}
+
+main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
+#side{width:290px; flex:0 0 290px; position:sticky; top:62px}
+#panel{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px}
+.prow{display:flex; justify-content:space-between; gap:10px; padding:3px 0; border-bottom:1px dashed #1b242d; font-size:13.5px}
+.prow:last-child{border-bottom:0}
+.pk{color:var(--dim)}
+.pv{color:#eceff1; text-align:right}
+
+#stage{flex:1; min-width:0; display:flex; flex-direction:column; gap:12px}
+#log{
+  background:var(--panel); border:1px solid var(--line); border-radius:10px;
+  padding:14px 16px; min-height:46vh; max-height:62vh; overflow-y:auto;
+}
+.line{margin:0 0 6px}
+.line.story,.line:not([class*=' ']){color:var(--story)}
+.line.enc{color:var(--warn); font-weight:600; margin-top:10px}
+.line.clue{color:#80cbc4; font-size:14px}
+.line.set{color:var(--warn); font-size:13.5px; font-family:ui-monospace,Consolas,monospace}
+.line.over{color:var(--danger); font-weight:600; margin-top:10px}
+.line.warn{color:var(--danger)}
+.line.muted{color:var(--dim); font-size:13px}
+
+#choices{display:flex; flex-direction:column; gap:8px}
+.btn{
+  text-align:left; padding:11px 14px; border-radius:10px; cursor:pointer;
+  background:#16202a; color:var(--fg); border:1px solid var(--line);
+  font:inherit; transition:.12s;
+}
+.btn:hover{background:#1c2833; border-color:#2d3d4d}
+.btn.on{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+.btn.exit{border-color:#2f5d4a}
+.btn.primary{background:#0f3b45; border-color:var(--accent); color:#e0f7fa; font-weight:600}
+.btn.primary:hover{background:#124a56}
+.btn.small{display:inline-block; padding:7px 11px; font-size:13px}
+.btn.big{padding:14px; text-align:center; font-size:16px}
+.btn.card{font-size:13.5px; line-height:1.6}
+.row{display:flex; gap:8px; flex-wrap:wrap}
+.sectionTitle{color:var(--dim); font-size:13px; margin:10px 0 2px}
+.input{
+  padding:10px 12px; border-radius:9px; background:#0f1720; color:var(--fg);
+  border:1px solid var(--line); font:inherit; width:100%;
+}
+#footer{display:flex; gap:8px; align-items:center; padding:0 2px}
+#footer .input{flex:1}
+.muted{color:var(--dim); font-size:13px}
+.hint{color:var(--dim); font-size:12.5px; padding:0 2px}
+@media (max-width:900px){
+  main{flex-direction:column}
+  #side{width:100%; flex:none; position:static}
+  #log{max-height:none}
+}
+
+.line.scene{color:#7f8c99; font-size:13.5px; font-style:italic; margin:2px 0 2px}
+.line.event{color:#ff7043; font-weight:600; margin-top:12px; letter-spacing:.5px}
+
+.toolbox{background:var(--panel2); border:1px solid var(--accent); border-radius:10px; padding:12px}
+.toolbox textarea{width:100%; resize:vertical; font-family:ui-monospace,Consolas,monospace; font-size:12.5px}
+.toolbox .row{align-items:center}
+.toolbox .pk{min-width:72px; color:var(--dim); font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>神秘复苏模拟器</h1>
+  <span class="tag" id="turnLabel">未开局</span>
+  <span class="tag" id="diffLabel">—</span>
+  <span class="spacer"></span>
+  <div class="tools">
+    <span class="tag" id="aiState">AI 叙事：关</span>
+    <button class="btn small" id="btnAI">AI 叙事设置</button>
+    <button class="btn small" id="btnCard">查看存档卡</button>
+    <button class="btn small" id="btnSave">导出存档</button>
+    <button class="btn small" id="btnLoad">导入存档</button>
+  </div>
+</header>
+
+<main>
+  <aside id="side">
+    <div id="panel"></div>
+    <div class="hint" style="margin-top:8px">
+      判定与数值全部由本机规则引擎计算：随机数只取决于「种子 + 天数 + 用途」，
+      读档不能改判，界面也无法输入数值。
+    </div>
+  </aside>
+  <section id="stage">
+    <div id="log"></div>
+    <div id="toolbox" class="toolbox" style="display:none"></div>
+    <div id="footer">
+      <input class="input" id="customInput" placeholder="自定义行动（叙事描述，不参与判定；写到玩法名可直接点名，例如「我要灵异潮汐」）">
+      <button class="btn small" id="btnCustom">执行</button>
+    </div>
+    <div id="choices"></div>
+  </section>
+</main>
+
+<script>/* ============================================================================
+ * 神秘复苏模拟器 · 内容数据（规则 v3.1）
+ * ----------------------------------------------------------------------------
+ * 数据与逻辑分离：这里只声明「是什么」，判定怎么算由 engine.js 统一负责。
+ * 契约（内容校验器 test/lint.js 会逐条检查）：
+ *  - 每只厉鬼至少有 2 条可发现线索（补丁 P12：死亡陷阱必须可推理）
+ *  - 每只厉鬼至少 1 条确定性死亡陷阱、1 个中性选项、1 条依赖线索的生路
+ *  - 生路的 needClues 不得超过该厉鬼的线索总数
+ *  - 所有引用的道具/线索/厉鬼 id 必须存在
+ * ==========================================================================*/
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSContent = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  /* ------------------------------------------------------------- 道具库 */
+  const items = {
+    guizhu: { name: '鬼烛', uses: 3, shieldFor: ['C', 'B', 'A'], base: 65, bonus: 5,
+      text: '烛火被压得极低，却没有灭——它替你挡住了这一下。' },
+    tisidoll: { name: '替死娃娃', uses: 1, shieldFor: ['C', 'B', 'A', 'S'], base: 90, bonus: 10,
+      text: '娃娃在你手里裂开，替你死了一次。' },
+    fu: { name: '镇邪符', uses: 2, shieldFor: ['C', 'B'], base: 60, bonus: 0,
+      text: '符纸烧成灰，纸灰落地的形状像一个蜷缩的人。' },
+    guancai: { name: '棺材钉', uses: 2, shieldFor: ['A', 'S'], base: 55, bonus: 5,
+      text: '钉子钉进空气里，那东西被短暂地"钉住"了。' },
+    seal: { name: '封印类物件', uses: 1, shieldFor: ['A', 'S'], base: 70, bonus: 10,
+      text: '封印展开的瞬间，规律出现了一道缺口。' },
+    relic: { name: '老旧驭鬼者遗物', uses: 2, shieldFor: ['C', 'B'], base: 55, bonus: 5,
+      text: '遗物替你扛了一下，然后碎成几片。' },
+    renpizhi: { name: '人皮纸', uses: 1, shieldFor: [], base: 0, bonus: 0,
+      text: '纸面浮出一行字，随后自己烧掉了。' },
+    huangjin: { name: '黄金块', uses: 3, shieldFor: ['C', 'B', 'A'], base: 70, bonus: 8,
+      text: '黄金把那股力量隔在外面——它唯一怕的东西。' },
+  };
+
+  /* ------------------------------------------------------------- 厉鬼库 */
+  const ghosts = {
+    guiying: {
+      id: 'guiying', name: '鬼婴', level: 'B', penalty: 25, tie: '夜里的哭声',
+      encounter: '楼道尽头的哭声又响起来了。它不尖，反而很稳，像是有人在耐心地等你走过去。',
+      clues: [
+        { id: 'gy1', text: '哭声只在你移动时改变方向——它靠声音定位。' },
+        { id: 'gy2', text: '上一户人家的孩子被抱回来了，抱回来的是两半。' },
+        { id: 'gy3', text: '它不进门，只在门缝外站着；门开过的地方它才进得去。' },
+      ],
+      traps: [
+        { id: 'gy_t1', label: '循着哭声走过去看看', tags: ['循声'] },
+        { id: 'gy_t2', label: '把门打开，让它进来', tags: ['开门'] },
+        { id: 'gy_t3', label: '抱起那团湿冷的东西', tags: ['触碰'] },
+      ],
+      neutral: [
+        { id: 'gy_n1', label: '贴着墙、不出声地退回房间', tags: ['回避'] },
+      ],
+      exits: [
+        { id: 'gy_e1', label: '封死门缝、断绝声音通道（生路）', tags: ['封门'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -10 }] },
+        { id: 'gy_e2', label: '用镇邪符把楼道钉住（生路）', tags: ['道具'], needClues: 2,
+          cost: [{ k: 'itemUse', id: 'fu' }, { k: 'stat', key: 'pollution', v: 6 }] },
+      ],
+      exitText: '门缝被封死，哭声在门外绕了几圈，慢慢远了。',
+      rewards: [{ k: 'money', key: 'gold', v: 1 }, { k: 'flag', key: 'intel', v: 1 }],
+      masteryClue: 'gy3',
+    },
+
+    qiaomen: {
+      id: 'qiaomen', name: '敲门鬼', level: 'S', penalty: 60, tie: '大昌市第七中学·青黑鬼域',
+      encounter: '整栋教学楼沉进青黑色里。走廊尽头传来敲门声——三下，停一拍，两下。声音是从教室门内侧敲出来的。',
+      clues: [
+        { id: 'qm1', text: '敲门声的节奏是三长两短：这是它的杀人规律本身，不是巧合。' },
+        { id: 'qm2', text: '鬼域里没有门能通向外面——翻墙、奔跑、冲向校门的人，尸体都在原地。' },
+        { id: 'qm3', text: '周正说过：不回应、不开门、不主动触犯规律，它就找不到你。' },
+        { id: 'qm4', text: '青黑色是鬼域浸透的表现；只有灵异力量能撕开缺口。' },
+      ],
+      traps: [
+        { id: 'qm_t1', label: '播放手机里那段敲门音频', tags: ['播放音频'] },
+        { id: 'qm_t2', label: '应一声"谁啊"，然后开门', tags: ['回应', '开门'] },
+        { id: 'qm_t3', label: '冲出教室，往校门狂奔', tags: ['奔跑'] },
+        { id: 'qm_t4', label: '在黑暗里大喊，让同学都听见', tags: ['出声'] },
+      ],
+      neutral: [
+        { id: 'qm_n1', label: '咬住舌头，一动不动地等', tags: ['静默'] },
+        { id: 'qm_n2', label: '贴着墙根观察敲门声的来源', tags: ['观察'] },
+      ],
+      exits: [
+        { id: 'qm_e1', label: '牢记规律：不回应、不开门，等它敲门声停（生路）', tags: ['规律回避'], needClues: 1,
+          cost: [{ k: 'stat', key: 'sanity', v: -10 }, { k: 'stat', key: 'stamina', v: -15 }] },
+        { id: 'qm_e2', label: '点燃鬼烛，用烛光封住门口（生路）', tags: ['道具'], needClues: 2,
+          cost: [{ k: 'itemUse', id: 'guizhu' }, { k: 'stat', key: 'pollution', v: 10 }] },
+        { id: 'qm_e3', label: '用鬼眼撕开鬼域缺口撤离（生路）', tags: ['灵异'], needClues: 3,
+          cost: [{ k: 'stat', key: 'erosion', v: 12 }, { k: 'stat', key: 'ghostEye', v: 0 }] },
+      ],
+      exitText: '敲门声停了。青黑色像退潮一样从走廊尽头褪走，你听见有人在外面喊你的名字——这次是真的。',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'money', key: 'gold', v: 3 }, { k: 'money', key: 'contribution', v: 20 }],
+      masteryClue: 'qm4',
+    },
+
+    wutou: {
+      id: 'wutou', name: '无头鬼影', level: 'A', penalty: 45, tie: '富仁商场·无头鬼影事件',
+      encounter: '商场的中央空调还在送风，货架之间站着一个没有头的影子。它没有动——它在等有人背对它。',
+      clues: [
+        { id: 'wt1', text: '被它盯上的人都是在背对它的时候被搬走了头。' },
+        { id: 'wt2', text: '它换头有固定的顺序：先摸后颈，再搬。中间有半秒空档。' },
+        { id: 'wt3', text: '最后它是被黄金关起来的——它绕不开黄金。' },
+      ],
+      traps: [
+        { id: 'wt_t1', label: '转身跑向扶梯', tags: ['背对', '奔跑'] },
+        { id: 'wt_t2', label: '回头看一眼那是什么', tags: ['回头'] },
+        { id: 'wt_t3', label: '躲进电梯，关上门', tags: ['密闭'] },
+      ],
+      neutral: [
+        { id: 'wt_n1', label: '面朝着它，一步一步后退', tags: ['面对'] },
+        { id: 'wt_n2', label: '混进人群，跟着人流走向出口', tags: ['人群'] },
+      ],
+      exits: [
+        { id: 'wt_e1', label: '始终面朝它移动，绝不背对（生路）', tags: ['规律回避'], needClues: 1,
+          cost: [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'stat', key: 'stamina', v: -12 }] },
+        { id: 'wt_e2', label: '用黄金摆一道隔离线，从侧面绕出（生路）', tags: ['道具'], needClues: 2,
+          cost: [{ k: 'money', key: 'gold', v: -2 }, { k: 'stat', key: 'pollution', v: 8 }] },
+      ],
+      exitText: '你倒退着走出了商场大门。玻璃门合上的一刻，那道影子还站在原地，面朝着你离开的方向。',
+      rewards: [{ k: 'money', key: 'gold', v: 2 }, { k: 'flag', key: 'intel', v: 2 }],
+      masteryClue: 'wt3',
+    },
+
+    guiguan: {
+      id: 'guiguan', name: '鬼棺·鬼差', level: 'A', penalty: 45, tie: '黄岗村·鬼棺事件',
+      encounter: '祠堂正中停着一口棺材，木料是黑的。棺材盖上贴的封皮已经烂了，风一过就哗啦地响。有东西在棺里翻身。',
+      clues: [
+        { id: 'gg1', text: '棺材里压着的东西能压制灵异——它不是鬼，是"差"。' },
+        { id: 'gg2', text: '封皮一旦彻底烂掉，鬼差就会出来"办差"，届时人和鬼都拦不住。' },
+        { id: 'gg3', text: '村里老人说，鬼差认的是封皮上的名字，不是棺材。' },
+      ],
+      traps: [
+        { id: 'gg_t1', label: '掀开棺材盖看看里面', tags: ['开棺'] },
+        { id: 'gg_t2', label: '把棺材烧了，一了百了', tags: ['焚毁'] },
+        { id: 'gg_t3', label: '在祠堂里过夜守着它', tags: ['守夜'] },
+      ],
+      neutral: [
+        { id: 'gg_n1', label: '绕开祠堂，从村后走', tags: ['绕行'] },
+      ],
+      exits: [
+        { id: 'gg_e1', label: '把封皮重新贴上、补上名字（生路）', tags: ['规律回避'], needClues: 2,
+          cost: [{ k: 'stat', key: 'stamina', v: -15 }, { k: 'stat', key: 'pollution', v: 8 }] },
+        { id: 'gg_e2', label: '引另一只厉鬼靠近，让鬼差去压它（生路）', tags: ['借势'], needClues: 3,
+          cost: [{ k: 'stat', key: 'calamity', v: 10 }, { k: 'stat', key: 'erosion', v: 5 }] },
+      ],
+      exitText: '封皮贴回去的那一刻，棺里的动静停了。你听见木头里传来一声很轻的、像是叹气的声音。',
+      rewards: [{ k: 'flag', key: 'intel', v: 3 }, { k: 'money', key: 'contribution', v: 30 }],
+      masteryClue: 'gg1',
+    },
+
+    eshigui: {
+      id: 'eshigui', name: '饿死鬼', level: 'S', penalty: 60, tie: '大昌市沦陷·饿死鬼事件',
+      encounter: '整座城市被青黑色盖住。街上的人保持着走路的姿势，一动不动——他们体内的东西已经被吃干净了。远处有婴儿在哭，然后是孩子的笑声，再然后，是成年男人的呼吸声。',
+      clues: [
+        { id: 'es1', text: '它在进化：鬼婴、鬼童、鬼青年、饿死鬼，一共四个阶段。' },
+        { id: 'es2', text: '青黑鬼域笼罩全城，出去的路已经被封死了。' },
+        { id: 'es3', text: '它怕的不是火，是黄金——黄金能把它关起来，哪怕只是暂时。' },
+        { id: 'es4', text: '它的注意力会被活人的声音牵着走，安静是唯一可以自己选择的优势。' },
+      ],
+      traps: [
+        { id: 'es_t1', label: '正面冲过去，抢一辆车出城', tags: ['直面', '奔跑'] },
+        { id: 'es_t2', label: '站在原地大声呼救', tags: ['出声'] },
+        { id: 'es_t3', label: '钻进地铁隧道深处躲着', tags: ['密闭'] },
+      ],
+      neutral: [
+        { id: 'es_n1', label: '屏住呼吸，挪进地下车库', tags: ['静默'] },
+      ],
+      exits: [
+        { id: 'es_e1', label: '保持绝对安静，按它注意力的间隙移动（生路）', tags: ['规律回避'], needClues: 2,
+          cost: [{ k: 'stat', key: 'stamina', v: -25 }, { k: 'stat', key: 'sanity', v: -12 }] },
+        { id: 'es_e2', label: '用鬼眼在鬼域上撕一道缺口（生路）', tags: ['灵异'], needClues: 3,
+          cost: [{ k: 'stat', key: 'erosion', v: 15 }, { k: 'stat', key: 'calamity', v: 15 }] },
+      ],
+      exitText: '你从缺口挤出去的时候，身后的城市像一张被水泡烂的纸。',
+      rewards: [{ k: 'stat', key: 'humanity', v: 5 }, { k: 'money', key: 'contribution', v: 100 }],
+      masteryClue: 'es3',
+    },
+
+    jingqiaoqiao: {
+      id: 'jingqiaoqiao', name: '静悄悄', level: 'C', penalty: 10, tie: '白水镇边缘',
+      encounter: '你走进一条巷子，突然听不见自己的脚步声了。周围的一切还在动，只有声音被抽走了。',
+      clues: [
+        { id: 'jq1', text: '它偷声音。你越用力发声，被拿走的越多。' },
+        { id: 'jq2', text: '它的范围很小，退出去就没事。' },
+      ],
+      traps: [
+        { id: 'jq_t1', label: '大声喊，确认自己还能发声', tags: ['出声'] },
+      ],
+      neutral: [
+        { id: 'jq_n1', label: '不动声色地往回退', tags: ['回避'] },
+      ],
+      exits: [
+        { id: 'jq_e1', label: '不出声，直接退出巷子（生路）', tags: ['规律回避'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -5 }] },
+      ],
+      exitText: '你退回巷口，脚步声回来了。巷子里安静得像什么都没发生过。',
+      rewards: [{ k: 'flag', key: 'intel', v: 1 }],
+      masteryClue: 'jq1',
+    },
+  };
+
+  /* ------------------------------------------------------------- 开局包 */
+  const packs = {
+    longaotian: {
+      id: 'longaotian', name: '龙傲天开局',
+      blurb: '你生来便与灵异纠缠——有人说是天赋，有人说是诅咒。你所在的老宅，今夜似乎不太平。',
+      stats: { erosion: 30, humanity: 60, calamity: 20, stealth: 20, sanity: 80, stamina: 100, causality: 10, pollution: 0, ghostEye: 0 },
+      money: { cash: 200, deposit: 300, gold: 50 },
+      items: ['relic', 'guizhu'], contracts: ['guiying'],
+      flags: { safehouse: 1 }, place: 'oldhouse',
+    },
+    yangjian: {
+      id: 'yangjian', name: '杨间开局',
+      blurb: '大昌市第七中学，高三。昨晚你刷到一个实时更新的鬼故事帖，帖子末尾附了一段敲门的音频。',
+      stats: { erosion: 5, humanity: 85, calamity: 10, stealth: 70, sanity: 90, stamina: 100, causality: 0, pollution: 0, ghostEye: 0 },
+      money: { cash: 0, deposit: 0, gold: 0 },
+      items: [], contracts: [],
+      flags: { safehouse: 0 }, place: 'school',
+    },
+    ordinary: {
+      id: 'ordinary', name: '普通人开局',
+      blurb: '你只是一个普通人，因为工作来到一座陌生城市。你租下一间便宜的出租屋，半夜回家时，楼道里响起了第二个人的脚步声。',
+      stats: { erosion: 0, humanity: 90, calamity: 5, stealth: 75, sanity: 100, stamina: 100, causality: 0, pollution: 0, ghostEye: 0 },
+      money: { cash: 3, deposit: 2, gold: 0 },
+      items: [], contracts: [],
+      flags: { safehouse: 0 }, place: 'apartment',
+    },
+    support: {
+      id: 'support', name: '配角开局',
+      blurb: '你从旁人的视角被卷了进来。你比主角更早看见它，也比主角更早被它记住。',
+      stats: { erosion: 10, humanity: 75, calamity: 12, stealth: 60, sanity: 85, stamina: 100, causality: 5, pollution: 0, ghostEye: 0 },
+      money: { cash: 20, deposit: 15, gold: 1 },
+      items: ['fu'], contracts: [],
+      flags: { safehouse: 0 }, place: 'city',
+    },
+    yangji: {
+      id: 'yangji', name: '杨戬开局（终局级·极难）',
+      blurb: '你已不是人，不是鬼，也不是驭鬼者。你是第四种存在。但阴阳路的方向，传来了不该有的敲门声。',
+      stats: { erosion: 90, humanity: 8, calamity: 70, stealth: 5, sanity: 60, stamina: 100, causality: 60, pollution: 0, ghostEye: 9 },
+      money: { cash: 0, deposit: 0, gold: 100 },
+      items: ['guancai', 'guizhu', 'seal'], contracts: ['qiaomen'],
+      flags: { safehouse: 3 }, place: 'yangjian',
+    },
+  };
+
+  /* --------------------------------------------------------- 世界时钟 */
+  const worldClock = [
+    { turn: 1, ghost: 'guiying', label: '出租屋·夜半的哭声' },
+    { turn: 10, ghost: 'qiaomen', label: '第七中学·敲门鬼事件' },
+    { turn: 20, ghost: 'wutou', label: '富仁商场·无头鬼影事件' },
+    { turn: 30, ghost: 'guiguan', label: '黄岗村·鬼棺事件' },
+    { turn: 40, ghost: 'eshigui', label: '大昌市沦陷·饿死鬼事件' },
+  ];
+
+  /* ------------------------------------------------------------- 结局 */
+  const endings = {
+    dead: { name: '无名墓碑', kind: 'personal', bad: true, text: '普通死亡，无名无姓，世界继续运转。' },
+    p_fuxi: { name: '复苏之鬼', kind: 'personal', bad: true, text: '人性归零或侵蚀满值，你复苏为厉鬼，成为新的都市传说。' },
+    p_survivor: { name: '幸存者', kind: 'personal', bad: false,
+      text: '活过一切，侵蚀极低，靠低调与人脉回归日常。代价：往事随时可能找上门。' },
+    p_family: { name: '家庭线', kind: 'personal', bad: false,
+      text: '侵蚀<20、有配偶子嗣，成功隐退，以普通人的身份度过余生。' },
+    p_debtor: { name: '债主', kind: 'personal', bad: true, text: '因果值满，被「鬼债」收走。' },
+    p_mad: { name: '疯子先知', kind: 'personal', bad: true, text: '理智归零但存活，只有你知道真相。' },
+    w_ruyu: { name: '人间如狱', kind: 'world', bad: true, text: '灵异时代彻底降临，城市沦陷，文明退守零散据点。' },
+    w_golden: { name: '黄金纪元', kind: 'world', bad: false,
+      text: '推动总部建立全球黄金收容体系，灵异时代转入「监管时代」。代价：你成为终身监察长。' },
+    w_gate: { name: '关门人', kind: 'world', bad: false,
+      text: '找到阴阳路闸门并亲手闭合。代价：你成为守门人，永世镇守。' },
+    w_rules: { name: '规则之神', kind: 'world', bad: false,
+      text: '集齐关键拼图，终结灵异时代。代价：神性化，后世只记得「杨戬」。' },
+    w_37: { name: '第 37 号', kind: 'world', bad: null,
+      text: '发现灵异时代本身是第 37 个源头鬼的杀人规律。留下人类与灵异共存还是对抗的开放命题。' },
+  };
+
+  // 世界结局判据（在每回合结束时按顺序检查，先满足者胜出）
+  // 说明：w_rules 对应原著结局「集齐鬼眼/鬼影/鬼童等关键拼图（= 三份契约）并保留人格（人性≥30）」。
+  // 早先版本额外要求「鬼眼 9 重」，但按第 6 章公式训练到 9 重必然把侵蚀推过 100，条件自相矛盾，已移除。
+  const worldEndingChecks = [
+    { id: 'w_rules', when: (s) => s.contracts.length >= 3 && s.stats.humanity >= 30 },
+    { id: 'w_gate', when: (s) => s.flags.safehouse >= 5 && s.money.gold >= 40 && s.clues.length >= 10 },
+    { id: 'w_37', when: (s) => s.clues.length >= 16 },
+    { id: 'w_golden', when: (s) => s.flags.safehouse >= 4 && s.money.contribution >= 200 },
+    { id: 'p_family', when: (s) => s.wife && s.children > 0 && s.stats.erosion < 20 },
+    { id: 'p_survivor', when: (s) => s.stats.erosion < 20 && s.stats.calamity < 60 && s.turn >= 30 },
+    { id: 'p_debtor', when: (s) => s.stats.causality >= 100 },
+    { id: 'p_mad', when: (s) => s.stats.sanity <= 0 },
+  ];
+
+  /* --------------------------------------------------------------- 人物 */
+  const npcs = {
+    lin: {
+      id: 'lin', name: '林琪', desc: '住你楼下的护士，作息和你完全错开，却总能在你最糟的时候遇见你',
+    },
+  };
+
+  /* ------------------------------------------------------------- 难度档位 */
+  // 每个档位是一整组手感参数。原著只规定了"标准/极难"，另外两档是按同一套公式外推的
+  // 中间态，用来让玩家在开局自己挑选压力曲线；custom 则由三个旋钮现场组合。
+  const difficulties = {
+    easy: {
+      id: 'easy', name: '轻松', blurb: '遭遇稀疏、判定宽松、容错高。适合第一次玩、想看剧情。',
+      encounterBase: 6, encounterCap: 45, encounterMult: 0.7, checkBonus: 10,
+      retryFree: 2, worldMult: 0.7, incomeCap: 800, priceMult: 0.8, rewardMult: 1.2,
+      calamityBonus: 15,
+    },
+    standard: {
+      id: 'standard', name: '标准', blurb: '默认体验。世界推进 ×1.0，判定无修正。',
+      encounterBase: 9, encounterCap: 60, encounterMult: 1.0, checkBonus: 0,
+      retryFree: 1, worldMult: 1.0, incomeCap: 500, priceMult: 1.0, rewardMult: 1.0,
+      calamityBonus: 0,
+    },
+    hardcore: {
+      id: 'hardcore', name: '硬核', blurb: '遭遇更密、判定更严、毫无容错。给已经摸清规律的人。',
+      encounterBase: 12, encounterCap: 80, encounterMult: 1.4, checkBonus: -5,
+      retryFree: 0, worldMult: 1.25, incomeCap: 420, priceMult: 1.2, rewardMult: 0.9,
+      calamityBonus: -10,
+    },
+    nightmare: {
+      id: 'nightmare', name: '极难（原著档）', blurb: '开局凶险、劫难来得更快、几乎没有容错。世界推进 ×1.5，价格 +40%、奖励 -25%。',
+      encounterBase: 15, encounterCap: 85, encounterMult: 1.4, checkBonus: -10,
+      retryFree: 0, worldMult: 1.5, incomeCap: 300, priceMult: 1.4, rewardMult: 0.75,
+      calamityBonus: -15,
+    },
+  };
+
+  // 自定义难度的三个旋钮（组合后与 standard 的基础值相乘/相加）
+  const tuningKnobs = {
+    encounter: {
+      label: '遭遇频率',
+      options: [
+        { id: 'sparse', name: '稀疏', mult: 0.7 },
+        { id: 'normal', name: '标准', mult: 1.0 },
+        { id: 'dense', name: '频繁', mult: 1.4 },
+      ],
+    },
+    judge: {
+      label: '判定难度',
+      options: [
+        { id: 'loose', name: '宽松（+10%）', bonus: 10 },
+        { id: 'normal', name: '标准', bonus: 0 },
+        { id: 'strict', name: '严格（-10%）', bonus: -10 },
+      ],
+    },
+    mercy: {
+      label: '容错（重复尝试免罚次数）',
+      options: [
+        { id: 'generous', name: '宽容（免罚 2 次）', free: 2 },
+        { id: 'normal', name: '标准（免罚 1 次）', free: 1 },
+        { id: 'harsh', name: '苛刻（无免罚）', free: 0 },
+      ],
+    },
+  };
+
+  /* --------------------------------------------------------- 二周目继承 */
+  // 用周目点数在本局开局换取初始优势。只改初始值，不参与任何判定公式；
+  // 加成结果写进本局存档并参与校验和（改档即失效）。
+  const legacyOptions = {
+    memory: {
+      id: 'memory', name: '记忆碎片', cost: 1,
+      desc: '你知道接下来会发生什么——只记得一部分。',
+      effects: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'stat', key: 'sanity', v: 10 }],
+    },
+    relic: {
+      id: 'relic', name: '继承遗物', cost: 2,
+      desc: '上一局没碎完的东西，这次你还认得它。',
+      effects: [{ k: 'itemAdd', id: 'relic' }, { k: 'stat', key: 'stamina', v: 10 }],
+    },
+    lesson: {
+      id: 'lesson', name: '前车之鉴', cost: 3,
+      desc: '你把上一局死掉的那个地方，重新布置了一遍。',
+      effects: [
+        { k: 'flag', key: 'safehouse', v: 1 },
+        { k: 'stat', key: 'stealth', v: 10 },
+        { k: 'stat', key: 'calamity', v: -3 },
+      ],
+    },
+  };
+
+  /** 把档位 + 旋钮合成一份完整的手感参数 */
+  function resolveTuning(difficultyId, custom) {
+    const base = difficulties[difficultyId] || difficulties.standard;
+    const t = Object.assign({}, base);
+    if (difficultyId === 'custom') {
+      const c = custom || {};
+      const enc = (tuningKnobs.encounter.options.find((o) => o.id === c.encounter) || tuningKnobs.encounter.options[1]);
+      const jud = (tuningKnobs.judge.options.find((o) => o.id === c.judge) || tuningKnobs.judge.options[1]);
+      const mer = (tuningKnobs.mercy.options.find((o) => o.id === c.mercy) || tuningKnobs.mercy.options[1]);
+      t.id = 'custom';
+      t.name = '自定义';
+      t.blurb = '遭遇 ' + enc.name + ' · 判定 ' + jud.name + ' · 容错 ' + mer.name;
+      t.encounterMult = enc.mult;
+      t.checkBonus = jud.bonus;
+      t.retryFree = mer.free;
+      t.worldMult = difficulties.standard.worldMult;
+      t.incomeCap = difficulties.standard.incomeCap;
+      t.priceMult = difficulties.standard.priceMult;
+      t.rewardMult = difficulties.standard.rewardMult;
+      t.calamityBonus = 0;
+    }
+    return t;
+  }
+
+  /* --------------------------------------------------- 程序化叙事素材库 */
+  const narrative = {
+    timeOfDay: ['凌晨三点', '天刚亮', '上午', '午后', '黄昏', '夜里十点', '深夜'],
+    weather: ['雾很大', '下着细雨', '风从巷口灌进来', '空气闷得不正常', '天色青得发灰'],
+    city: [
+      '街上的人照常走着，没人抬头看那栋被封了半年的楼。',
+      '公交车报站声照旧，只是这一站没有人上下。',
+      '路口的监控杆上缠着一条新的红布条，不知道是谁系的。',
+      '便利店里的电视正在播本地新闻，字幕滚过"煤气泄漏"四个字。',
+    ],
+    lowSanity: [
+      '你听见有人在背后叫你的名字，回头却什么都没有。',
+      '镜子里的动作比你慢了半拍。',
+      '你数了三遍楼梯，每一遍的结果都不一样。',
+    ],
+    lowHumanity: [
+      '你发现自己已经很久没有为别人的死感到什么了。',
+      '你开始用"它"来称呼自己。',
+    ],
+    highCalamity: [
+      '被某种东西盯上的感觉越来越强烈，像后颈上停着一只看不见的手。',
+      '你走到哪里，哪里的灯就会先暗一拍。',
+    ],
+    calm: [
+      '今天什么都没有发生——在这座城市里，这就是最好的消息。',
+      '你把该做的事做完了，然后等天黑。',
+    ],
+
+  };
+
+  return {
+    items: items,
+    ghosts: ghosts,
+    packs: packs,
+    npcs: npcs,
+    difficulties: difficulties,
+    tuningKnobs: tuningKnobs,
+    legacyOptions: legacyOptions,
+    resolveTuning: resolveTuning,
+    worldClock: worldClock,
+    endings: endings,
+    worldEndingChecks: worldEndingChecks,
+    narrative: narrative,
+    meta: { title: '灵异复苏 · 通用互动剧情模板', version: 'v3.1', engine: 'program-host' },
+  };
+});
+</script>
+<script>/* ============================================================================
+ * 神秘复苏模拟器 · 魔改玩法注册表（v3.0 的 152 条机制）
+ * ----------------------------------------------------------------------------
+ * 规则文档里的 152 条机制在这里被落成「可触发、有代价、走账本」的真实机制：
+ *   · 每条机制 = 一个声明（id / 类别 / 名称 / 模板 / 参数 / 触发前置）
+ *   · 引擎按 12.1 的轮换规则每回合抽 1~3 条施加，效果全部经 applyEffects，
+ *     因此仍然受唯一写入点与账本守恒约束（不能被玩成开挂）。
+ *   · 11 个模板负责把参数翻译成具体的收益与代价，避免 152 条各写一套公式。
+ * ==========================================================================*/
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSMechanics = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  /* ---------------------------------------------------------------- 模板 */
+  // 形参：(state, params, helpers) → { effects, lines, note }
+  const TPL = {
+    /* A 状态与数值：把状态细则变成"阈值事件" */
+    status: (s, p, h, m) => {
+      const drain = p[0], stat = p[1] || 'sanity';
+      const name = { sanity: '理智', stamina: '体力', pollution: '污染', causality: '因果', erosion: '侵蚀', stealth: '低调值', humanity: '人性' };
+      return {
+        effects: [{ k: 'stat', key: stat, v: -drain }, { k: 'stat', key: 'sanity', v: -1 }],
+        lines: [m && m.text ? m.text : '你的状态在往下滑。', (name[stat] || stat) + ' -' + drain + '。'],
+      };
+    },
+    /* B 日常与生存：消耗资源换缓冲 */
+    survival: (s, p, h, m) => ({
+      effects: [
+        { k: 'stat', key: 'stamina', v: p[0] },
+        { k: 'stat', key: 'pollution', v: -p[1] },
+        { k: 'money', key: 'cash', v: -Math.max(1, Math.round(p[0] / 4)) },
+      ],
+      lines: [m && m.text ? m.text : '你把日常过了一遍：补给、休息、检查封条。', '体力 +' + p[0] + '、污染 -' + p[1] + '，花掉一些钱。'],
+    }),
+    /* C 经济与经营：一次投机 */
+    economy: (s, p, h, m) => {
+      const win = h.roll(0, 100) <= p[1];
+      const amt = Math.round(p[0] * (win ? 1 : -1));
+      return {
+        effects: [{ k: 'money', key: win ? 'cash' : 'gold', v: win ? amt : Math.max(0, Math.round(amt / 3)) },
+          { k: 'stat', key: 'causality', v: win ? 3 : 6 }],
+        lines: [m && m.text ? m.text : (win ? '这一手赚了。' : '这一手赔了。'),
+          win ? '资金 +' + amt + ' 万。' : '黄金缩水，因果债却记上了。'],
+      };
+    },
+    /* D 社交与人际 */
+    social: (s, p, h, m) => ({
+      effects: [{ k: 'flag', key: 'favor', v: p[0] }, { k: 'stat', key: 'humanity', v: p[1] }],
+      lines: [m && m.text ? m.text : '有人愿意在这座城市里和你多说几句话。', '好感 +' + p[0] + '，人性 +' + p[1] + '。'],
+    }),
+    /* E 战斗与灵异对抗：一次硬碰硬 */
+    combat: (s, p, h, m) => {
+      const win = h.roll(1, 100) <= p[0];
+      return win
+        ? { effects: [{ k: 'stat', key: 'pollution', v: p[1] }, { k: 'flag', key: 'intel', v: 1 }],
+            lines: [m && m.text ? m.text : '你用它没算到的方式占了一次上风。', '污染 +' + p[1] + '，情报 +1。'] }
+        : { effects: [{ k: 'stat', key: 'stamina', v: -p[1] }, { k: 'stat', key: 'calamity', v: 3 }],
+            lines: [m && m.text ? m.text : '你占了上风，但只占了半秒。', '体力 -' + p[1] + '、劫难值 +3。'] };
+    },
+    /* F 探索与任务 */
+    explore: (s, p, h, m) => {
+      const bank = [
+        '你在地图上又多画了一小块，标注上只有你自己看得懂。',
+        '你沿着上次的边界往回走，发现少了一个路口。',
+        '你把走过的路重排了一遍，终于有一条能接上。',
+        '你在笔记本上划掉一行，又在旁边补了三行。',
+      ];
+      return {
+        effects: [{ k: 'flag', key: 'intel', v: p[0] }, { k: 'stat', key: 'stamina', v: -p[1] }],
+        lines: [m && m.text ? m.text : bank[h.roll(3, bank.length) - 1], '情报 +' + p[0] + '，体力 -' + p[1] + '。'],
+      };
+    },
+    /* G 时间与空间：代价是侵蚀 */
+    time: (s, p, h, m) => ({
+      effects: [{ k: 'stat', key: 'erosion', v: p[0] }, { k: 'stat', key: 'calamity', v: -p[1] }],
+      lines: [m && m.text ? m.text : '时间在这里折了一下。', '侵蚀 +' + p[0] + '、劫难值 -' + p[1] + '。'],
+    }),
+    /* H 成长与养成 */
+    growth: (s, p, h, m) => ({
+      effects: [{ k: 'stat', key: 'ghostEye', v: p[0] }, { k: 'stat', key: 'erosion', v: p[1] }],
+      lines: [m && m.text ? m.text : '你多握住了一点点不属于人的力量。', '鬼眼 ' + (p[0] ? '+' + p[0] : '±0') + '，侵蚀 +' + p[1] + '。'],
+    }),
+    /* I 阵营与战争 */
+    faction: (s, p, h, m) => ({
+      effects: [{ k: 'money', key: 'contribution', v: p[0] }, { k: 'stat', key: 'calamity', v: p[1] }],
+      lines: [m && m.text ? m.text : '一场有组织的行动收尾。', '贡献 +' + p[0] + '，劫难值 +' + p[1] + '。'],
+    }),
+    /* J 元游戏：只动元数据，不动本局平衡（文案按机制各给一句，避免雷同） */
+    meta: (s, p, h, m) => {
+      const bank = [
+        '你在心里给这一局做了一次归档：如果这次死了，下次该从哪儿重来。',
+        '你写下几行只有自己看得懂的记录，然后合上本子。',
+        '你开始用"上一轮"这种说法描述还没发生的事。',
+        '你把这一天的得失折算成一种更冷的东西，收进抽屉。',
+      ];
+      return {
+        effects: [{ k: 'stat', key: 'causality', v: -p[0] }, { k: 'flag', key: 'intel', v: 1 }],
+        lines: [m && m.text ? m.text : bank[h.roll(2, bank.length) - 1], '因果 -' + p[0] + '，情报 +1。'],
+      };
+    },
+    /* K 隐藏与彩蛋：稀有的好事，但从来不是白给 */
+    easter: (s, p, h, m) => ({
+      effects: [{ k: 'money', key: 'gold', v: p[0] }, { k: 'stat', key: 'calamity', v: p[1] }],
+      lines: [m && m.text ? m.text : '一件本不该出现在这里的东西，落到了你手上。', '黄金 +' + p[0] + 'kg，但有什么因此注意到了你（劫难 +' + p[1] + '）。'],
+    }),
+  };
+
+
+  /* ------------------------------------------------- 每条机制的专属文案 */
+  // 152 条各一句，避免"同一个模板出来的机制读起来一模一样"
+  const TEXTS = {
+  '100': '你睡了，然后在梦里醒了一次。',
+  '101': '整座城市的灵异活动开始涨潮，你能感觉到水位的方向。',
+  '102': '你找到缝隙，用一把不属于这个世界的钥匙推开它。',
+  '103': '你倒流了一小段时间，代价是身上更冷了一点。',
+  '104': '你把你叫了过来，他站在那儿，看了你一眼。',
+  '105': '你走进自己的记忆里，看见有几段被人换过。',
+  '106': '你花代价看了一眼另一条时间线，然后决定不问。',
+  '107': '你预知了几秒以后的事，然后发现结局被改动过。',
+  '108': '你在一个地方钉下了锚，从此那里可以回去。',
+  '109': '这一带的时间流速不对，你走了十分钟，外面过了半小时。',
+  '110': '这一天你过了第三遍，前两遍的痕迹还在。',
+  '111': '你面前展开了一棵树，每一条枝都要用侵蚀去买。',
+  '112': '你把两块碎片拼在一起，它们自己吸住了。',
+  '113': '家里传下来的东西在你体内醒了一次。',
+  '114': '你留了影、留了话、留了一条回来的路。',
+  '115': '你在安全的地方练了手，代价是身上的东西更活跃了。',
+  '116': '你在工作台上做了一支鬼烛，成功率比上次高。',
+  '117': '你用报纸改了别人的记忆，也顺手改了自己的。',
+  '118': '香火开始往你身上聚，你同时开始不太像人。',
+  '119': '你把一只低等的东西驯服了，它认了你的气味。',
+  '120': '你移植了一部分灵异器官，排斥反应来得很快。',
+  '121': '你学会了封印术，封条画得比谁都稳。',
+  '122': '你把规则当作一门学问来研究，笔记已经写完两本。',
+  '123': '五个势力对你的看法各不相同，这一次你没时间都照顾。',
+  '124': '你和别人抢了一块地，地的价值取决于上面出过什么事。',
+  '125': '你潜进了对方的组织，每天都在扮演另一个人。',
+  '126': '大家都在抢东西和金子，抢到的开始定义规则。',
+  '127': '一场围剿组织起来，你在名单上的位置不靠前也不靠后。',
+  '128': '鬼潮压过来，你在防线上分配人和蜡烛。',
+  '129': '避难所里人越来越多，物资在减少，士气在掉。',
+  '130': '你和灵异侧建了交，礼尚往来，回礼通常是代价。',
+  '131': '你在洗白自己的身份，改名、整容、买通。',
+  '132': '战利品摆在桌上，怎么分决定了这个小队还能活多久。',
+  '133': '你写下了几行字，留给万一活下来的自己。',
+  '134': '你开始想：如果这次死了，有什么能留下来。',
+  '135': '你在关键的位置存了一次，心里知道这不算公平。',
+  '136': '你试着从另一侧看这个世界——以它的眼睛。',
+  '137': '你达成了某件事，但没人会为你记功。',
+  '138': '你把手里的一切都摊成卡牌，一次看清所有可能。',
+  '139': '你把判断交给骰子，然后接受它的答案。',
+  '140': '还有别人在抢同一件事，你们比的是谁先完成。',
+  '141': '你隐约觉得这一幕发生过，而且不止一次。',
+  '142': '你改了一条规则，世界没有反对。',
+  '143': '人皮纸这次说了真话，这比撒谎更让人不安。',
+  '144': '你集齐了船票和罗盘，雾里那艘船开始靠岸。',
+  '145': '你送够了信，鬼邮局总局的门第一次为你打开。',
+  '146': '你摸到了一个从不显现的编号，它是所有规律的注释。',
+  '147': '某个瞬间，你听见有人回应了你的呼唤——声音很熟。',
+  '148': '梦里那个老太太又来了，她这次肯多说一句。',
+  '149': '你开始注意数字：7、13、三长两短。',
+  '150': '你完成了某件事，然后发现这个世界太安静了。',
+  '151': '你听见世界咔哒响了一声，像被谁按下了重置。',
+  '152': '你写下了这一局还活着的人的名字。',
+  '001': '你开始注意到自己一天里有大半时间在走神。',
+  '002': '你抬手的时候胳膊比昨天沉，像有人还挂在上面。',
+  '003': '你记得自己做过某件事，却想不起过程。',
+  '004': '你欠下的东西在变多，而债主从不留联系方式。',
+  '005': '今天的运气像风，抓不住，但能感觉到方向。',
+  '006': '你和它之间的那条线又紧了一点。',
+  '007': '你觉得皮肤下面有一层不是自己的东西在流动。',
+  '008': '那道诅咒又叠了一层，像贴纸一样贴在你身上。',
+  '009': '总部信你三分，鬼街信你七分，这就是现在的你。',
+  '010': '悬赏单上的照片，是你的侧脸。',
+  '011': '你越来越像规则的一部分，越来越不像一个人。',
+  '012': '有人在某个地方替你点了香——你不知道是谁。',
+  '013': '恐惧是会传染的，而你身边的人已经开始发病。',
+  '014': '你摸自己的手是凉的，掌心却一直没暖回来。',
+  '015': '你开了眼，然后忘了自己盯了多久。',
+  '016': '夜里的觉被切成一段一段，每段都不完整。',
+  '017': '药还是那些药，效果却一次比一次浅。',
+  '018': '你能感觉到灵魂上那些缺口，风一吹就往里钻。',
+  '019': '你把一天过成了规律：起床、检查、出门、回来检查。',
+  '020': '你把安全屋又试了一遍，从里往外敲。',
+  '021': '你清点了背包，发现少了一件说不清的东西。',
+  '022': '你今天不是你自己，而这件事让你更安全。',
+  '023': '手机在鬼域外能响，在鬼域里连时间都不对。',
+  '024': '你研究了这栋楼所有的门，包括不该存在的那扇。',
+  '025': '你处理了一具尸体，做得很规范，规范得让自己害怕。',
+  '026': '你收留的那只东西今天替你看了一次门。',
+  '027': '你白天照常上班，晚上照常数封条。',
+  '028': '你把该烧的烧了，该贴的贴了，然后等天亮。',
+  '029': '你发现有些东西在这座城市里是不能吃的。',
+  '030': '旧伤在阴天会先你一步醒来。',
+  '031': '你准备了两套装备：一套对付人，一套对付不是人的。',
+  '032': '你按规程维护收容物，一项一项划勾。',
+  '033': '你看上了一套凶宅，价格低得不像话。',
+  '034': '拍卖师报出底价，全场安静了一秒。',
+  '035': '你换了一沓鬼钱，纸质摸起来像旧符。',
+  '036': '金价又动了，这次是因为一具棺材。',
+  '037': '有人愿意借你力量，条件写在另一张纸上。',
+  '038': '你在雇佣市场上见到了报价单，最贵那一栏写着\'活人\'。',
+  '039': '你入股了一家公司，名字你已经记不住了。',
+  '040': '你押着货过了两座城，检查站的人一直没看你的脸。',
+  '041': '情报交易的规矩是：先付钱，再决定信不信。',
+  '042': '你准备走一次保险理赔，这需要官方认定。',
+  '043': '你把收来的东西摆出来展览，顺便数今天来了几个不该来的人。',
+  '044': '当铺老板把你那件东西翻过来看背面，然后加了个价。',
+  '045': '黑市拍卖夜开场，门口的保镖比拍品多。',
+  '046': '你捐了一笔钱，换来一块可以挂在墙上的牌子。',
+  '047': '你走进那条巷子的时候，知道自己正在做一件不该做的事。',
+  '048': '赌桌上的东西不是钱，是别人剩下的时间。',
+  '049': '你把封印物租了出去，收了一半定金。',
+  '050': '你摸到了上游——掌握货的人比掌握钱的人说话管用。',
+  '051': '你手里有别人不想被说出来的事。',
+  '052': '你们认了个名分，从此有福同享，有账同算。',
+  '053': '你找了个医生，他愿意听，也愿意不问。',
+  '054': '你的人多了几个，你要为他们的死负责。',
+  '055': '你上了一次新闻，镜头只拍到了背影。',
+  '056': '你们的关系往前走了一步，代价是多了个软肋。',
+  '057': '你在想那个孩子将来会像谁。',
+  '058': '有人背叛了你，而你发现自己在考虑原谅的价格。',
+  '059': '你们交换了一部分记忆，然后都多了一点不属于自己的东西。',
+  '060': '你欠了人情，也被人欠了人情。',
+  '061': '你翻出族谱，发现有几页是后补的。',
+  '062': '你混进了一个圈子，学会说他们的话。',
+  '063': '你替一个陌生死者守了一夜。',
+  '064': '你们结盟打了一次，然后在分账的时候翻了脸。',
+  '065': '你的名字开始有人提起了，这不是好事。',
+  '066': '有人能替你出面，代价是你要活着回来。',
+  '067': '你把已知的规律排成一条线，缺口出现了。',
+  '068': '你把两件不该放在一起的东西放在了一起。',
+  '069': '两片鬼域贴上的时候，空气发出一种不像声音的声音。',
+  '070': '你让体内两只鬼互相拉扯了几秒——那几秒你是无敌的。',
+  '071': '你摆了仪式，材料、顺序、时辰一样都不能错。',
+  '072': '你放了诱饵，然后数到十。',
+  '073': '你在跑，而它没有在跑——它只是先到了。',
+  '074': '你和一只鬼谈了条件，它答应了，条件写在它的规律里。',
+  '075': '你和一个驭鬼者对上，比的是谁的规则更硬。',
+  '076': '你和对方争夺同一块地，两片鬼域开始互相啃。',
+  '077': '你把诅咒转到别的东西上，它也认了。',
+  '078': '你试着让它死机，成功率低得像在赌命。',
+  '079': '你把棺材钉按下去，钉子进去了半寸。',
+  '080': '你在镜子里预先留了影，然后去死了一次。',
+  '081': '你把蜡烛摆成一条线，线有多长，安全就有多长。',
+  '082': '你让别的东西替你站在前面。',
+  '083': '你发现了规律里的一个漏洞，利用了它半秒钟。',
+  '084': '你想过和它一起完，这个念头越来越顺手。',
+  '085': '委托板上又多了一行字，报酬写得比风险清楚。',
+  '086': '你挑了一个副本，进去之前先记了出口的位置。',
+  '087': '你把证物、口供、监控摆在一张桌子上。',
+  '088': '你把新的规律记进图鉴，编号往下了一位。',
+  '089': '你在地图上又标了一小块，标注用只有你懂的符号。',
+  '090': '你在同一段走廊里走了第四次，这次墙上的画位置变了。',
+  '091': '你靠光走，靠听停。',
+  '092': '倒计时开始了，表盘上却没有数字。',
+  '093': '你护着一个人穿过危险区，他不明白为什么要跑。',
+  '094': '你开始数楼梯，数到七就回头。',
+  '095': '你今天抽到的那张牌，背面有字。',
+  '096': '你走进一个本不该存在的地方，它在导航上是一个空白。',
+  '097': '你翻了废墟，翻到一件不该属于这里的东西。',
+  '098': '雾里有一艘船的轮廓，你听见有人在报站名。',
+  '099': '信箱里多了一封没有邮票的信，地址写的是你。'
+};
+
+  /* ----------------------------------------------- 每条机制的专属效果 */
+  // 让机制不只共享模板，还能触碰专属道具 / 标记（例如鬼烛防线真的会烧掉一支鬼烛）
+  const EXTRA = {
+  '100': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -5
+    }
+  ],
+  '101': [
+    {
+      'k': 'stat',
+      'key': 'calamity',
+      'v': -3
+    },
+    {
+      'k': 'stat',
+      'key': 'pollution',
+      'v': 4
+    }
+  ],
+  '102': [
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': 2
+    }
+  ],
+  '103': [
+    {
+      'k': 'stat',
+      'key': 'erosion',
+      'v': 6
+    },
+    {
+      'k': 'stat',
+      'key': 'calamity',
+      'v': -12
+    }
+  ],
+  '104': [
+    {
+      'k': 'stat',
+      'key': 'erosion',
+      'v': 9
+    },
+    {
+      'k': 'stat',
+      'key': 'calamity',
+      'v': -18
+    }
+  ],
+  '105': [
+    {
+      'k': 'stat',
+      'key': 'pollution',
+      'v': 4
+    }
+  ],
+  '106': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -6
+    },
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '107': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -5
+    }
+  ],
+  '108': [
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': 2
+    }
+  ],
+  '109': [
+    {
+      'k': 'stat',
+      'key': 'stamina',
+      'v': -5
+    }
+  ],
+  '110': [
+    {
+      'k': 'stat',
+      'key': 'erosion',
+      'v': 2
+    }
+  ],
+  '111': [
+    {
+      'k': 'stat',
+      'key': 'ghostEye',
+      'v': 1
+    },
+    {
+      'k': 'stat',
+      'key': 'erosion',
+      'v': 3
+    }
+  ],
+  '112': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    },
+    {
+      'k': 'stat',
+      'key': 'erosion',
+      'v': 2
+    }
+  ],
+  '113': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    },
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -3
+    }
+  ],
+  '114': [
+    {
+      'k': 'itemAdd',
+      'id': 'tisidoll'
+    }
+  ],
+  '115': [
+    {
+      'k': 'stat',
+      'key': 'stamina',
+      'v': -8
+    },
+    {
+      'k': 'stat',
+      'key': 'erosion',
+      'v': 2
+    }
+  ],
+  '116': [
+    {
+      'k': 'itemAdd',
+      'id': 'guizhu'
+    }
+  ],
+  '117': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -4
+    },
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    }
+  ],
+  '118': [
+    {
+      'k': 'stat',
+      'key': 'humanity',
+      'v': -4
+    },
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '119': [
+    {
+      'k': 'flag',
+      'key': 'favor',
+      'v': 2
+    }
+  ],
+  '120': [
+    {
+      'k': 'stat',
+      'key': 'erosion',
+      'v': 5
+    },
+    {
+      'k': 'stat',
+      'key': 'ghostEye',
+      'v': 1
+    }
+  ],
+  '121': [
+    {
+      'k': 'flag',
+      'key': 'safehouse',
+      'v': 1
+    }
+  ],
+  '122': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    }
+  ],
+  '123': [
+    {
+      'k': 'money',
+      'key': 'contribution',
+      'v': 12
+    }
+  ],
+  '124': [
+    {
+      'k': 'money',
+      'key': 'contribution',
+      'v': 15
+    }
+  ],
+  '125': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    },
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': 3
+    }
+  ],
+  '126': [
+    {
+      'k': 'money',
+      'key': 'gold',
+      'v': -2
+    },
+    {
+      'k': 'money',
+      'key': 'contribution',
+      'v': 8
+    }
+  ],
+  '127': [
+    {
+      'k': 'money',
+      'key': 'contribution',
+      'v': 18
+    },
+    {
+      'k': 'stat',
+      'key': 'calamity',
+      'v': 5
+    }
+  ],
+  '128': [
+    {
+      'k': 'stat',
+      'key': 'stamina',
+      'v': -10
+    },
+    {
+      'k': 'money',
+      'key': 'contribution',
+      'v': 20
+    }
+  ],
+  '129': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': -15
+    },
+    {
+      'k': 'money',
+      'key': 'contribution',
+      'v': 10
+    }
+  ],
+  '130': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    }
+  ],
+  '131': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': -20
+    },
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': 6
+    }
+  ],
+  '132': [
+    {
+      'k': 'money',
+      'key': 'gold',
+      'v': 1
+    }
+  ],
+  '133': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': 2
+    }
+  ],
+  '134': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '135': [
+    {
+      'k': 'stat',
+      'key': 'causality',
+      'v': 3
+    }
+  ],
+  '136': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -3
+    }
+  ],
+  '137': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': 2
+    }
+  ],
+  '138': [
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': 1
+    }
+  ],
+  '139': [
+    {
+      'k': 'stat',
+      'key': 'causality',
+      'v': 2
+    }
+  ],
+  '140': [
+    {
+      'k': 'stat',
+      'key': 'stamina',
+      'v': -4
+    }
+  ],
+  '141': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    }
+  ],
+  '142': [
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': 1
+    }
+  ],
+  '143': [
+    {
+      'k': 'itemUse',
+      'id': 'renpizhi'
+    },
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    }
+  ],
+  '144': [
+    {
+      'k': 'money',
+      'key': 'gold',
+      'v': 2
+    }
+  ],
+  '145': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 3
+    }
+  ],
+  '146': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    },
+    {
+      'k': 'stat',
+      'key': 'calamity',
+      'v': 4
+    }
+  ],
+  '147': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': 3
+    }
+  ],
+  '148': [
+    {
+      'k': 'itemAdd',
+      'id': 'tisidoll'
+    }
+  ],
+  '149': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '150': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -4
+    }
+  ],
+  '151': [
+    {
+      'k': 'flag',
+      'key': 'marks',
+      'v': -1
+    }
+  ],
+  '152': [
+    {
+      'k': 'flag',
+      'key': 'favor',
+      'v': 2
+    }
+  ],
+  '001': [
+    {
+      'k': 'stat',
+      'key': 'stamina',
+      'v': -2
+    }
+  ],
+  '002': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -2
+    }
+  ],
+  '003': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': -1
+    }
+  ],
+  '004': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': -3
+    }
+  ],
+  '005': [
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': -1
+    }
+  ],
+  '006': [
+    {
+      'k': 'stat',
+      'key': 'erosion',
+      'v': 1
+    }
+  ],
+  '007': [
+    {
+      'k': 'stat',
+      'key': 'stamina',
+      'v': -3
+    }
+  ],
+  '008': [
+    {
+      'k': 'stat',
+      'key': 'humanity',
+      'v': -2
+    }
+  ],
+  '009': [
+    {
+      'k': 'money',
+      'key': 'contribution',
+      'v': -3
+    }
+  ],
+  '010': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': -5
+    }
+  ],
+  '011': [
+    {
+      'k': 'stat',
+      'key': 'humanity',
+      'v': -2
+    }
+  ],
+  '012': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '013': [
+    {
+      'k': 'flag',
+      'key': 'favor',
+      'v': -2
+    }
+  ],
+  '014': [
+    {
+      'k': 'stat',
+      'key': 'stamina',
+      'v': -4
+    }
+  ],
+  '015': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -2
+    }
+  ],
+  '016': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -3
+    }
+  ],
+  '017': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': -2
+    }
+  ],
+  '018': [
+    {
+      'k': 'stat',
+      'key': 'pollution',
+      'v': 2
+    }
+  ],
+  '019': [
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': 1
+    }
+  ],
+  '020': [
+    {
+      'k': 'flag',
+      'key': 'safehouse',
+      'v': 1
+    }
+  ],
+  '021': [
+    {
+      'k': 'stat',
+      'key': 'pollution',
+      'v': -6
+    }
+  ],
+  '022': [
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': 2
+    }
+  ],
+  '023': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '024': [
+    {
+      'k': 'flag',
+      'key': 'safehouse',
+      'v': 1
+    }
+  ],
+  '025': [
+    {
+      'k': 'stat',
+      'key': 'pollution',
+      'v': -8
+    },
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -3
+    }
+  ],
+  '026': [
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': 1
+    }
+  ],
+  '027': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': 4
+    }
+  ],
+  '028': [
+    {
+      'k': 'stat',
+      'key': 'calamity',
+      'v': -2
+    }
+  ],
+  '029': [
+    {
+      'k': 'stat',
+      'key': 'pollution',
+      'v': -2
+    }
+  ],
+  '030': [
+    {
+      'k': 'stat',
+      'key': 'stamina',
+      'v': 6
+    }
+  ],
+  '031': [
+    {
+      'k': 'itemAdd',
+      'id': 'fu'
+    }
+  ],
+  '032': [
+    {
+      'k': 'itemAdd',
+      'id': 'seal'
+    }
+  ],
+  '033': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': 15
+    }
+  ],
+  '034': [
+    {
+      'k': 'money',
+      'key': 'gold',
+      'v': -1
+    },
+    {
+      'k': 'itemAdd',
+      'id': 'guizhu'
+    }
+  ],
+  '035': [
+    {
+      'k': 'money',
+      'key': 'gold',
+      'v': 1
+    }
+  ],
+  '036': [
+    {
+      'k': 'money',
+      'key': 'gold',
+      'v': 2
+    }
+  ],
+  '037': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': 30
+    },
+    {
+      'k': 'stat',
+      'key': 'causality',
+      'v': 8
+    }
+  ],
+  '038': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': -12
+    }
+  ],
+  '039': [
+    {
+      'k': 'money',
+      'key': 'contribution',
+      'v': 10
+    }
+  ],
+  '040': [
+    {
+      'k': 'money',
+      'key': 'gold',
+      'v': 1
+    },
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': -3
+    }
+  ],
+  '041': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    }
+  ],
+  '042': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': 12
+    },
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': 2
+    }
+  ],
+  '043': [
+    {
+      'k': 'money',
+      'key': 'contribution',
+      'v': 4
+    },
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': 6
+    }
+  ],
+  '044': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': 10
+    }
+  ],
+  '045': [
+    {
+      'k': 'money',
+      'key': 'gold',
+      'v': -2
+    },
+    {
+      'k': 'itemAdd',
+      'id': 'relic'
+    }
+  ],
+  '046': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': -20
+    },
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': 4
+    }
+  ],
+  '047': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': 25
+    },
+    {
+      'k': 'stat',
+      'key': 'humanity',
+      'v': -3
+    }
+  ],
+  '048': [
+    {
+      'k': 'stat',
+      'key': 'causality',
+      'v': 4
+    }
+  ],
+  '049': [
+    {
+      'k': 'money',
+      'key': 'gold',
+      'v': 1
+    }
+  ],
+  '050': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': 12
+    }
+  ],
+  '051': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '052': [
+    {
+      'k': 'flag',
+      'key': 'favor',
+      'v': 6
+    }
+  ],
+  '053': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': 4
+    }
+  ],
+  '054': [
+    {
+      'k': 'flag',
+      'key': 'favor',
+      'v': 3
+    }
+  ],
+  '055': [
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': -3
+    }
+  ],
+  '056': [
+    {
+      'k': 'flag',
+      'key': 'favor',
+      'v': 5
+    }
+  ],
+  '057': [
+    {
+      'k': 'flag',
+      'key': 'favor',
+      'v': 2
+    }
+  ],
+  '058': [
+    {
+      'k': 'flag',
+      'key': 'favor',
+      'v': -5
+    }
+  ],
+  '059': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '060': [
+    {
+      'k': 'flag',
+      'key': 'favor',
+      'v': 8
+    }
+  ],
+  '061': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '062': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    }
+  ],
+  '063': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -2
+    },
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '064': [
+    {
+      'k': 'flag',
+      'key': 'favor',
+      'v': -6
+    }
+  ],
+  '065': [
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': -3
+    }
+  ],
+  '066': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': -10
+    }
+  ],
+  '067': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '068': [
+    {
+      'k': 'itemUse',
+      'id': 'guizhu'
+    }
+  ],
+  '069': [
+    {
+      'k': 'stat',
+      'key': 'calamity',
+      'v': 4
+    }
+  ],
+  '070': [
+    {
+      'k': 'stat',
+      'key': 'erosion',
+      'v': 3
+    }
+  ],
+  '071': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '072': [
+    {
+      'k': 'itemUse',
+      'id': 'tisidoll'
+    }
+  ],
+  '073': [
+    {
+      'k': 'stat',
+      'key': 'stamina',
+      'v': -6
+    }
+  ],
+  '074': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '075': [
+    {
+      'k': 'stat',
+      'key': 'pollution',
+      'v': 4
+    }
+  ],
+  '076': [
+    {
+      'k': 'stat',
+      'key': 'calamity',
+      'v': 6
+    }
+  ],
+  '077': [
+    {
+      'k': 'stat',
+      'key': 'pollution',
+      'v': -6
+    }
+  ],
+  '078': [
+    {
+      'k': 'stat',
+      'key': 'erosion',
+      'v': -3
+    }
+  ],
+  '079': [
+    {
+      'k': 'itemUse',
+      'id': 'guancai'
+    }
+  ],
+  '080': [
+    {
+      'k': 'stat',
+      'key': 'erosion',
+      'v': 2
+    }
+  ],
+  '081': [
+    {
+      'k': 'itemUse',
+      'id': 'guizhu'
+    }
+  ],
+  '082': [
+    {
+      'k': 'stat',
+      'key': 'pollution',
+      'v': 5
+    }
+  ],
+  '083': [
+    {
+      'k': 'stat',
+      'key': 'erosion',
+      'v': 3
+    },
+    {
+      'k': 'stat',
+      'key': 'calamity',
+      'v': -6
+    }
+  ],
+  '084': [
+    {
+      'k': 'stat',
+      'key': 'calamity',
+      'v': 8
+    }
+  ],
+  '085': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': 6
+    }
+  ],
+  '086': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '087': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    }
+  ],
+  '088': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '089': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 1
+    }
+  ],
+  '090': [
+    {
+      'k': 'stat',
+      'key': 'sanity',
+      'v': -4
+    }
+  ],
+  '091': [
+    {
+      'k': 'stat',
+      'key': 'stealth',
+      'v': 1
+    }
+  ],
+  '092': [
+    {
+      'k': 'stat',
+      'key': 'stamina',
+      'v': -8
+    }
+  ],
+  '093': [
+    {
+      'k': 'flag',
+      'key': 'favor',
+      'v': 3
+    }
+  ],
+  '094': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    }
+  ],
+  '095': [
+    {
+      'k': 'money',
+      'key': 'cash',
+      'v': 5
+    }
+  ],
+  '096': [
+    {
+      'k': 'itemAdd',
+      'id': 'fu'
+    }
+  ],
+  '097': [
+    {
+      'k': 'itemAdd',
+      'id': 'relic'
+    }
+  ],
+  '098': [
+    {
+      'k': 'itemAdd',
+      'id': 'seal'
+    }
+  ],
+  '099': [
+    {
+      'k': 'flag',
+      'key': 'intel',
+      'v': 2
+    }
+  ]
+};
+
+  /* -------------------------------------------------------------- 注册表 */
+  // 字段：id / cat / name / tpl / p（模板参数）/ pre（可选前置）
+  const R = [];
+  const add = (id, cat, name, tpl, p, pre) => R.push({
+    id: id, cat: cat, name: name, tpl: tpl, p: p, pre: pre || null,
+    text: TEXTS[id] || null,          // 每条机制自己的句子（避免同模板文案雷同）
+    extra: EXTRA[id] || null,         // 每条机制的专属效果（避免同模板数值雷同）
+  });
+
+  /* A 状态与数值机制 001~018 */
+  add('001', 'A', '理智值', 'status', [4, 'sanity'], (s) => s.stats.sanity < 60);
+  add('002', 'A', '体力/精力', 'status', [6, 'stamina'], (s) => s.stats.stamina < 55);
+  add('003', 'A', '记忆完整度', 'status', [2, 'sanity'], (s) => s.stats.pollution > 30);
+  add('004', 'A', '因果值', 'status', [3, 'causality'], (s) => s.stats.causality > 20);
+  add('005', 'A', '运气值', 'status', [1, 'causality'], null);
+  add('006', 'A', '灵异同调率', 'status', [2, 'erosion'], (s) => s.contracts.length > 0);
+  add('007', 'A', '污染度', 'status', [4, 'pollution'], (s) => s.stats.pollution > 25);
+  add('008', 'A', '诅咒层数', 'status', [3, 'sanity'], (s) => s.stats.pollution > 50);
+  add('009', 'A', '双信誉系统', 'status', [1, 'stealth'], (s) => s.stats.stealth < 40);
+  add('010', 'A', '通缉度（双轨）', 'status', [2, 'stealth'], (s) => s.stats.stealth < 30);
+  add('011', 'A', '神性/人性天平', 'status', [2, 'humanity'], (s) => s.stats.erosion > 60);
+  add('012', 'A', '香火值', 'status', [1, 'sanity'], (s) => s.flags.intel > 3);
+  add('013', 'A', '恐惧感染度', 'status', [3, 'sanity'], (s) => s.stats.calamity > 50);
+  add('014', 'A', '体温/失温', 'status', [3, 'stamina'], (s) => s.stats.pollution > 35);
+  add('015', 'A', '灵异视觉时长', 'status', [3, 'stamina'], (s) => s.stats.ghostEye > 0);
+  add('016', 'A', '睡眠质量', 'status', [2, 'sanity'], (s) => s.stats.calamity > 40);
+  add('017', 'A', '药抗性', 'status', [1, 'stamina'], (s) => s.stats.erosion > 40);
+  add('018', 'A', '灵魂缺口', 'status', [2, 'erosion'], (s) => s.contracts.length >= 2);
+
+  /* B 日常与生存 019~032 */
+  add('019', 'B', '作息日程', 'survival', [8, 2], null);
+  add('020', 'B', '安全屋系统', 'survival', [10, 3], (s) => s.flags.safehouse > 0);
+  add('021', 'B', '物资背包', 'survival', [6, 2], null);
+  add('022', 'B', '伪装系统', 'survival', [5, 2], (s) => s.stats.stealth > 40);
+  add('023', 'B', '通讯规则', 'survival', [4, 1], null);
+  add('024', 'B', '门禁学', 'survival', [7, 2], (s) => s.flags.safehouse > 0);
+  add('025', 'B', '尸体处理', 'survival', [5, 4], (s) => s.stats.pollution > 20);
+  add('026', 'B', '宠物/随从', 'survival', [6, 2], null);
+  add('027', 'B', '日常副业', 'survival', [5, 1], (s) => s.stats.stealth > 50);
+  add('028', 'B', '每日仪式', 'survival', [6, 3], null);
+  add('029', 'B', '饮食禁忌', 'survival', [4, 1], (s) => s.stats.pollution > 30);
+  add('030', 'B', '伤病系统', 'survival', [9, 2], (s) => s.stats.stamina < 60);
+  add('031', 'B', '对人/对鬼双线装备', 'survival', [5, 2], (s) => s.items.length > 0);
+  add('032', 'B', '收容日常', 'survival', [8, 3], (s) => s.flags.safehouse >= 3);
+
+  /* C 经济与经营 033~050 */
+  add('033', 'C', '房地产投机', 'economy', [60, 45], (s) => s.money.cash >= 100);
+  add('034', 'C', '灵异物品拍卖行', 'economy', [80, 40], (s) => s.money.cash >= 50);
+  add('035', 'C', '鬼钱体系', 'economy', [30, 50], (s) => s.turn >= 5);
+  add('036', 'C', '黄金期货', 'economy', [40, 55], (s) => s.money.gold >= 2);
+  add('037', 'C', '灵异借贷（鬼债）', 'economy', [50, 60], (s) => s.stats.causality < 60);
+  add('038', 'C', '雇佣市场', 'economy', [45, 50], (s) => s.money.cash >= 40);
+  add('039', 'C', '产业投资', 'economy', [70, 42], (s) => s.money.deposit >= 10);
+  add('040', 'C', '走私运输', 'economy', [55, 48], (s) => s.money.gold >= 1);
+  add('041', 'C', '情报交易所', 'explore', [2, 4], null);
+  add('042', 'C', '保险理赔', 'economy', [35, 55], (s) => s.stats.stealth > 50);
+  add('043', 'C', '灵异博物馆', 'economy', [40, 45], (s) => s.flags.safehouse >= 2);
+  add('044', 'C', '典当行', 'economy', [25, 60], (s) => s.items.length > 1);
+  add('045', 'C', '黑市拍卖夜', 'economy', [90, 38], (s) => s.turn >= 6);
+  add('046', 'C', '慈善洗白', 'faction', [10, -2], (s) => s.money.cash >= 30);
+  add('047', 'C', '鬼奴贸易（禁忌）', 'economy', [60, 35], (s) => s.stats.stealth < 25);
+  add('048', 'C', '赌鬼场', 'economy', [45, 45], null);
+  add('049', 'C', '道具租赁', 'economy', [20, 60], (s) => s.items.length > 0);
+  add('050', 'C', '供应链', 'economy', [50, 50], (s) => s.money.cash >= 60);
+
+  /* D 社交与人际 051~066 */
+  add('051', 'D', '秘密与把柄', 'social', [8, 1], (s) => s.flags.intel >= 2);
+  add('052', 'D', '关系契约', 'social', [6, 2], null);
+  add('053', 'D', '心理治疗', 'social', [3, 2], (s) => s.money.cash >= 5);
+  add('054', 'D', '团队经营', 'social', [7, 2], (s) => s.flags.favor > 20);
+  add('055', 'D', '舆论与媒体', 'social', [4, 1], (s) => s.stats.stealth < 50);
+  add('056', 'D', '婚恋进阶', 'social', [9, 3], (s) => s.flags.favor > 40);
+  add('057', 'D', '子嗣培养', 'social', [5, 3], (s) => s.children > 0);
+  add('058', 'D', '背叛与原谅', 'social', [-6, -1], (s) => s.stats.stealth < 35);
+  add('059', 'D', '记忆共享', 'social', [6, 2], (s) => s.clues.length >= 3);
+  add('060', 'D', '恩情机制', 'social', [7, 2], (s) => s.flags.favor > 30);
+  add('061', 'D', '家谱与祖坟', 'social', [5, 2], (s) => s.turn >= 8);
+  add('062', 'D', '社交圈渗透', 'explore', [2, 3], (s) => s.stats.stealth > 55);
+  add('063', 'D', '送葬与守灵', 'social', [4, 2], (s) => s.stats.calamity > 30);
+  add('064', 'D', '结盟与背刺', 'social', [-4, -1], (s) => s.stats.calamity > 45);
+  add('065', 'D', '名声系统', 'social', [5, 1], (s) => s.stats.stealth < 45);
+  add('066', 'D', '替身人脉', 'social', [4, 2], (s) => s.money.cash >= 50);
+
+  /* E 战斗与灵异对抗 067~084 */
+  add('067', 'E', '规律洞察', 'combat', [65, 6], (s) => s.clues.length >= 1);
+  add('068', 'E', '道具组合技', 'combat', [60, 5], (s) => s.items.length >= 2);
+  add('069', 'E', '鬼域对抗', 'combat', [40, 10], (s) => s.stats.ghostEye >= 2);
+  add('070', 'E', '双鬼平衡爆发', 'combat', [35, 12], (s) => s.contracts.length >= 2);
+  add('071', 'E', '封印仪式', 'combat', [55, 6], (s) => s.flags.intel >= 4);
+  add('072', 'E', '诱饵战术', 'combat', [70, 4], (s) => s.items.length >= 1);
+  add('073', 'E', '逃亡竞速', 'combat', [50, 8], (s) => s.stats.stamina > 40);
+  add('074', 'E', '灵异谈判', 'combat', [45, 5], (s) => s.stats.stealth > 50);
+  add('075', 'E', '驭鬼者对决', 'combat', [40, 10], (s) => s.stats.ghostEye >= 1);
+  add('076', 'E', '领域争夺', 'combat', [35, 12], (s) => s.stats.ghostEye >= 3);
+  add('077', 'E', '诅咒转移', 'combat', [50, 7], (s) => s.stats.pollution > 20);
+  add('078', 'E', '死机操作', 'combat', [25, 15], (s) => s.contracts.length >= 1);
+  add('079', 'E', '棺材钉战术', 'combat', [60, 6], (s) => s.items.some((i) => i.id === 'guancai'));
+  add('080', 'E', '鬼镜复活战', 'combat', [45, 9], (s) => s.stats.erosion > 50);
+  add('081', 'E', '鬼烛防线', 'combat', [70, 5], (s) => s.items.some((i) => i.id === 'guizhu'));
+  add('082', 'E', '尸战/傀儡战', 'combat', [50, 7], (s) => s.stats.pollution > 30);
+  add('083', 'E', '规则改写尝试', 'combat', [30, 14], (s) => s.flags.intel >= 6);
+  add('084', 'E', '同归于尽选项', 'combat', [20, 18], (s) => s.stats.erosion > 70);
+
+  /* F 探索与任务 085~100 */
+  add('085', 'F', '委托板', 'explore', [1, 6], null);
+  add('086', 'F', '副本探索', 'explore', [2, 9], (s) => s.turn >= 2);
+  add('087', 'F', '线索链调查', 'explore', [2, 7], (s) => s.clues.length < 12);
+  add('088', 'F', '厉鬼图鉴', 'explore', [1, 4], (s) => Object.keys(s.bestiary).length >= 2);
+  add('089', 'F', '探索度', 'explore', [1, 5], null);
+  add('090', 'F', '迷宫循环', 'explore', [2, 8], (s) => s.stats.calamity > 30);
+  add('091', 'F', '声音与光线', 'explore', [1, 5], null);
+  add('092', 'F', '倒计时任务', 'explore', [2, 10], (s) => s.stats.calamity > 40);
+  add('093', 'F', '护送任务', 'explore', [2, 9], (s) => s.turn >= 4);
+  add('094', 'F', '规则谜题', 'explore', [2, 6], (s) => s.clues.length >= 2);
+  add('095', 'F', '随机事件卡', 'explore', [1, 3], null);
+  add('096', 'F', '奇遇地点', 'explore', [2, 4], null);
+  add('097', 'F', '搜索与拾荒', 'explore', [1, 6], null);
+  add('098', 'F', '幽灵船事件', 'easter', [2, 12], (s) => s.turn >= 12);
+  add('099', 'F', '鬼邮局来信', 'explore', [2, 5], (s) => s.turn >= 3);
+  add('100', 'F', '梦境探索', 'time', [2, 3], (s) => s.stats.sanity < 70);
+
+  /* G 时间与空间 101~110 */
+  add('101', 'G', '灵异潮汐', 'time', [3, 6], (s) => s.turn >= 5);
+  add('102', 'G', '鬼域跳转', 'time', [2, 4], (s) => s.flags.intel >= 3);
+  add('103', 'G', '时间回溯（八层鬼域）', 'time', [6, 12], (s) => s.stats.ghostEye >= 6);
+  add('104', 'G', '过去身召唤（九层鬼域）', 'time', [9, 18], (s) => s.stats.ghostEye >= 8);
+  add('105', 'G', '记忆回廊', 'time', [2, 5], (s) => s.stats.sanity < 60);
+  add('106', 'G', '平行观测', 'time', [3, 8], (s) => s.flags.intel >= 4);
+  add('107', 'G', '未来视', 'time', [4, 10], (s) => s.stats.ghostEye >= 2);
+  add('108', 'G', '时间锚点', 'time', [3, 9], (s) => s.turn >= 8);
+  add('109', 'G', '时区错乱', 'time', [2, 4], (s) => s.stats.pollution > 35);
+  add('110', 'G', '循环日', 'time', [3, 7], (s) => s.stats.calamity > 55);
+
+  /* H 成长与养成 111~122 */
+  add('111', 'H', '能力树', 'growth', [0, 4], (s) => s.stats.ghostEye >= 1);
+  add('112', 'H', '拼图收集', 'explore', [2, 8], (s) => s.stats.calamity > 35);
+  add('113', 'H', '血脉觉醒', 'growth', [0, 5], (s) => s.clues.length >= 5);
+  add('114', 'H', '转世复活', 'growth', [0, 6], (s) => s.stats.erosion > 75);
+  add('115', 'H', '训练场', 'survival', [8, 2], (s) => s.stats.ghostEye < 9);
+  add('116', 'H', '灵异工坊', 'economy', [40, 50], (s) => s.money.cash >= 25);
+  add('117', 'H', '记忆手术', 'time', [3, 6], (s) => s.clues.length >= 6);
+  add('118', 'H', '香火成神线', 'growth', [0, 7], (s) => s.flags.intel >= 8);
+  add('119', 'H', '鬼物驯养', 'social', [5, 2], (s) => s.turn >= 6);
+  add('120', 'H', '器官/拼图移植', 'growth', [0, 8], (s) => s.stats.erosion > 55);
+  add('121', 'H', '封印精通', 'survival', [6, 4], (s) => s.flags.safehouse >= 2);
+  add('122', 'H', '规律学者', 'explore', [2, 3], (s) => s.clues.length >= 4);
+
+  /* I 阵营与战争 123~132 */
+  add('123', 'I', '势力声望五线', 'faction', [15, 2], null);
+  add('124', 'I', '地盘争夺', 'faction', [25, 6], (s) => s.stats.calamity > 45);
+  add('125', 'I', '卧底间谍', 'faction', [20, 4], (s) => s.stats.stealth > 60);
+  add('126', 'I', '军备竞赛', 'faction', [20, 5], (s) => s.money.gold >= 5);
+  add('127', 'I', '围剿战', 'faction', [35, 9], (s) => s.stats.calamity > 55);
+  add('128', 'I', '鬼潮防守战', 'faction', [40, 12], (s) => s.stats.calamity > 65);
+  add('129', 'I', '难民管理', 'faction', [25, 7], (s) => s.stats.calamity > 60);
+  add('130', 'I', '灵异外交', 'faction', [18, 3], (s) => s.flags.intel >= 5);
+  add('131', 'I', '通缉与洗白', 'faction', [15, 2], (s) => s.stats.stealth < 35);
+  add('132', 'I', '战利品分配', 'faction', [22, 4], (s) => s.stats.calamity > 50);
+
+  /* J 元游戏与死亡惩罚 133~142 */
+  add('133', 'J', '遗书系统', 'meta', [3], (s) => s.stats.calamity > 70);
+  add('134', 'J', '继承系统', 'meta', [4], (s) => s.turn >= 10);
+  add('135', 'J', '时间线存档', 'meta', [5], (s) => s.turn >= 8);
+  add('136', 'J', '观鬼模式', 'meta', [6], (s) => s.stats.erosion > 80);
+  add('137', 'J', '成就系统', 'meta', [2], null);
+  add('138', 'J', '卡牌化结算', 'meta', [1], (s) => s.turn >= 3);
+  add('139', 'J', '骰子挑战', 'meta', [2], null);
+  add('140', 'J', '竞速模式', 'meta', [3], (s) => s.turn >= 6);
+  add('141', 'J', '二周目', 'meta', [8], (s) => s.turn >= 20);
+  add('142', 'J', '自定义规则', 'meta', [1], null);
+
+  /* K 隐藏机制与彩蛋 143~152 */
+  add('143', 'K', '人皮纸真话', 'easter', [1, 3], (s) => s.items.some((i) => i.id === 'renpizhi'));
+  add('144', 'K', '幽灵船航线', 'easter', [3, 6], (s) => s.turn >= 14);
+  add('145', 'K', '鬼邮局总局', 'easter', [2, 5], (s) => s.turn >= 16);
+  add('146', 'K', '第 37 个源头鬼', 'easter', [4, 10], (s) => s.clues.length >= 12);
+  add('147', 'K', '杨戬回响', 'easter', [2, 4], (s) => s.pack !== 'yangji' && s.stats.calamity > 60);
+  add('148', 'K', '梦里老太太', 'easter', [1, 3], (s) => s.items.some((i) => i.id === 'tisidoll'));
+  add('149', 'K', '数字规律', 'easter', [1, 2], (s) => s.clues.length >= 6);
+  add('150', 'K', '假结局', 'easter', [2, 8], (s) => s.turn >= 18);
+  add('151', 'K', '世界重置', 'easter', [5, 12], (s) => s.flags.marks >= 3);
+  add('152', 'K', '生者名单', 'easter', [1, 3], (s) => s.turn >= 10);
+
+  /* -------------------------------------------------------------- 元信息 */
+  const CAT_NAMES = {
+    A: '状态与数值', B: '日常与生存', C: '经济与经营', D: '社交与人际', E: '战斗与灵异对抗',
+    F: '探索与任务', G: '时间与空间', H: '成长与养成', I: '阵营与战争', J: '元游戏', K: '隐藏与彩蛋',
+  };
+
+  /** 内容自检：注册表完整性（id 连续、模板/参数合法、有名称与描述） */
+  function validate() {
+    const errs = [];
+    const ids = R.map((m) => m.id);
+    for (let i = 1; i <= 152; i++) {
+      const id = ('000' + i).slice(-3);
+      if (!ids.includes(id)) errs.push('缺少机制 ' + id);
+    }
+    if (new Set(ids).size !== ids.length) errs.push('机制 id 有重复');
+    for (const m of R) {
+      if (!CAT_NAMES[m.cat]) errs.push(m.id + ': 非法类别 ' + m.cat);
+      if (!TPL[m.tpl]) errs.push(m.id + ': 未知模板 ' + m.tpl);
+      if (!Array.isArray(m.p) || m.p.length === 0) errs.push(m.id + ': 缺少模板参数');
+      if (m.pre && typeof m.pre !== 'function') errs.push(m.id + ': pre 必须是函数');
+    }
+    return errs;
+  }
+
+  return {
+    templates: TPL,
+    registry: R,
+    catNames: CAT_NAMES,
+    validate: validate,
+  };
+});
+</script>
+<script>/* ============================================================================
+ * 神秘复苏模拟器 · 规则引擎 (v3.1 rules)
+ * ----------------------------------------------------------------------------
+ * 设计目标（防恶意利用）：
+ *  1. 唯一写入点：所有受管数值只能经 setPath() 修改，且必须带 reason；
+ *     回合结束时用「账本逐笔推导值 vs 实际值」做守恒校验，任何绕过都会被抓到。
+ *  2. 确定性骰子：结果 = f(seed, turn, purpose, index)，与操作顺序无关；
+ *     读档重放同一回合、同一用途 → 结果完全相同（封死 save-scum 改判）。
+ *  3. 必死选项确定性：命中杀人规律即死，不含随机数 → 读档也无法改变。
+ *  4. 尝试记账：同一目标最多判 2 次，第 2 次 -20%，第 3 次引擎直接拒绝。
+ *  5. 数值只经 clamp 写入：下限/上限集中定义，杜绝负数与溢出。
+ *  6. 存档带校验和 + 版本号：手改存档 → 判定为损坏并拒绝载入。
+ *  7. 玩家文本只进叙事层，绝不参与任何判定（无 eval、无动态执行）。
+ * ----------------------------------------------------------------------------
+ * 说明：文件同时支持 Node（module.exports，供自动化测试）与浏览器（全局 RSEngine）。
+ * ==========================================================================*/
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory(require('./content.js'), require('./mechanics.js'));
+  } else {
+    root.RSEngine = factory(root.RSContent, root.RSMechanics);
+  }
+})(typeof self !== 'undefined' ? self : this, function (CONTENT, MECH) {
+  'use strict';
+
+  /* ---------------------------------------------------------------- 工具 */
+  const u32 = (x) => x >>> 0;
+  function hashStr(s) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    return u32(h);
+  }
+  function hashCombine(a, b) {
+    let h = u32(a) ^ 0x9e3779b9;
+    h = Math.imul(h ^ u32(b), 0x85ebca6b);
+    h ^= h >>> 13;
+    h = Math.imul(h, 0xc2b2ae35);
+    h ^= h >>> 16;
+    return u32(h);
+  }
+  const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+  const int = (v) => (Number.isFinite(v) ? Math.round(v) : 0);
+
+  /* ------------------------------------------------- 受管字段与区间定义 */
+  // 所有会被写入的数值路径都在这里登记；未登记者一律拒绝写入。
+  const BOUNDS = {
+    'stats.erosion': [0, 100],      // 鬼侵蚀（不可逆，只增）
+    'stats.humanity': [0, 100],     // 人性（上限 = 100 - 侵蚀，动态）
+    'stats.calamity': [0, 100],     // 劫难值（下限动态）
+    'stats.stealth': [0, 100],      // 低调值
+    'stats.sanity': [0, 100],       // 理智
+    'stats.stamina': [0, 100],      // 体力
+    'stats.causality': [0, 100],    // 因果值
+    'stats.pollution': [0, 100],    // 污染度
+    'stats.ghostEye': [0, 9],       // 鬼眼重数
+    'money.cash': [0, 1e10],
+    'money.deposit': [0, 1e10],
+    'money.gold': [0, 1000],        // kg
+    'money.contribution': [0, 1e6],
+    'flags.safehouse': [0, 5],
+    'flags.disguise': [0, 5],
+    'flags.favor': [0, 100],
+    'flags.intel': [0, 20],         // 情报点数
+    'flags.marks': [0, 99],         // 灾厄印记层数
+    'meta.deaths': [0, 1e6],
+    'meta.bestTurn': [0, 1e6],
+  };
+
+  function boundsOf(path) {
+    return BOUNDS[path] || null;
+  }
+
+  /* ---------------------------------------------------------- 确定性骰子 */
+  // 一次判定 = H(seed, turn, H(purpose, index)) → [1,100]
+  function roll100(state, purpose, index) {
+    const p = hashStr(String(purpose));
+    const h = hashCombine(hashCombine(state.seedInt, state.turn), hashCombine(p, index | 0));
+    return 1 + Math.floor((h / 4294967296) * 100);
+  }
+  function roll01(state, purpose, index) {
+    const p = hashStr(String(purpose));
+    const h = hashCombine(hashCombine(state.seedInt, state.turn), hashCombine(p, index | 0));
+    return h / 4294967296;
+  }
+  // 每天固定一掷：行动决定这一掷花在哪里，读档不能改点数
+  function dailyRoll(state) {
+    return roll100(state, 'day', 0);
+  }
+
+  /* ------------------------------------------------------------ 状态构造 */
+  function makeSeed() {
+    const a = (Date.now() ^ Math.imul(Math.random() * 1e9, 2654435761)) >>> 0;
+    return ('0000000' + a.toString(16)).slice(-8);
+  }
+
+  function createGame(opts) {
+    opts = opts || {};
+    const packId = opts.pack || 'ordinary';
+    const pack = CONTENT.packs[packId];
+    if (!pack) throw new Error('未知开局: ' + packId);
+    const rawDiff = opts.difficulty === 'hard' ? 'nightmare' : opts.difficulty;
+    const difficulty = (rawDiff === 'custom' || (CONTENT.difficulties && CONTENT.difficulties[rawDiff]))
+      ? rawDiff : 'standard';
+    const tuning = CONTENT.resolveTuning(difficulty, opts.custom);
+    const seed = String(opts.seed || makeSeed());
+
+    const stats = Object.assign({}, pack.stats);
+    const money = Object.assign({ contribution: 0 }, pack.money);
+
+    const state = {
+      v: 1,
+      seed: seed,
+      seedInt: hashStr(seed),
+      turn: 0,
+      chapter: 1,
+      phase: 'day',
+      over: null,            // 结局 / 死因
+      difficulty: difficulty,
+      tuning: tuning,
+      custom: opts.custom || null,
+      pack: packId,
+      contentLevel: opts.contentLevel || 'A',
+      stats: stats,
+      money: money,
+      items: pack.items.map((id) => ({ id: id, uses: CONTENT.items[id].uses || 1 })),
+      contracts: pack.contracts.slice(),
+      clues: [],
+      bestiary: {},
+      relationships: [],
+      wife: null,
+      children: 0,
+      place: pack.place || 'city',
+      flags: Object.assign({ safehouse: 0, disguise: 0, intel: 0, marks: 0, favor: 0 }, pack.flags || {}),
+      attempts: {},
+      chapterReduction: 0,   // 本章已使用的劫难降低量（上限 5）
+      chapterSpendings: 0,   // 本章收入（上限 500 万）
+      clueGains: 0,          // 本章线索收获次数（旧字段，保留兼容）
+      lastClueTurn: -99,     // 上次获得线索的天数（冷却 3 天）
+      humanityGains: 0,      // 本章已回复的人性总量（上限 5）
+      freezeUses: 0,         // 死机法使用次数（越用越难）
+      mechUsed: {},          // 玩法机制使用记录（id → 最后一次触发的回合）
+      mechRequest: null,     // 玩家点名要触发的玩法
+      mechLog: [],           // 最近触发的玩法（供界面显示）
+      actionTakenToday: false, // 每天只能有一个主动作（防读档复制行动）
+      worldAdvance: 0,
+      calamityEscapes: 0,
+      events: { fired: [], done: [] },
+      pending: null,         // 待玩家选择的遭遇
+      meta: Object.assign({ deaths: 0, bestTurn: 0 }, opts.meta || {}),
+      ledger: [],
+      ledgerStart: {},
+      integrity: [],
+      logs: [],
+    };
+    state.calamityFloor = Math.max(0, stats.calamity - 5);
+    state.pending = null;
+    state.peakGold = stats.gold || 0;
+
+    // 二周目继承：只改初始值，不参与任何判定
+    state.legacy = opts.legacy || null;
+    const leg = state.legacy && CONTENT.legacyOptions ? CONTENT.legacyOptions[state.legacy] : null;
+    if (leg) applyEffects(state, leg.effects, '二周目继承·' + leg.name);
+
+    startTurn(state);        // 进入第 1 天
+    return state;
+  }
+
+  /* --------------------------------------------------- 唯一写入点 setPath */
+  function getPath(obj, path) {
+    const parts = path.split('.');
+    let cur = obj;
+    for (let i = 0; i < parts.length; i++) cur = cur ? cur[parts[i]] : undefined;
+    return cur;
+  }
+  function dynamicBounds(state, path) {
+    if (path === 'stats.humanity') {
+      return [0, clamp(100 - state.stats.erosion, 0, 100)];
+    }
+    if (path === 'stats.calamity') {
+      return [state.calamityFloor, 100];
+    }
+    return boundsOf(path) || [0, 0];
+  }
+  /**
+   * 唯一写入点。raw=true 时跳过动态钳制（仅引擎内部用于初始化/世界推进）。
+   * 每次写入都会记账，供回合末守恒校验。
+   * 依赖关系：侵蚀上升会压缩人性上限，此处在同一入口内连带收紧并记账，
+   * 避免出现「人性高于上限」的状态（模拟测试抓到的真实缺陷）。
+   */
+  function setPath(state, path, value, reason, opts) {
+    opts = opts || {};
+    const b = dynamicBounds(state, path);
+    const before = getPath(state, path);
+    if (typeof before !== 'number') {
+      state.integrity.push('写入未登记字段: ' + path + ' (' + reason + ')');
+      return false;
+    }
+    let v = int(value);
+    if (!opts.raw) v = clamp(v, b[0], b[1]);
+    const parts = path.split('.');
+    let cur = state;
+    for (let i = 0; i < parts.length - 1; i++) cur = cur[parts[i]];
+    cur[parts[parts.length - 1]] = v;
+    state.ledger.push({ path: path, before: before, after: v, delta: v - before, reason: reason });
+    if (path === 'money.gold' && v > (state.peakGold || 0)) state.peakGold = v; // 峰值黄金（成就用）
+
+    // 侵蚀上升 → 人性上限收缩（连带钳制，必须记账）
+    if (path === 'stats.erosion' && !state._clamping) {
+      state._clamping = true;
+      const cap = clamp(100 - state.stats.erosion, 0, 100);
+      if (state.stats.humanity > cap) {
+        const hb = state.stats.humanity;
+        state.stats.humanity = cap;
+        state.ledger.push({
+          path: 'stats.humanity', before: hb, after: cap, delta: cap - hb,
+          reason: '侵蚀上升压缩人性上限',
+        });
+      }
+      state._clamping = false;
+    }
+    return true;
+  }
+  function addPath(state, path, delta, reason, opts) {
+    const before = getPath(state, path);
+    if (typeof before !== 'number') {
+      state.integrity.push('写入未登记字段: ' + path + ' (' + reason + ')');
+      return false;
+    }
+    return setPath(state, path, before + int(delta), reason, opts);
+  }
+
+  /* -------------------------------------------------------------- 效果表 */
+  // 声明式效果：引擎统一校验前置条件与代价，前端隐藏不算数。
+  function applyEffects(state, effects, reason) {
+    const out = [];
+    for (const e of effects || []) {
+      if (e.if && !checkCond(state, e.if)) {
+        out.push({ skipped: true, effect: e, reason: reason });
+        continue;
+      }
+      switch (e.k) {
+        case 'stat':
+          addPath(state, 'stats.' + e.key, e.v, reason);
+          break;
+        case 'money':
+          addPath(state, 'money.' + e.key, e.v, reason);
+          break;
+        case 'flag':
+          addPath(state, 'flags.' + e.key, e.v, reason);
+          break;
+        case 'itemAdd': {
+          const def = CONTENT.items[e.id];
+          if (!def) { state.integrity.push('未知道具: ' + e.id); break; }
+          state.items.push({ id: e.id, uses: def.uses || 1 });
+          out.push({ got: e.id });
+          break;
+        }
+        case 'itemUse': {
+          const it = state.items.find((x) => x.id === e.id);
+          if (!it) { out.push({ noItem: e.id }); break; }
+          it.uses -= 1;
+          if (it.uses <= 0) state.items = state.items.filter((x) => x !== it);
+          out.push({ used: e.id });
+          break;
+        }
+        case 'clue': {
+          if (!state.clues.includes(e.id)) {
+            state.clues.push(e.id);
+            out.push({ clue: e.id });
+          }
+          break;
+        }
+        case 'bestiary': {
+          const b = state.bestiary[e.id] || (state.bestiary[e.id] = { known: true, clues: 0, tamed: false });
+          b.known = true;
+          if (e.clues) b.clues += e.clues;
+          out.push({ bestiary: e.id });
+          break;
+        }
+        default:
+          state.integrity.push('未知效果类型: ' + e.k);
+      }
+    }
+    return out;
+  }
+
+  function checkCond(state, cond) {
+    if (typeof cond === 'function') return !!cond(state);
+    return false;
+  }
+
+  /* ------------------------------------------------------- 劫难降低（P1） */
+  const CHAPTER_REDUCTION_CAP = 5; // 补丁 P1.4：每章由 4.2 手段带来的总降幅 ≤5
+  const CHAPTER_HUMANITY_CAP = 5;  // 补丁 P7.5：每章人性回复总量上限 5 点
+  const CLUE_COOLDOWN = 3;         // 线索：每 3 天最多一次实质收获（防刷线索开全图）
+
+  /** 人性回复：受每章总量上限约束（防止用治疗/配偶把人性刷满） */
+  function gainHumanity(state, amount, reason) {
+    const left = CHAPTER_HUMANITY_CAP - (state.humanityGains || 0);
+    if (left <= 0) return { ok: false, why: '本章人性回复额度已用尽（上限 ' + CHAPTER_HUMANITY_CAP + '）' };
+    const applied = Math.min(left, amount);
+    addPath(state, 'stats.humanity', applied, reason);
+    state.humanityGains = (state.humanityGains || 0) + applied;
+    return { ok: true, applied: applied };
+  }
+  function reduceCalamity(state, amount, reason) {
+    const left = CHAPTER_REDUCTION_CAP - state.chapterReduction;
+    if (left <= 0) return { ok: false, why: '本章降低额度已用尽（上限 ' + CHAPTER_REDUCTION_CAP + '）' };
+    const applied = Math.min(left, Math.abs(amount));
+    const before = state.stats.calamity;
+    addPath(state, 'stats.calamity', -applied, reason);
+    const real = before - state.stats.calamity;
+    state.chapterReduction += real;
+    if (state.stats.calamity <= state.calamityFloor && real < applied) {
+      return { ok: true, applied: real, capped: '已达劫难值下限（' + state.calamityFloor + '），降低手段失效' };
+    }
+    return { ok: true, applied: real };
+  }
+
+  /* ------------------------------------------------------------ 世界推进 */
+  /** 当前手感参数（难度档位 / 自定义旋钮），老存档缺失时按标准档兜底 */
+  function tuningOf(state) {
+    if (state.tuning && typeof state.tuning.worldMult === 'number') return state.tuning;
+    const id = state.difficulty === 'hard' ? 'nightmare' : state.difficulty;
+    return CONTENT.resolveTuning(id, state.custom);
+  }
+
+  function worldAdvanceAmount(state) {
+    const tu = tuningOf(state);
+    let base = 3;
+    if (state.chapter >= 10) base = 8;
+    else if (state.chapter >= 5) base = 5;
+    base = Math.max(1, Math.round(base * tu.worldMult));
+    base += state.flags.marks * 1;                 // 灾厄印记：后续增长 +20%（简化为 +1/层）
+    return base;
+  }
+
+  /* -------------------------------------------------- 玩法轮换（12.1） */
+  /**
+   * 每回合从 152 条机制里抽 1~3 条施加：
+   *  · 同一机制 3 回合内不重复；
+   *  · 连续两回合不重复同一大类（重大节点强制换玩法）；
+   *  · 玩家点名（自定义行动里写到机制名）优先触发。
+   * 全部效果经 applyEffects 走账本，受唯一写入点与守恒校验约束。
+   */
+  const MECH_ROTATE = 3;
+
+  function mechEligible(state, m) {
+    if (m.pre && !m.pre(state)) return false;
+    const last = state.mechUsed[m.id];
+    if (last !== undefined && state.turn - last < MECH_ROTATE) return false;
+    // 类别轮换：最近两回合用过的大类不立即重复
+    const recent = state.mechLog.slice(-2).map((x) => x.cat);
+    if (recent.length >= 2 && recent[0] === m.cat && recent[1] === m.cat) return false;
+    return true;
+  }
+
+  function pickMechanics(state) {
+    const all = (MECH && MECH.registry) || [];
+    if (!all.length) return [];
+    const picks = [];
+    // 玩家点名优先
+    if (state.mechRequest) {
+      const want = all.find((m) => m.id === state.mechRequest);
+      if (want) { picks.push(want); state.mechRequest = null; }
+    }
+    const count = 1 + (roll100(state, 'mechCount', 0) % 3); // 1~3 条
+    for (let i = 0; i < count; i++) {
+      // 同一回合不重复大类：避免一回合里刷出三条"元游戏"这种雷同组合
+      const usedCats = picks.map((m) => m.cat);
+      const pool = all.filter((m) => !picks.includes(m) && !usedCats.includes(m.cat) && mechEligible(state, m));
+      if (!pool.length) break;
+      const idx = hashStr(state.seed + ':' + state.turn + ':mech' + i) % pool.length;
+      picks.push(pool[idx]);
+    }
+    return picks;
+  }
+
+  function applyMechanic(state, m) {
+    const tpl = MECH.templates[m.tpl];
+    if (!tpl) { state.integrity.push('玩法 ' + m.id + ' 的模板不存在: ' + m.tpl); return null; }
+    const helpers = {
+      roll: (i, max) => 1 + Math.floor(roll01(state, 'mech:' + m.id, i) * max),
+    };
+    let out;
+    try {
+      out = tpl(state, m.p, helpers, m) || {};
+    } catch (err) {
+      state.integrity.push('玩法 ' + m.id + ' 执行失败: ' + (err && err.message));
+      return null;
+    }
+    applyEffects(state, out.effects || [], '玩法·' + m.name);
+    if (m.extra && m.extra.length) applyEffects(state, m.extra, '玩法·' + m.name + '（专属）');
+    state.mechUsed[m.id] = state.turn;
+    state.mechLog.push({ id: m.id, cat: m.cat, name: m.name, turn: state.turn });
+    if (state.mechLog.length > 20) state.mechLog = state.mechLog.slice(-20);
+    return { id: m.id, cat: m.cat, name: m.name, lines: out.lines || [] };
+  }
+
+  /** 界面用：最近触发的玩法（含大类中文名） */
+  function recentMechanics(state) {
+    return state.mechLog.slice(-6).map((x) => ({
+      id: x.id, turn: x.turn, name: x.name,
+      cat: MECH && MECH.catNames ? MECH.catNames[x.cat] : x.cat,
+    }));
+  }
+
+  /* ---------------------------------------------------------- 回合流程 */
+  /** 开启新的一天：只做计数与重置；章首额外结算家庭收益 */
+  function startTurn(state) {
+    state.turn += 1;
+    state.chapter = Math.ceil(state.turn / 7);
+    if (state.turn % 7 === 1) {
+      state.chapterReduction = 0;
+      state.clueGains = 0;
+      state.humanityGains = 0;
+      // 章首家庭收益（受每章人性回复上限 5 点约束）
+      if (state.wife) gainHumanity(state, 3, '配偶陪伴（每章）');
+      if (state.children > 0) gainHumanity(state, 2, '子嗣羁绊（每章）');
+    }
+    state.chapterSpendings = 0;
+    state.ledger = [];
+    state.ledgerStart = {};
+    for (const p of Object.keys(BOUNDS)) state.ledgerStart[p] = getPath(state, p);
+    state.turnRoll = dailyRoll(state);
+    state.actionTakenToday = false;
+    state.phase = 'day';
+    state.pending = null;
+  }
+
+  /** 结束一天：守恒校验 → 结局判定 → 自然恢复 → 世界推进 → 阈值 → 进入下一天 */
+  function endTurn(state) {
+    // 账本守恒校验：逐笔推导值必须等于实际值（唯一写入点被绕过就会暴露）
+    const derived = {};
+    for (const k of Object.keys(state.ledgerStart)) derived[k] = state.ledgerStart[k];
+    for (const entry of state.ledger) {
+      if (derived[entry.path] === undefined) continue;
+      derived[entry.path] += entry.delta;
+    }
+    for (const k of Object.keys(derived)) {
+      const actual = getPath(state, k);
+      const b = dynamicBounds(state, k);
+      const expect = clamp(derived[k], b[0], b[1]);
+      if (actual !== expect) {
+        state.integrity.push('账本不守恒: ' + k + ' 推导=' + expect + ' 实际=' + actual);
+      }
+    }
+
+    // 结局判定放在「当天行动的结果」这一时刻：既不会被随后的世界推进抢走，
+    // 也不会被夜间恢复掩盖（例如理智刚好归零的「疯子先知」）。
+    // 先跑玩法轮换（写进同一份账本，随后一起守恒校验）
+    const mechLines = [];
+    for (const m of pickMechanics(state)) {
+      const r = applyMechanic(state, m);
+      if (!r) continue;
+      const catName = (MECH && MECH.catNames) ? MECH.catNames[r.cat] : r.cat;
+      mechLines.push('【玩法·' + catName + '】' + r.name + '：' + (r.lines.join(' ') || ''));
+    }
+    state.lastMechLines = mechLines;
+
+    checkWorldEndings(state);
+    if (state.over) return;
+
+    // 每天的自然消耗与恢复
+    addPath(state, 'stats.stamina', +8, '睡眠恢复');
+    addPath(state, 'stats.sanity', +3, '夜间休息');
+    addPath(state, 'stats.pollution', -2, '净身与开窗');
+
+    // 世界推进：不可被任何手段抵消（补丁 P1.2）
+    const adv = worldAdvanceAmount(state);
+    addPath(state, 'stats.calamity', adv, '世界推进（不可抵消）');
+    state.worldAdvance += adv;
+
+    checkThresholds(state);
+    if (!state.over) startTurn(state);
+  }
+
+  function checkWorldEndings(state) {
+    if (state.over) return;
+    for (const c of CONTENT.worldEndingChecks) {
+      if (c.when(state)) {
+        const def = CONTENT.endings[c.id];
+        return endGame(state, c.id, def ? def.text : '世界线走到了尽头。');
+      }
+    }
+    return null;
+  }
+
+  /* --------------------------------------------------------- 阈值与结局 */
+  function checkThresholds(state) {
+    if (state.over) return;
+    if (state.stats.erosion >= 100) return endGame(state, 'p_fuxi', '鬼侵蚀抵达 100，你不再是人。');
+    if (state.stats.humanity <= 0) return endGame(state, 'p_fuxi', '人性归零，你在镜子里看见的不再是自己。');
+    if (state.stats.calamity >= 100) {
+      triggerCalamity(state);
+      if (state.over) return;
+      // 劫难代价（侵蚀 +10）可能当场把人推过终点，必须立刻复检
+      if (state.stats.erosion >= 100) return endGame(state, 'p_fuxi', CONTENT.endings.p_fuxi.text);
+      if (state.stats.humanity <= 0) return endGame(state, 'p_fuxi', CONTENT.endings.p_fuxi.text);
+    }
+  }
+
+  /**
+   * 劫难剧情（4.3）：劫难值=100 强制触发。
+   * 规则原文只说"存活后回落 30~50 + 获得灾厄印记（永久 +20% 增长）+ 稀有奖励"，
+   * 因此这里是可反复发生的长期压力源，而不是三振出局：
+   * 每一次都按存活判定结算，灾厄印记越多越难活；印记满 5 层 → 人间如狱（世界结局）。
+   */
+  function triggerCalamity(state) {
+    state.calamityEscapes += 1;
+    const marks = state.flags.marks;
+    const r = doCheck(state, 'calamity', 'esc' + state.calamityEscapes, 70 + tuningOf(state).calamityBonus, [
+      { name: '安全屋', v: state.flags.safehouse * 4 },
+      { name: '低调', v: state.stats.stealth >= 70 ? 5 : 0 },
+      { name: '灾厄印记', v: -marks * 10 },
+    ]);
+    if (!r.success) {
+      if (marks + 1 >= 5) return endGame(state, 'w_ruyu', CONTENT.endings.w_ruyu.text);
+      return endGame(state, 'dead', '劫难降临，这一次你没有躲过去。');
+    }
+    // 存活：回落但不得跌破下限（补丁 P1.3）
+    const godTier = state.pack === 'yangji' || state.contracts.length >= 3;
+    if (godTier) {
+      applyEffects(state, [{ k: 'stat', key: 'sanity', v: -10 }], '规则级反噬：神性崩解');
+    }
+    const fallback = Math.max(state.calamityFloor, 30 + state.calamityEscapes * 5);
+    setPath(state, 'stats.calamity', Math.min(50, fallback), '劫难剧情存活后回落');
+    addPath(state, 'flags.marks', 1, '获得灾厄印记');
+    addPath(state, 'stats.erosion', 10, '劫难剧情的代价');
+    const loot = roll100(state, 'calamityLoot', state.calamityEscapes);
+    if (loot >= 50) applyEffects(state, [{ k: 'flag', key: 'intel', v: 3 }], '劫难奖励：情报');
+    else applyEffects(state, [{ k: 'money', key: 'gold', v: 2 }], '劫难奖励：黄金 2kg');
+    if (state.flags.marks >= 5) return endGame(state, 'w_ruyu', CONTENT.endings.w_ruyu.text);
+    return null;
+  }
+
+  function endGame(state, endingId, text) {
+    state.over = { ending: endingId, text: text, turn: state.turn };
+    state.phase = 'over';
+    state.meta.deaths += 1;
+    state.meta.bestTurn = Math.max(state.meta.bestTurn || 0, state.turn);
+    return state.over;
+  }
+
+  /* ---------------------------------------------------------- 判定 · 通用 */
+  // 尝试记账：同一目标最多 N 次；第 2 次起 -20%；超出上限直接拒绝。
+  // 上限按用途分类（补丁 P3 的本意是「不许对同一障碍反复试探」，不是「不许日常行动」）：
+  //   · 障碍类（抵御/驾驭/中性规避/奇迹）：全局限 2 次 → 目标键不带章号
+  //   · 日常类（训练/死机法/任务/赌局）：按章限 N 次 → 目标键带 @c<章>
+  const ATTEMPT_CAPS = { default: 2, train: 3, freeze: 3, mission: 5, gamble: 2 };
+  function chapterKey(state, base) {
+    return base + '@c' + state.chapter;
+  }
+  const STRICT_PURPOSES = ['resist', 'neutral', 'calamity']; // 生死一线，不给容错
+  function attemptState(state, purpose, target) {
+    const key = purpose + ':' + target;
+    const n = state.attempts[key] || 0;
+    const cap = ATTEMPT_CAPS[purpose] || ATTEMPT_CAPS.default;
+    const free = STRICT_PURPOSES.includes(purpose) ? 0 : tuningOf(state).retryFree;
+    return {
+      key: key,
+      count: n,
+      cap: cap,
+      allowed: n < cap,
+      penalty: n <= free ? 0 : -20,
+      reason: n >= cap ? '同一目标的尝试额度已用尽（上限 ' + cap + ' 次）' : '',
+    };
+  }
+  function recordAttempt(state, key) {
+    state.attempts[key] = (state.attempts[key] || 0) + 1;
+  }
+
+  function doCheck(state, purpose, target, base, mods) {
+    const at = attemptState(state, purpose, target);
+    if (!at.allowed) return { refused: true, note: at.reason };
+    mods = mods || [];
+    const tu = tuningOf(state);
+    let chance = base;
+    const parts = ['基础 ' + base + '%'];
+    if (tu.checkBonus) parts.push((tu.checkBonus > 0 ? '+' : '') + tu.checkBonus + '% 难度');
+    for (const m of mods) {
+      chance += m.v;
+      if (m.v !== 0) parts.push((m.v > 0 ? '+' : '') + m.v + '% ' + m.name); // 零修正不显示，公式更好读
+    }
+    chance += tu.checkBonus;
+    chance += at.penalty;
+    if (at.penalty) parts.push(at.penalty + '% 重复尝试');
+    chance = clamp(int(chance), 1, 90);
+    const value = roll100(state, purpose, hashStr(target) % 97);
+    recordAttempt(state, at.key);
+    return {
+      value: value,
+      chance: chance,
+      success: value <= chance,
+      formula: parts.join(' ') + ' = ' + chance + '% ｜ 1d100=' + value,
+      target: target,
+      purpose: purpose,
+    };
+  }
+
+  /* ------------------------------------------------- 驾驭成功率（第 6 章） */
+  function masteryCheck(state, ghostId) {
+    const g = CONTENT.ghosts[ghostId];
+    const er = state.stats.erosion;
+    const erAdj = er >= 60 ? 15 : er >= 30 ? 10 : er >= 10 ? 5 : 0;
+    // 基础成功率：普通人 0%；已寄宿/拥有鬼眼者 5%~15%
+    const awakened = state.stats.ghostEye > 0 || state.contracts.length > 0;
+    const base = awakened ? clamp(5 + Math.floor(state.stats.ghostEye * 10 / 9), 5, 15) : 0;
+    const mods = [{ name: '侵蚀修正', v: erAdj }];
+    if (state.clues.includes(g.masteryClue)) mods.push({ name: '同源拼图', v: 20 });
+    if (state.flags.intel >= 5) mods.push({ name: '封印仪式准备', v: 15 });
+    if (state.contracts.length >= 2) mods.push({ name: '双鬼平衡', v: 10 });
+    mods.push({ name: '危险等级惩罚', v: -g.penalty });
+    if (state.stats.calamity >= 70) mods.push({ name: '劫难修正', v: -5 });
+    const r = doCheck(state, 'mastery', ghostId, base, mods);
+    if (r.refused) return r;
+    if (r.success) {
+      // 厉鬼平衡法（附录 A）：已有 2 只以上契约时，新契约的侵蚀代价减半
+      const balance = state.contracts.length >= 2;
+      const cost = (balance ? 6 : 12) + int(roll01(state, 'masteryCost', 1) * (balance ? 6 : 8));
+      applyEffects(state, [
+        { k: 'stat', key: 'erosion', v: cost },
+        { k: 'stat', key: 'calamity', v: 12 },
+        { k: 'stat', key: 'humanity', v: -8 },
+      ], '驾驭成功的代价' + (balance ? '（厉鬼平衡法减半）' : ''));
+      state.contracts.push(ghostId);
+    } else {
+      applyEffects(state, [
+        { k: 'stat', key: 'erosion', v: 8 },
+        { k: 'stat', key: 'calamity', v: 25 },
+      ], '驾驭失败：厉鬼局部复苏');
+    }
+    return r;
+  }
+
+  /* --------------------------------------------- 奇迹判定（补丁 P5：加权） */
+  const MIRACLE_WEIGHTS = [0.5, 0.3, 0.2];
+  function miracleCheck(state, key, stageCount, stageBase) {
+    const n = clamp(int(stageCount || 3), 2, 3);
+    const stages = [];
+    let total = 0;
+    let weightSum = 0;
+    for (let i = 0; i < n; i++) {
+      const base = stageBase[i] !== undefined ? stageBase[i] : 12;
+      const v = roll100(state, 'miracle:' + key, i);
+      const ok = v <= base;
+      stages.push({ i: i + 1, value: v, chance: base, success: ok });
+      total += base * MIRACLE_WEIGHTS[i];
+      weightSum += MIRACLE_WEIGHTS[i];
+      if (!ok) break;
+    }
+    let chance = clamp(int(total / Math.max(weightSum, 0.0001)) + tu.checkBonus, 5, tu.id === 'nightmare' || tu.id === 'hardcore' ? 15 : 20);
+    const allOk = stages.length === n && stages.every((s) => s.success);
+    return { stages: stages, chance: chance, success: allOk, formula: '加权平均（权重 0.5/0.3/0.2，不连乘）= ' + chance + '%' };
+  }
+
+  /* ------------------------------------------------------------ 行动生成 */
+  /** 该判定是否还有尝试额度（用尽的行动不再出现在选项里，避免空转按钮） */
+  function canAttempt(state, purpose, target) {
+    return attemptState(state, purpose, target).allowed;
+  }
+
+  function actionPool(state) {
+    const pool = [];
+    const add = (a) => pool.push(a);
+
+    add({
+      id: 'rest', label: '休整一天（静养，恢复理智与体力）', tags: ['rest'],
+      run: (s) => {
+        applyEffects(s, [{ k: 'stat', key: 'sanity', v: 8 }, { k: 'stat', key: 'stamina', v: 15 }], '静养');
+        const r = reduceCalamity(s, 5, '静养一夜（4.2）');
+        return { lines: ['你把门窗封严，点上一支鬼烛，强迫自己睡下。', r.ok ? '劫难值 -' + r.applied + (r.capped ? '（' + r.capped + '）' : '') : r.why] };
+      },
+    });
+    add({
+      id: 'work', label: '维持人设（上班/开店赚钱）', tags: ['normal'],
+      run: (s) => {
+        const gain = 3 + int(roll01(s, 'workPay', 0) * 6);
+        const cap = tuningOf(s).incomeCap;
+        const capped = Math.min(gain, cap - s.chapterSpendings);
+        addPath(s, 'money.cash', capped, '工作收入');
+        s.chapterSpendings += capped;
+        applyEffects(s, [{ k: 'stat', key: 'stealth', v: 2 }, { k: 'stat', key: 'stamina', v: -5 }], '低调生活');
+        return { lines: ['你照常出现在人群里，做一个无害的普通人。',
+          '收入 +' + capped + ' 万（本章收入已用 ' + s.chapterSpendings + '/' + cap + ' 万）'] };
+      },
+    });
+    add({
+      id: 'investigate', label: '调查传闻（找线索，风险上升）', tags: ['probe'],
+      run: (s) => {
+        applyEffects(s, [{ k: 'stat', key: 'pollution', v: 4 }, { k: 'stat', key: 'sanity', v: -3 }], '深入调查');
+        // 先查当前区域的鬼；它的线索查完了，就转去查你已知的其他鬼（否则驾驭用的关键线索永远拿不到）
+        let g = CONTENT.ghosts[activeGhost(s)];
+        if (!g || !g.clues.some((c) => !s.clues.includes(c.id))) {
+          const alt = Object.keys(s.bestiary).filter((gid) => CONTENT.ghosts[gid] &&
+            CONTENT.ghosts[gid].clues.some((c) => !s.clues.includes(c.id)));
+          if (alt.length) g = CONTENT.ghosts[alt[hashStr(s.seed + ':alt') % alt.length]];
+        }
+        if (!g) return { lines: ['这一带暂时没有什么值得深挖的东西。'] };
+        // 线索冷却：每 3 天最多一次实质收获，防止把线索当成无限资源刷
+        if (s.turn - s.lastClueTurn < CLUE_COOLDOWN) {
+          return { lines: ['线索不是每天都能挖出来的。你翻了一整天旧报纸，只翻到自己的手指发白。',
+            '（线索冷却中：距上次实质收获 ' + (s.turn - s.lastClueTurn) + '/' + CLUE_COOLDOWN + ' 天）'] };
+        }
+        const pool = g.clues.filter((c) => !s.clues.includes(c.id));
+        if (!pool.length) return { lines: ['关于「' + g.name + '」，你已经掌握能掌握的一切。'] };
+        const c = pool[hashStr(s.seed + ':' + s.turn + ':clue') % pool.length];
+        applyEffects(s, [{ k: 'clue', id: c.id }, { k: 'bestiary', id: g.id, clues: 1 }], '获得线索');
+        s.lastClueTurn = s.turn;
+        return { lines: ['你在旧报纸的边角上读到一段话：', '「' + c.text + '」', '（线索已记录：' + c.id + '）'] };
+      },
+    });
+    add({
+      id: 'freeze', label: '死机法：让体内的鬼停滞（九死一生，可压低侵蚀）', tags: ['power'],
+      if: (s) => s.contracts.length >= 1 && canAttempt(s, 'freeze', chapterKey(s, 'self')),
+      run: (s) => {
+        // 附录 A 的延命三法之一：死机法。九死一生，且次数越多越难。
+        const base = clamp(30 - (s.freezeUses || 0) * 6, 8, 30);
+        const r = doCheck(s, 'freeze', chapterKey(s, 'self'), base, [
+          { name: '契约数', v: s.contracts.length * 3 },
+          { name: '理智', v: Math.floor(s.stats.sanity / 20) },
+        ]);
+        if (r.refused) return { lines: [r.note], check: r };
+        s.freezeUses = (s.freezeUses || 0) + 1;
+        if (r.value <= 5) {
+          // 大失败：直接复苏
+          applyEffects(s, [{ k: 'stat', key: 'erosion', v: 40 }, { k: 'stat', key: 'calamity', v: 20 }], '死机法反噬');
+          return { lines: ['你把自己的意识按下去，结果它没有停——停的是你。'], check: r, fatal: true };
+        }
+        if (r.success) {
+          const cut = 8 + int(roll01(s, 'freezeGain', 0) * 8);
+          addPath(s, 'stats.erosion', -cut, '死机法：鬼陷入停滞');
+          applyEffects(s, [{ k: 'stat', key: 'humanity', v: -3 }, { k: 'stat', key: 'calamity', v: 15 },
+            { k: 'stat', key: 'stamina', v: -30 }], '死机法的代价');
+          return { lines: ['有一段很长的时间，你听不见任何声音，也感觉不到那只鬼。',
+            '侵蚀 -' + cut + '（当前 ' + s.stats.erosion + '），但劫难值涨了。'], check: r };
+        }
+        applyEffects(s, [{ k: 'stat', key: 'erosion', v: 10 }, { k: 'stat', key: 'calamity', v: 20 },
+          { k: 'stat', key: 'sanity', v: -15 }], '死机法失败');
+        return { lines: ['它没有停。它只是学会了怎么装死。'], check: r };
+      },
+    });
+    // 驾驭：可以选目标 —— 弱者优先是常识，S 级基本无望（规则原意）
+    const knownGhosts = Object.keys(state.bestiary)
+      .filter((gid) => CONTENT.ghosts[gid] && !state.contracts.includes(gid));
+    if (!knownGhosts.length) knownGhosts.push(activeGhost(state));
+    for (const gid of knownGhosts) {
+      const g = CONTENT.ghosts[gid];
+      add({
+        id: 'mastery:' + gid,
+        label: '尝试驾驭「' + g.name + '」（' + g.level + ' 级，危险惩罚 -' + g.penalty + '%）',
+        tags: ['power'],
+        if: (s) => canAttempt(s, 'mastery', gid),
+        run: (s) => {
+          const r = masteryCheck(s, gid);
+          if (r.refused) return { lines: [r.note], check: r };
+          if (r.success) {
+            return { lines: ['你把它按进了自己的身体里。它没有死——它只是暂时同意了。',
+              '契约：' + g.name + '（' + g.level + ' 级）。代价写在你的骨头上。'], check: r };
+          }
+          return { lines: ['你没能压住它。有一个很短的时间，你分不清哪一部分是自己。'], check: r };
+        },
+      });
+    }
+    add({
+      id: 'social', label: '维持关系（约会/送礼，可能成家）', tags: ['normal'],
+      if: (s) => s.money.cash >= 2,
+      run: (s) => {
+        const npc = CONTENT.npcs.lin;
+        if (s.money.cash < 2) return { lines: ['请人吃顿饭总要花钱，你连 2 万都拿不出来。'] };
+        addPath(s, 'money.cash', -2, '约会支出');
+        const gain = 6 + int(roll01(s, 'social', 0) * 8);
+        addPath(s, 'flags.favor', gain, '与 ' + npc.name + ' 的关系进展');
+        const lines = [npc.name + '（' + npc.desc + '）今天愿意听你说话。', '好感 +' + gain + '（当前 ' + s.flags.favor + '/100）'];
+        if (!s.wife && s.flags.favor >= 90) {
+          s.wife = npc.id;
+          lines.push('你们把关系定了下来。她成了你在这个世界上唯一的弱点，也是唯一的锚。');
+        } else if (s.wife && s.children === 0) {
+          if (s.stats.erosion >= 80) {
+            lines.push('你们谈过孩子的事，但医生的话让你没法继续谈下去。');
+          } else {
+            const rr = doCheck(s, 'birth', 'child0', s.stats.erosion < 60 ? 60 : 25, [
+            ]);
+            if (!rr.refused && rr.success) {
+              s.children = 1;
+              lines.push('孩子出生了——在这座城市里，这几乎算是一种反抗。', '子嗣 +1（人性回复来源，同时也是弱点）');
+            } else {
+              lines.push('这一次没有结果。你们都沉默了很久。');
+            }
+          }
+        }
+        return { lines: lines };
+      },
+    });
+    add({
+      id: 'train', label: '训练与冲重（鬼眼重数，侵蚀上涨）', tags: ['power'],
+      if: (s) => s.stats.ghostEye < 9 && canAttempt(s, 'train', chapterKey(s, 'ghostEye')),
+      run: (s) => {
+        const r = doCheck(s, 'train', chapterKey(s, 'ghostEye'), 45 + s.stats.erosion / 5, [
+          { name: '冷静度', v: int(s.stats.sanity / 10) },
+          { name: '劫难修正', v: s.stats.calamity >= 70 ? -5 : 0 },
+        ]);
+        if (r.refused) return { lines: [r.note], check: r };
+        if (r.success) {
+          applyEffects(s, [{ k: 'stat', key: 'ghostEye', v: 1 }, { k: 'stat', key: 'erosion', v: 8 }, { k: 'stat', key: 'humanity', v: -5 }], '冲高鬼眼重数');
+          return { lines: ['眼底一阵灼痛，视野被撕开一层——鬼眼 ' + s.stats.ghostEye + ' 重。'], check: r };
+        }
+        applyEffects(s, [{ k: 'stat', key: 'erosion', v: 5 }, { k: 'stat', key: 'sanity', v: -10 }], '冲重失败反噬');
+        return { lines: ['血从眼角渗出来，你什么都没抓住，只换来更深的侵蚀。'], check: r };
+      },
+    });
+    add({
+      id: 'safehouse', label: '加固安全屋（封条/符阵/黄金）', tags: ['normal'],
+      if: (s) => s.flags.safehouse < 5 && s.money.cash >= (s.flags.safehouse + 1) * 30,
+      run: (s) => {
+        const cost = (s.flags.safehouse + 1) * 30;
+        if (s.money.cash < cost) return { lines: ['加固需要 ' + cost + ' 万现金，你拿不出来。'] };
+        addPath(s, 'money.cash', -cost, '加固安全屋');
+        applyEffects(s, [{ k: 'flag', key: 'safehouse', v: 1 }], '安全屋升级');
+        return { lines: ['你把封条重贴了一遍，符阵补上了缺口。', '安全屋等级 ' + s.flags.safehouse + '/5（花费 ' + cost + ' 万）'] };
+      },
+    });
+    add({
+      id: 'heal', label: '心理治疗（恢复理智与人性）', tags: ['normal'],
+      if: (s) => s.money.cash >= 5,
+      run: (s) => {
+        if (s.money.cash < 5) return { lines: ['治疗费 5 万，你掏不出来。'] };
+        addPath(s, 'money.cash', -5, '心理治疗');
+        applyEffects(s, [{ k: 'stat', key: 'sanity', v: 12 }], '心理治疗');
+        const h = gainHumanity(s, 5, '心理治疗');
+        return { lines: ['医生听着你那些不能报警的经历，只是点了点头。',
+          '理智 +12、人性 ' + (h.ok ? '+' + h.applied : '（' + h.why + '）')] };
+      },
+    });
+    add({
+      id: 'shop', label: '去黑市补给（黄金换道具）', tags: ['normal'],
+      if: (s) => (s.flags.intel >= 1 || s.turn >= 3) && s.money.gold >= 3,
+      run: (s) => {
+        const want = 'guizhu';
+        const price = Math.max(1, Math.round((1 + int(roll01(s, 'shopPrice', 0) * 2)) * tuningOf(s).priceMult)); // 1~3kg × 难度系数
+        if (s.money.gold < price) return { lines: ['黑市摊主报出 ' + price + 'kg 黄金的价，你手上的金子不够。'] };
+        addPath(s, 'money.gold', -price, '黑市购入鬼烛');
+        applyEffects(s, [{ k: 'itemAdd', id: want }, { k: 'stat', key: 'stealth', v: -3 }], '黑市交易');
+        return { lines: ['你用 ' + price + 'kg 黄金换来了鬼烛。黑市里有人记住了你的脸。'] };
+      },
+    });
+    add({
+      id: 'mission', label: '接总部任务（有报酬，有危险）', tags: ['probe'],
+      if: (s) => canAttempt(s, 'mission', chapterKey(s, 'task')),
+      run: (s) => {
+        const r = doCheck(s, 'mission', chapterKey(s, 'task'), 55 + s.stats.ghostEye * 3, [
+          { name: '安全屋', v: s.flags.safehouse * 4 },
+          { name: '劫难修正', v: s.stats.calamity >= 70 ? -5 : 0 },
+        ]);
+        if (r.refused) return { lines: [r.note], check: r };
+        if (r.success) {
+          const g1 = 1 + int(roll01(s, 'missionPay', 0) * 3);
+          applyEffects(s, [
+            { k: 'money', key: 'cash', v: Math.round(40 * tuningOf(s).rewardMult) },
+            { k: 'money', key: 'gold', v: g1 },
+            { k: 'money', key: 'contribution', v: Math.round(20 * tuningOf(s).rewardMult) },
+            { k: 'stat', key: 'calamity', v: 6 },
+            { k: 'stat', key: 'pollution', v: 8 },
+          ], '完成总部任务');
+          return { lines: ['任务收尾。总部把报酬打给你，也把「危险等级」记进了档案。'], check: r };
+        }
+        applyEffects(s, [{ k: 'stat', key: 'pollution', v: 12 }, { k: 'stat', key: 'stamina', v: -25 }, { k: 'stat', key: 'sanity', v: -8 }], '任务失败');
+        return { lines: ['你什么都没拿到，只带回一身洗不掉的冷意。'], check: r };
+      },
+    });
+    add({
+      id: 'gamble', label: '鬼事赌局（高风险高收益）', tags: ['probe'],
+      if: (s) => canAttempt(s, 'gamble', chapterKey(s, 'table')),
+      run: (s) => {
+        const stake = Math.min(20, s.money.cash);
+        if (stake <= 0) return { lines: ['你连赌本都凑不出来。'] };
+        const r = doCheck(s, 'gamble', chapterKey(s, 'table'), 40, [{ name: '运气', v: s.stats.causality < 30 ? 5 : -5 }]);
+        if (r.refused) return { lines: [r.note], check: r };
+        if (r.success) {
+          addPath(s, 'money.cash', stake * 3, '鬼事赌局盈利');
+          applyEffects(s, [{ k: 'stat', key: 'causality', v: 8 }, { k: 'stat', key: 'stealth', v: -5 }], '赌局');
+          return { lines: ['你押对了。钱来得太快，快得像有人借给你的。'], check: r };
+        }
+        addPath(s, 'money.cash', -stake, '鬼事赌局亏损');
+        applyEffects(s, [{ k: 'stat', key: 'causality', v: 10 }, { k: 'stat', key: 'sanity', v: -6 }], '赌局失利');
+        return { lines: ['你输光了赌本，还欠下一点说不清的东西。'], check: r };
+      },
+    });
+    return pool.filter((a) => !a.if || a.if(state));
+  }
+
+  function activeGhost(state) {
+    const list = CONTENT.worldClock;
+    let current = null;
+    for (const ev of list) if (state.turn >= ev.turn) current = ev;
+    return current ? current.ghost : list[0].ghost;
+  }
+
+  /**
+   * 本次遭遇是哪只鬼：主线时钟那只，或有概率是"游荡过来"的其他鬼。
+   * 没有这条，时钟之外的厉鬼（如静悄悄）永远不会出现 → 内容死掉。
+   */
+  function encounterGhostId(state) {
+    const r = roll100(state, 'ghostPick', 0);
+    if (r <= 45) {
+      const pool = Object.keys(CONTENT.ghosts);
+      const idx = hashStr(state.seed + ':' + state.turn + ':wander') % pool.length;
+      return pool[idx];
+    }
+    return activeGhost(state);
+  }
+
+  /* --------------------------------------------------------- 遭遇与规律 */
+  function encounterChance(state) {
+    const tu = tuningOf(state);
+    let c = tu.encounterBase + Math.floor(state.stats.calamity / 5) + Math.floor(state.stats.pollution / 10);
+    c -= state.flags.safehouse * 5;
+    c += state.stats.stealth < 30 ? 10 : 0;
+    return clamp(c, 3, tu.encounterCap);
+  }
+
+  /** 代价是否付得起：付不起的选项一律不出现（防止"0 黄金也能走黄金生路"） */
+  function canPay(state, cost) {
+    for (const e of cost || []) {
+      if (e.k === 'itemUse') {
+        if (e.id === 'ghost_power') { if (state.contracts.length === 0) return false; continue; }
+        if (!state.items.some((i) => i.id === e.id)) return false;
+      }
+      if (e.k === 'money' && e.v < 0) {
+        const have = state.money[e.key];
+        if (typeof have !== 'number' || have < -e.v) return false;
+      }
+    }
+    return true;
+  }
+
+  function buildEncounter(state, ghostId) {
+    const g = CONTENT.ghosts[ghostId];
+    // 见过一次就进图鉴（此后可以针对它尝试驾驭）
+    const b = state.bestiary[ghostId] || (state.bestiary[ghostId] = { known: true, clues: 0, tamed: false });
+    b.known = true;
+    const revealed = g.clues.filter((c) => state.clues.includes(c.id));
+    const known = revealed.length;
+    const options = [];
+    // 必死选项（确定性：命中规律即死，不含随机）
+    for (const opt of g.traps) {
+      options.push({ id: opt.id, label: opt.label, tags: opt.tags, kind: 'trap' });
+    }
+    // 中性选项
+    for (const opt of g.neutral) {
+      options.push({ id: opt.id, label: opt.label, tags: opt.tags, kind: 'neutral' });
+    }
+    // 生路选项：需要线索支撑（P12：陷阱必须可推理）+ 代价必须付得起
+    for (const opt of g.exits) {
+      if (known >= opt.needClues && canPay(state, opt.cost)) {
+        options.push({ id: opt.id, label: opt.label, tags: opt.tags, kind: 'exit', cost: opt.cost });
+      }
+    }
+    return {
+      ghost: ghostId,
+      name: g.name,
+      level: g.level,
+      text: g.encounter,
+      revealedClues: revealed.map((c) => c.text),
+      clueHints: g.clues.filter((c) => !state.clues.includes(c.id)).length,
+      options: options,
+      minClues: g.minClues || 2,
+    };
+  }
+
+  function resolveEncounter(state, optionId) {
+    const enc = state.pending;
+    if (!enc) return { error: '没有待处理的遭遇' };
+    const g = CONTENT.ghosts[enc.ghost];
+    const opt = enc.options.find((o) => o.id === optionId);
+    if (!opt) return { error: '无效选项' };
+
+    const lines = [];
+    const settlement = [];
+    let dead = false;
+
+    if (opt.kind === 'trap') {
+      // 确定性必死判定；只有持有有效抵御手段才进入概率结算
+      const shield = pickShield(state, g);
+      if (!shield) {
+        dead = true;
+        lines.push('你做出了那个选择。空气安静了一瞬——然后规律合拢。');
+        settlement.push('命中「' + g.name + '」的杀人规律 → 无有效灵异道具/能力 → 默认必死（确定性判定，不含随机数）');
+      } else {
+        const r = doCheck(state, 'resist:' + g.id, shield.item, shield.base, [
+          { name: '道具匹配', v: shield.bonus },
+          { name: '劫难修正', v: state.stats.calamity >= 70 ? -5 : 0 },
+        ]);
+        settlement.push('抵御判定：' + r.formula + (r.success ? ' → 成功' : ' → 失败'));
+        applyEffects(state, [{ k: 'itemUse', id: shield.item }], '抵御消耗');
+        if (r.success) {
+          applyEffects(state, [
+            { k: 'stat', key: 'erosion', v: 6 },
+            { k: 'stat', key: 'calamity', v: 8 },
+            { k: 'stat', key: 'stamina', v: -20 },
+          ], '抵御成功的代价');
+          lines.push(shield.text);
+        } else {
+          dead = true;
+          lines.push('「' + shield.name + '」没能挡住它。');
+        }
+      }
+    } else if (opt.kind === 'exit') {
+      if (!canPay(state, opt.cost)) {
+        // 防御纵深：即使有人伪造 pending 塞进付不起的生路，也照样拒绝
+        settlement.push('生路被拒绝：代价付不起（' + JSON.stringify(opt.cost || []) + '）');
+        applyEffects(state, [{ k: 'stat', key: 'stamina', v: -10 }], '徒劳的尝试');
+        return { lines: ['你伸手去拿那个本该救你的东西——它不在。'], settlement: settlement, dead: false, ghost: g };
+      }
+      applyEffects(state, opt.cost || [], '生路代价');
+      const reward = g.rewards;
+      applyEffects(state, reward, '生路奖励');
+      lines.push(g.exitText);
+      settlement.push('生路成立（依赖已掌握线索 ' + enc.revealedClues.length + ' 条）→ 存活，并结算代价与奖励');
+      state.events.done.push('escape:' + g.id);
+    } else {
+      const r = doCheck(state, 'neutral:' + g.id, opt.id, 45 + state.flags.safehouse * 5, [
+        { name: '低调', v: state.stats.stealth >= 70 ? 10 : 0 },
+      ]);
+      if (r.refused) {
+        // 引擎拒绝第三次判定：按失败结算（确定性，不放大玩家收益）
+        settlement.push('中性判定被拒绝：' + r.note + ' → 按失败结算');
+        applyEffects(state, [{ k: 'stat', key: 'pollution', v: 12 }, { k: 'stat', key: 'stamina', v: -25 }], '重复试探的代价');
+        lines.push('你已经用同样的方式走过这条路两遍了。这一次，它记得你。');
+      } else {
+        settlement.push('中性判定：' + r.formula);
+        if (r.success) {
+          applyEffects(state, [{ k: 'stat', key: 'pollution', v: 5 }, { k: 'stat', key: 'sanity', v: -5 }], '擦身而过');
+          lines.push('你贴着墙走过去，它没有回头看你。');
+        } else {
+          applyEffects(state, [{ k: 'stat', key: 'pollution', v: 12 }, { k: 'stat', key: 'stamina', v: -25 }], '被波及');
+          lines.push('你被那股东西卷了一下，五脏六腑像被人攥了一把。');
+        }
+      }
+    }
+
+    state.pending = null;
+    state.phase = 'day';
+    return { lines: lines, settlement: settlement, dead: dead, ghost: g };
+  }
+
+  function pickShield(state, g) {
+    for (const item of state.items) {
+      const def = CONTENT.items[item.id];
+      if (def && def.shieldFor && def.shieldFor.includes(g.level)) {
+        return {
+          item: item.id, name: def.name, base: def.base || 60,
+          bonus: def.bonus || 0, text: def.text || '道具替你挡下了这一下。',
+        };
+      }
+    }
+    if (state.contracts.length > 0) {
+      return { item: 'ghost_power', name: '契约厉鬼', base: 50, bonus: 5, text: '体内的东西替你把规律顶了回去——代价随后就来。' };
+    }
+    return null;
+  }
+
+  /* ------------------------------------------------------------ 公开 API */
+  function availableActions(state) {
+    if (state.over) return [];
+    if (state.phase === 'encounter' && state.pending) {
+      return state.pending.options.map((o) => ({
+        id: o.id, label: o.label, kind: 'encounter', note: o.kind === 'exit' ? '（生路）' : '',
+      }));
+    }
+    if (state.phase === 'day' && !state.actionTakenToday) {
+      return actionPool(state).map((a) => ({ id: a.id, label: a.label, kind: 'day' }));
+    }
+    return [];
+  }
+
+  /** 结算一次玩家选择；返回可渲染的报告。引擎是唯一裁判。 */
+  function resolve(state, choiceId, customText) {
+    if (state.over) return { over: state.over, narrative: [], settlement: [], choices: [] };
+    const narrative = [];
+    const settlement = [];
+    let dead = false;
+    let fatalEnding = null;
+    let lastVariant = null;   // 供界面取"行动结果变体句"
+
+    if (state.phase === 'encounter' && state.pending) {
+      const r = resolveEncounter(state, choiceId);
+      if (r.error) return { error: r.error };
+      narrative.push.apply(narrative, r.lines);
+      settlement.push.apply(settlement, r.settlement);
+      dead = r.dead;
+    } else {
+      // 硬约束：一天只能有一个主动作（读档/改存档都无法复制行动）
+      if (state.actionTakenToday) {
+        return { error: '今天已经行动过了（每天只能有一个主动作）', choices: availableActions(state) };
+      }
+      const pool = actionPool(state);
+      const act = pool.find((a) => a.id === choiceId);
+      if (!act) {
+        // 自定义行动：只进叙事层，绝不影响判定
+        const safe = String(customText || '').slice(0, 120).replace(/[<>]/g, '');
+        narrative.push('【自定义行动】' + (safe || '（空）'));
+        narrative.push('引擎只把这句当作叙事描述：判定仍按当前局势照常结算。');
+        // 12.1 第 3 条：玩家可以点名玩法
+        const named = (MECH && MECH.registry || []).find((m) => safe.includes(m.name));
+        if (named) {
+          state.mechRequest = named.id;
+          narrative.push('（已登记点名玩法：' + named.name + '，下一回合优先触发）');
+        }
+        applyEffects(state, [{ k: 'stat', key: 'stamina', v: -3 }], '自定义行动消耗');
+      } else {
+        const r = act.run(state);
+        narrative.push.apply(narrative, r.lines || []);
+        if (r.check && r.check.formula) settlement.push(r.check.formula);
+        if (r.fatal) { dead = true; fatalEnding = 'p_fuxi'; }
+        lastVariant = String(act.id).split(':')[0];
+      }
+      state.actionTakenToday = true;
+      // 遭遇判定
+      const rc = encounterChance(state);
+      const v = roll100(state, 'encounter', 0);
+      if (!dead && v <= rc) {
+        const gid = encounterGhostId(state);
+        state.pending = buildEncounter(state, gid);
+        state.phase = 'encounter';
+        settlement.push('遭遇判定：1d100=' + v + ' ≤ ' + rc + '% → 遇见「' + state.pending.name + '」（' + state.pending.level + ' 级）');
+      } else if (!dead) {
+        settlement.push('遭遇判定：1d100=' + v + ' > ' + rc + '% → 今天没有撞上东西');
+      }
+    }
+
+    if (dead) {
+      state.phase = 'over';
+      const eid = fatalEnding || 'dead';
+      const def = CONTENT.endings[eid] || CONTENT.endings.dead;
+      state.over = { ending: eid, text: def.text, turn: state.turn };
+      state.meta.deaths += 1;
+      state.meta.bestTurn = Math.max(state.meta.bestTurn || 0, state.turn);
+    } else if (!state.pending && state.phase !== 'over') {
+      endTurn(state);
+    }
+
+    return {
+      narrative: narrative,
+      actionVariant: lastVariant,
+      settlement: settlement.concat(state.lastMechLines || []),
+      choices: availableActions(state),
+      panel: panelOf(state),
+      over: state.over,
+      pending: state.pending,
+      integrity: state.integrity.slice(-5),
+    };
+  }
+
+  /* ------------------------------------------------------------- 面板数据 */
+  function panelOf(state) {
+    return {
+      回合: state.turn + ' 天（第 ' + state.chapter + ' 章）',
+      难度: tuningOf(state).name + (state.over ? '' : ''),
+      鬼侵蚀: state.stats.erosion,
+      人性: state.stats.humanity + ' / ' + clamp(100 - state.stats.erosion, 0, 100),
+      劫难值: state.stats.calamity + '（下限 ' + state.calamityFloor + '）',
+      低调值: state.stats.stealth,
+      理智: state.stats.sanity,
+      体力: state.stats.stamina,
+      因果值: state.stats.causality,
+      污染度: state.stats.pollution,
+      鬼眼: state.stats.ghostEye + ' 重',
+      资金: state.money.cash + ' 万 / 存 ' + state.money.deposit + ' 万 / 黄金 ' + state.money.gold + 'kg',
+      贡献: state.money.contribution,
+      道具: state.items.map((i) => CONTENT.items[i.id].name + '×' + i.uses).join('、') || '无',
+      契约: state.contracts.map((c) => CONTENT.ghosts[c].name).join('、') || '无',
+      线索: state.clues.length + ' 条',
+      安全屋: state.flags.safehouse + ' 级',
+      灾厄印记: state.flags.marks,
+    };
+  }
+
+  /* ------------------------------------------------------- 存档：校验和 */
+  const SALT = 'rs-v31-2026';
+  function checksum(obj) {
+    const h = hashStr(JSON.stringify(obj) + SALT);
+    return ('00000000' + h.toString(16)).slice(-8);
+  }
+  function serialize(state) {
+    const payload = {
+      v: state.v, seed: state.seed, turn: state.turn, difficulty: state.difficulty,
+      pack: state.pack, custom: state.custom, tuning: state.tuning, legacy: state.legacy,
+      stats: state.stats, money: state.money, items: state.items,
+      contracts: state.contracts, clues: state.clues, bestiary: state.bestiary,
+      flags: state.flags, attempts: state.attempts, calamityFloor: state.calamityFloor,
+      meta: state.meta, events: state.events, calamityEscapes: state.calamityEscapes,
+      worldAdvance: state.worldAdvance, chapterReduction: state.chapterReduction,
+      chapterSpendings: state.chapterSpendings, clueGains: state.clueGains,
+      lastClueTurn: state.lastClueTurn, humanityGains: state.humanityGains,
+      freezeUses: state.freezeUses, mechUsed: state.mechUsed, mechRequest: state.mechRequest,
+      mechLog: state.mechLog,
+      actionTakenToday: state.actionTakenToday, pending: state.pending,
+      relationships: state.relationships,
+      wife: state.wife, children: state.children, place: state.place,
+      contentLevel: state.contentLevel, phase: state.phase, over: state.over,
+    };
+    return JSON.stringify({ p: payload, c: checksum(payload) });
+  }
+  function deserialize(str) {
+    let obj;
+    try { obj = JSON.parse(str); } catch (e) { return { error: '存档不是合法 JSON' }; }
+    // 容错：有些调用方会多编码一层（JSON 字符串里套 JSON 字符串），这里自动解开
+    if (typeof obj === 'string') {
+      try { obj = JSON.parse(obj); } catch (e) { return { error: '存档不是合法 JSON' }; }
+    }
+    if (!obj || !obj.p || !obj.c) return { error: '存档结构不完整' };
+    if (checksum(obj.p) !== obj.c) return { error: '存档校验和不匹配（文件被修改过）' };
+    if (obj.p.v !== 1) return { error: '存档版本不兼容' };
+    const s = createGame({
+      seed: obj.p.seed, pack: obj.p.pack, difficulty: obj.p.difficulty, custom: obj.p.custom,
+    });
+    if (obj.p.tuning) s.tuning = obj.p.tuning;
+    s.peakGold = Math.max(s.peakGold || 0, getPath(s, 'money.gold'));
+    Object.assign(s, JSON.parse(JSON.stringify(obj.p)));
+    s.seedInt = hashStr(s.seed);
+    s.chapter = Math.ceil(s.turn / 7);
+    s.ledger = [];
+    s.ledgerStart = {};
+    s.integrity = [];
+    s.pending = obj.p.pending || null;
+    s.phase = s.over ? 'over' : (s.pending ? 'encounter' : 'day');
+    for (const k of Object.keys(BOUNDS)) s.ledgerStart[k] = getPath(s, k);
+    return { state: s };
+  }
+
+  return {
+    CONTENT: CONTENT,
+    createGame: createGame,
+    availableActions: availableActions,
+    resolve: resolve,
+    serialize: serialize,
+    deserialize: deserialize,
+    panelOf: panelOf,
+    masteryCheck: masteryCheck,
+    miracleCheck: miracleCheck,
+    reduceCalamity: reduceCalamity,
+    setPath: setPath,
+    addPath: addPath,
+    applyEffects: applyEffects,
+    roll100: roll100,
+    worldAdvanceAmount: worldAdvanceAmount,
+    recentMechanics: recentMechanics,
+    pickMechanics: pickMechanics,
+    applyMechanic: applyMechanic,
+    actionPool: actionPool,
+    buildEncounter: buildEncounter,
+    BOUNDS: BOUNDS,
+    CHAPTER_REDUCTION_CAP: CHAPTER_REDUCTION_CAP,
+    CHAPTER_HUMANITY_CAP: CHAPTER_HUMANITY_CAP,
+    CLUE_COOLDOWN: CLUE_COOLDOWN,
+    ATTEMPT_CAPS: ATTEMPT_CAPS,
+    _internal: { hashStr: hashStr, clamp: clamp, checksum: checksum, doCheck: doCheck, attemptState: attemptState },
+  };
+});
+</script>
+<script>/* ============================================================================
+ * 神秘复苏模拟器 · 玩家档案（跨局持久化）
+ * ----------------------------------------------------------------------------
+ * 存什么：成就 / 结局收集 / 全局统计 / 周目点数 / AI 叙事配置。
+ * 防作弊：
+ *   1. 档案本身带校验和，手改任意字段 → 载入失败并回到空档案（不会静默生效）。
+ *   2. 二周目加成只在开局时「消费点数」，并把加成结果写进本局存档 → 参与本局校验和。
+ *   3. 档案只影响开局初始值，绝不参与任何判定公式。
+ * ==========================================================================*/
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSProfile = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const KEY = 'rs_profile';
+  const GALLERY_KEY = 'rs_gallery';   // 旧版本的结局图鉴，首次载入时迁移进来
+  const SALT = 'rs-profile-v1';
+
+  const u32 = (x) => x >>> 0;
+  function hashStr(s) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return u32(h);
+  }
+  function checksum(obj) { return ('00000000' + hashStr(JSON.stringify(obj) + SALT).toString(16)).slice(-8); }
+
+  function empty() {
+    return {
+      v: 1,
+      achievements: {},          // id → { turn, at }
+      endings: {},               // endingId → 次数
+      runs: { total: 0, died: 0, won: 0, byDiff: {} },
+      best: { turn: 0, byDiff: {} },
+      points: 0,                 // 可用周目点数
+      earned: 0,                 // 累计获得
+      seen: { ghostView: false, secondRun: false },
+    };
+  }
+
+  function merge(base, patch) {
+    const out = Object.assign(empty(), base || {});
+    for (const k of Object.keys(patch || {})) {
+      const v = patch[k];
+      if (v && typeof v === 'object' && !Array.isArray(v)) out[k] = Object.assign({}, out[k] || {}, v);
+      else out[k] = v;
+    }
+    return out;
+  }
+
+  function encode(profile) { return JSON.stringify({ p: profile, c: checksum(profile) }); }
+
+  function decode(text) {
+    let obj;
+    try { obj = JSON.parse(text); } catch (e) { return { error: '档案不是合法 JSON' }; }
+    if (typeof obj === 'string') { try { obj = JSON.parse(obj); } catch (e) { return { error: '档案不是合法 JSON' }; } }
+    if (!obj || !obj.p || !obj.c) return { error: '档案结构不完整' };
+    if (checksum(obj.p) !== obj.c) return { error: '档案校验和不匹配（被修改过）' };
+    if (obj.p.v !== 1) return { error: '档案版本不兼容' };
+    return { profile: merge(empty(), obj.p) };
+  }
+
+  /* ------------------------------------------------------------- 成就表 */
+  // cond(ctx) → boolean；ctx = { state, ending, run }
+  const ACHIEVEMENTS = [
+    { id: 'first_contract', name: '初拥', desc: '第一次成功驾驭厉鬼', cond: (c) => c.run.contracts >= 2 || (c.state.contracts && c.state.contracts.length >= 2) },
+    { id: 'survive_10', name: '活过十天', desc: '单局存活 ≥10 天', cond: (c) => c.run.turn >= 10 },
+    { id: 'survive_30', name: '一个月', desc: '单局存活 ≥30 天', cond: (c) => c.run.turn >= 30 },
+    { id: 'survive_50', name: '钉子户', desc: '单局存活 ≥50 天', cond: (c) => c.run.turn >= 50 },
+    { id: 'escape_s', name: '规律之下', desc: '从 S 级厉鬼的遭遇里走生路存活', cond: (c) => c.run.sEscapes >= 1 },
+    { id: 'escape_3', name: '三次擦肩', desc: '累计 3 次靠生路从遭遇中存活', cond: (c) => c.run.escapes >= 3 },
+    { id: 'collector_5', name: '结局收集者', desc: '解锁 5 种结局', cond: (c) => Object.keys(c.profile.endings).length >= 5 },
+    { id: 'collector_all', name: '全结局', desc: '解锁全部 11 种结局', cond: (c) => Object.keys(c.profile.endings).length >= 11 },
+    { id: 'rich', name: '黄金满仓', desc: '单局持有 ≥50kg 黄金', cond: (c) => c.run.maxGold >= 50 },
+    { id: 'polymath', name: '玩法通', desc: '单局触发过 40 条不同玩法机制', cond: (c) => c.run.mechCount >= 40 },
+    { id: 'lorekeeper', name: '知情者', desc: '单局掌握 ≥10 条线索', cond: (c) => c.state.clues.length >= 10 },
+    { id: 'hardcore_30', name: '硬核生存', desc: '在硬核及以上难度存活 ≥30 天', cond: (c) => c.run.turn >= 30 && ['hardcore', 'nightmare'].includes(c.state.difficulty) },
+    { id: 'nightmare_death', name: '直面极难', desc: '在极难（原著档）死掉或终局一次', cond: (c) => c.state.difficulty === 'nightmare' },
+    { id: 'family', name: '人间烟火', desc: '达成家庭线结局', cond: (c) => c.ending === 'p_family' },
+    { id: 'god', name: '规则之神', desc: '达成规则之神结局', cond: (c) => c.ending === 'w_rules' },
+  ];
+
+  /* --------------------------------------------------- 单局统计与结算 */
+  /** 从一局的状态里抽出用于成就与统计的数据 */
+  function runSummary(state, ending) {
+    const escapes = (state.events.done || []).filter((x) => x.indexOf('escape:') === 0);
+    const sEscapes = escapes.filter((x) => ['escape:qiaomen', 'escape:eshigui'].includes(x)).length;
+    return {
+      turn: state.turn,
+      ending: ending || (state.over ? state.over.ending : null),
+      difficulty: state.difficulty,
+      escapes: escapes.length,
+      sEscapes: sEscapes,
+      contracts: state.contracts.length,
+      maxGold: state.money.gold,
+      mechCount: Object.keys(state.mechUsed || {}).length,
+      clues: state.clues.length,
+      erosion: state.stats.erosion,
+      marks: state.flags.marks,
+    };
+  }
+
+  /** 周目点数：存活天数 + 结局质量 + 难度系数（跨局成长的唯一来源） */
+  function pointsFor(run) {
+    const base = Math.floor(run.turn / 10);                     // 每活 10 天 1 点
+    const endBonus = run.ending === 'dead' ? 0
+      : (run.ending === 'p_fuxi' || run.ending === 'w_ruyu') ? 1 : 2; // 好结局多给
+    const diffBonus = run.difficulty === 'nightmare' ? 3 : run.difficulty === 'hardcore' ? 2 : 0;
+    const escapeBonus = Math.min(2, run.escapes);
+    // 下限 1：哪怕开局即死也留下 1 点，否则新手连死几局永远看不到周目成长
+    return Math.max(1, base + endBonus + diffBonus + escapeBonus);
+  }
+
+  /**
+   * 结算一局：更新统计、解锁成就、发放周目点数。
+   * 返回 { profile, unlocked:[{id,name,desc}], points, run }
+   */
+  function settle(profile, state, ending) {
+    const p = merge(empty(), profile);
+    const run = runSummary(state, ending);
+    const eid = run.ending || 'unfinished';
+
+    p.runs.total += 1;
+    if (eid === 'dead') p.runs.died += 1;
+    if (eid && eid !== 'dead' && eid !== 'unfinished') p.runs.won += 1;
+    const d = run.difficulty || 'standard';
+    p.runs.byDiff[d] = (p.runs.byDiff[d] || 0) + 1;
+    p.best.turn = Math.max(p.best.turn || 0, run.turn);
+    p.best.byDiff[d] = Math.max(p.best.byDiff[d] || 0, run.turn);
+    if (eid && eid !== 'unfinished') p.endings[eid] = (p.endings[eid] || 0) + 1;
+
+    const pts = pointsFor(run);
+    p.points += pts;
+    p.earned += pts;
+
+    const unlocked = [];
+    const ctx = { state: state, profile: p, run: run, ending: eid };
+    for (const a of ACHIEVEMENTS) {
+      if (p.achievements[a.id]) continue;
+      let ok = false;
+      try { ok = !!a.cond(ctx); } catch (e) { ok = false; }
+      if (ok) {
+        p.achievements[a.id] = { turn: run.turn, at: Date.now() };
+        unlocked.push({ id: a.id, name: a.name, desc: a.desc });
+      }
+    }
+    return { profile: p, unlocked: unlocked, points: pts, run: run };
+  }
+
+  function achievementProgress(profile) {
+    const p = merge(empty(), profile);
+    const list = ACHIEVEMENTS.map((a) => ({
+      id: a.id, name: a.name, desc: a.desc, unlocked: !!p.achievements[a.id],
+      at: p.achievements[a.id] ? p.achievements[a.id].at : null,
+    }));
+    return { list: list, unlocked: list.filter((x) => x.unlocked).length, total: list.length };
+  }
+
+  /* --------------------------------------------------------- 存取（浏览器） */
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  function loadProfile() {
+    const raw = lsGet(KEY);
+    if (!raw) {
+      // 首次：迁移旧版结局图鉴
+      const p = empty();
+      const gal = lsGet(GALLERY_KEY);
+      if (gal) {
+        try {
+          const g = JSON.parse(gal);
+          for (const k of Object.keys(g || {})) p.endings[k] = (g[k] && g[k].times) || 1;
+        } catch (e) {}
+      }
+      return { profile: p, migrated: !!gal };
+    }
+    const r = decode(raw);
+    if (r.error) return { profile: empty(), error: r.error };
+    return { profile: r.profile };
+  }
+
+  function saveProfile(profile) {
+    lsSet(KEY, encode(profile));
+    return encode(profile);
+  }
+
+  return {
+    KEY: KEY,
+    GALLERY_KEY: GALLERY_KEY,
+    empty: empty,
+    encode: encode,
+    decode: decode,
+    checksum: checksum,
+    achievements: ACHIEVEMENTS,
+    runSummary: runSummary,
+    pointsFor: pointsFor,
+    settle: settle,
+    achievementProgress: achievementProgress,
+    loadProfile: loadProfile,
+    saveProfile: saveProfile,
+  };
+});
+</script>
+<script>/* ============================================================================
+ * 神秘复苏模拟器 · 叙事生成器（程序化，离线可用）
+ * ----------------------------------------------------------------------------
+ * 解决"剧情重复度高"的三条办法：
+ *   1. 素材库扩容：每个库 8~16 句（原先 4~7 句）；
+ *   2. 组合生成：每回合由「时段+天气」「场所」「感官」「异象」四个库拼装，
+ *      组合空间上万，且同一库内用轮转索引 → 一个周期内不会重复同一条；
+ *   3. 状态反应：侵蚀/污染/低调/理智/线索/契约/灾难值各自有专属行，
+ *      玩家状态一变，读到的文字就跟着变。
+ * 另外为每个行动与遭遇提供变体句，避免"每个动作永远同一句话"。
+ * 所有取句都由 (seed, turn, 库名) 决定 → 同种子同回合读到的文字一致，不引入随机作弊面。
+ * ==========================================================================*/
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSNarrative = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  /* ------------------------------------------------------------ 素材库 */
+  const B = {
+    timeOfDay: ['凌晨三点', '天刚亮', '清晨', '上午', '正午', '午后', '下午', '黄昏', '天黑前', '夜里十点', '深夜', '后半夜',
+      '五点四十', '街上刚有早点摊的时候', '路灯还没熄的时候', '午后最闷的那一阵'],
+    weather: ['雾很大', '下着细雨', '风从巷口灌进来', '空气闷得不正常', '天色青得发灰', '云压得很低', '雨刚停，地面还亮着',
+      '起风了，纸片贴着地面跑', '一点风都没有', '有股说不清的土腥味', '天阴着却不下雨', '远处在打雷，声音很闷'],
+    place: ['街上的人照常走着，没人抬头看那栋被封了半年的楼。',
+      '公交车报站声照旧，只是这一站没有人上下。',
+      '路口的监控杆上缠着一条新的红布条，不知道是谁系的。',
+      '便利店里的电视正在播本地新闻，字幕滚过"煤气泄漏"四个字。',
+      '小区门口的保安换了人，新来的那个不敢看门里的方向。',
+      '菜市场的摊位收得比平时早，摊主们谁也不提为什么。',
+      '楼下贴了张寻人启事，照片上的人你昨天还见过。',
+      '外卖员把餐放在门口就走了，没有按门铃。',
+      '有人把整栋楼的声控灯都拧松了，走廊一直是黑的。',
+      '幼儿园门口挂出了"临时放假"的通知，日期没写。',
+      '一辆车停在路边三天没动，车窗上落了很厚的灰。',
+      '物业把地下车库的入口焊死了，说是"消防整改"。',
+      '你在楼下遇见邻居，他点头的幅度比平时小很多。',
+      '路上多了两辆没有牌照的面包车，一直没熄火。',
+      '街角的电话亭被人用胶带封住，胶带是从里往外缠的。',
+      '电梯里贴了新告示：本梯近期检修，请走楼梯。'],
+    sense: ['你闻到一点铁锈味，很淡。', '耳朵里有种被堵住的闷响，像坐过电梯。',
+      '后颈发凉，但你身后的窗是关着的。', '你数了数自己的呼吸，比平时短。',
+      '手指碰到门把的时候麻了一下。', '楼道里的声控灯没亮，你也没再拍第二下。',
+      '你的影子贴在墙上，比你应该长一点。', '空气里有一股旧纸的味道。',
+      '手机信号满格，但拨不出去。', '你听见远处有人在数数，数到七就停了。',
+      '脚下像踩着一层薄水，低头看却是干的。', '你不记得自己是怎么走到这里的。'],
+    anomaly: ['楼道的尽头比昨天多了一扇门。', '墙上有一块方形的地方颜色不对，像被人重新刷过。',
+      '你的鞋印只出现了一半。', '对面楼有一户还亮着灯，窗帘一直没动。',
+      '镜子里的你先动了一下，然后才轮到你。', '钟停了，秒针在原地抖。',
+      '你刚才路过的那家店，现在没有招牌了。', '有人在你背后敲了三下，节奏很稳。',
+      '楼下那棵树的影子朝着错误的方向。', '电梯停在你这一层，门开了，里面没有人。',
+      '你记得这条巷子只有一个出口。', '手表的日期跳了一天，又跳回来。'],
+    lowSanity: ['你听见有人在背后叫你的名字，回头却什么都没有。',
+      '镜子里的动作比你慢了半拍。', '你数了三遍楼梯，每一遍的结果都不一样。',
+      '你开始分不清刚才那句话是别人说的还是自己想的。',
+      '你的手在抖，但你不觉得害怕。', '有人一直在你耳边小声说话，你听不清内容。',
+      '你怀疑自己刚才已经死过一次，只是没人告诉你。', '你把同一件外套穿了两遍。',
+      '你在纸上写了几个字，再看的时候认不出自己的笔迹。',
+      '你突然想不起来自己住几楼，站在楼梯口想了很久。',
+      '你对着空气说了句话，然后等了一秒，像在等回答。',
+      '你发现自己在笑，但想不起在笑什么。'],
+    lowHumanity: ['你发现自己已经很久没有为别人的死感到什么了。',
+      '你开始用"它"来称呼自己。', '你算了一下，救人这件事对你没有收益。',
+      '你听见自己在心里给这件事定了价。', '你已经不记得上一次笑是什么时候。',
+      '你路过一具尸体时，第一反应是检查口袋。', '你不再确认别人是不是还活着。',
+      '你把他人的恐惧当成了一种可以收集的东西。',
+      '你对"我们"这个词越来越没有感觉。',
+      '你开始觉得活人比死人麻烦。'],
+    highErosion: ['你的视野边缘总有一层没擦干净的灰。', '你偶尔能看见别人看不见的那一层东西。',
+      '你对温度的感觉越来越迟钝。', '你的手指关节有一处在缓慢地发热。',
+      '你开始能听懂某些声音里的话。', '镜子里你的瞳孔不太对。',
+      '你闭眼的时候也能看见眼前的房间。',
+      '你手背上的青筋走得比昨天更靠上。',
+      '你的影子开始比你先动。',
+      '你睡着的时候，意识还在房间里站着。'],
+    highPollution: ['衣服上那层洗不掉的冷意还在。', '你咳出来的东西颜色不对。',
+      '你开始习惯屏住呼吸走路。', '皮肤下面有种被涂了一层东西的感觉。',
+      '你洗了三遍手，还是觉得指尖发灰。',
+      '你身上的味道让别人下意识后退半步。',
+      '你开始能听见自己血液流动的声音。',
+      '有东西在你体内慢慢地、按顺序地挪动。'],
+    highCalamity: ['被某种东西盯上的感觉越来越强烈，像后颈上停着一只看不见的手。',
+      '你走到哪里，哪里的灯就会先暗一拍。',
+      '你开始避开人多的地方，因为人多的地方它更容易找。',
+      '你半夜会突然醒来，然后发现自己一直在听门外。',
+      '你能感觉到它的耐心——它不急。',
+      '你的名字最近被提起得太频繁了。',
+      '你开始随身带着能立刻离开的东西。',
+      '它已经不需要靠近就能让你知道了。',
+      '你成了这片区域里最亮的那一个点。',
+      '你听见某种像潮水一样的东西，正在往这里过来。'],
+    lowStamina: ['你已经很久没有睡整觉了。', '你的手抬起来的时候有点抖。',
+      '你靠着墙站了一会儿才敢继续走。',
+      '你走了两步就必须停下来缓一下。',
+      '你的眼睛干得发疼，但闭上也睡不着。',
+      '你开始靠数呼吸来判断自己还能撑多久。'],
+    highStealth: ['你在人群里走得很稳，没人注意你。', '你把存在感收得很紧。',
+      '你学会了在别人看过来之前先低头。',
+      '你换了两次路线，确认没人跟着。',
+      '你在便利店里站了十分钟，店员都没记住你。',
+      '你连自己的脚步声都压得很轻。'],
+    lowStealth: ['有人在你背后看了你很久。', '你觉得这附近的人好像都知道你是谁。',
+      '你被人拍过照——你不确定是哪个方向。',
+      '你走在路上，有几个陌生人同时抬了头。',
+      '你在楼下看见一辆没熄火的车，第二次了。',
+      '你听见有人在议论那个"最近总往那边跑的人"。'],
+    intel: ['你手上的资料又厚了一点。', '你把已知的东西在脑子里排了一遍，能接上的多了。',
+      '你在本子上画的关系图开始出现交叉的线。',
+      '你终于弄明白有两条线索其实说的是同一件事。',
+      '你开始能预判它下一次会出现在哪一类地方。',
+      '你把所有时间点排了一遍，中间少了一块。'],
+    contract: ['体内的东西今天很安静。', '你偶尔能感觉到它在等你犯错。',
+      '它在你睡着的时候替你做了个决定，你起来才发现。',
+      '你和它之间多了一点说不清的默契，这比敌意更麻烦。',
+      '它对你的身体越来越熟了。'],
+    safe: ['今天什么都没有发生——在这座城市里，这就是最好的消息。',
+      '你把该做的事做完了，然后等天黑。', '一切正常，正常得让你不太放心。',
+      '你检查了三遍门锁，然后坐下。',
+      '白天过得像一份副本，你照着昨天的样子又过了一遍。',
+      '没有什么值得记的事，这也是好事。',
+      '你甚至看了一会儿电视，虽然什么都没看进去。',
+      '你把窗户擦干净了，然后拉上窗帘。'],
+    calmEnd: ['夜里没有什么动静，你睡了一会儿。', '你醒的时候天还没亮，但至少你睡着了。',
+      '你没有做梦——或者说，你不记得做过。',
+      '楼下有车经过，声音很正常，这让你放松了一点。'],
+
+    // 内容分级追加（只影响文字强度）
+    levelB: ['有人在楼道里拖过什么东西，痕迹一直拖到消防门那边。',
+      '那层冷意贴在皮肤上，像有人把手按在这里很久了。',
+      '地上的血已经半干了，边缘发黑，踩上去会粘鞋底。',
+      '那具身体的姿势不对——人不会用那种角度扭着躺着。',
+      '空气里有铁锈味，混着一点像坏掉的甜。',
+      '你听见骨头在很近的地方响了一声，然后那声音停了。',
+      '墙上那一片不是阴影，是你擦不掉的。'],
+    levelC: ['你听见那东西在墙里翻身，然后安静下来，像在等你先动。',
+      '它把多余的部分留在原地，很整齐，像做过很多次。',
+      '你低头看自己的手，指甲缝里塞满了不该属于你的东西。',
+      '它把那个人从头到脚"翻"了一遍，像是在找一个还热着的部分。',
+      '你数了数地上的碎片，数量不对——比一个人该有的多。',
+      '有东西还在动，一部分一部分地动，像是还没决定要不要死。',
+      '你把那部分从鞋底刮下来的时候，它还在动。'],
+
+    // 行动结果变体（每个行动有自己的库，避免"每次都是同一句"）
+    act_rest: ['你把门窗封严，点上一支鬼烛，强迫自己睡下。',
+      '你躺下之前把所有的封条都摸了一遍。',
+      '你靠着墙睡了两小时，中间醒了四次。',
+      '你关了灯，但没敢闭眼太久。'],
+    act_work: ['你照常出现在人群里，做一个无害的普通人。',
+      '你把工位上那盆快死的绿萝浇了水，同事夸你有心。',
+      '你在会议上说了三句无关紧要的话，没有人多看你一眼。',
+      '你把一天过成了一张没什么内容的表格。'],
+    act_investigate: ['你在旧报纸的边角上读到一段话：', '你托人找到了当年的值班表：',
+      '你把论坛上那条被删过的帖子截图找了出来：', '你去问了那个不愿意留名字的人：'],
+    act_train: ['你把自己关在浴室里，让镜子对着镜子。', '你反复回想那只鬼靠近时的感觉。',
+      '你逼自己在黑暗里睁着眼。', '你把手按在墙上，试着让那层灰重新出现。'],
+    act_mastery: ['你把它按住，把自己的意识压下去。', '你让它进来一点，然后关门。',
+      '你数到三，然后放手。', '你把它当成一件必须穿上的衣服。'],
+    act_social: ['你们在小饭馆坐了很久，谁都没提那些事。', '她给你带了份夜宵，说顺路。',
+      '你们聊了些没用的东西，你觉得好了一点。', '她问你最近睡得好不好，你说挺好的。'],
+    act_safehouse: ['你把封条重贴了一遍，符阵补上了缺口。', '你换了更粗的门闩，又把门缝灌满。',
+      '你在窗上贴了第二层铜箔。', '你把黄金熔了一小块，浇进门框里。'],
+    act_heal: ['医生听着你那些不能报警的经历，只是点了点头。',
+      '你说了二十分钟，医生记了三行字。', '你拿到了两周的药，和一叠没有用的建议。',
+      '咨询室的钟走得很响，你听着它把时间花掉。'],
+    act_shop: ['黑市摊主从柜台底下拿出一个油纸包。', '你按约定敲了两下，对面把门开了条缝。',
+      '摊主把东西推过来，手指一直没离开柜台。', '你付了金子，他给了货，你们都没看对方的眼睛。'],
+    act_mission: ['任务收尾。总部把报酬打给你，也把「危险等级」记进了档案。',
+      '你签了字，档案袋被封上。', '交接的人多问了一句"你一个人去的？"，然后没再说话。',
+      '你交回了任务用品，编号被一个个划掉。'],
+    act_gamble: ['你押了一个所有人都觉得不吉利的数。', '桌子对面的人笑得很难看。',
+      '你把手里的筹码推出去，听见自己的心跳。', '庄家洗牌的时候，多看了你一眼。'],
+    act_freeze: ['你把它按下去，自己的意识先沉了。', '有那么几秒，你听不见任何声音。',
+      '你试着让体内的东西停住。', '你数着自己的呼吸，一遍比一遍慢。'],
+    act_custom: ['你决定不按常理来一次。', '你选了一个没人会选的做法。', '你想要点不一样的东西。'],
+  };
+
+  /* ------------------------------------------------------------ 取句逻辑 */
+  const u32 = (x) => x >>> 0;
+  function hashStr(s) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return u32(h);
+  }
+
+  // 近期用过的句子：按种子分桶，只记录「本轮更早回合」用过的句子。
+  // 这样同一 (种子, 回合) 无论调用几次都取到同一句（确定性不被破坏），
+  // 同时又能避免相邻回合重复读到同一句。纯文本记忆，重载即清空。
+  const WINDOW = 12;              // 约 12 个回合内不重复
+  const memory = new Map();       // seed → Map(line → 最后一次使用的回合)
+
+  function memFor(seed) {
+    let m = memory.get(seed);
+    if (!m) { m = new Map(); memory.set(seed, m); }
+    if (m.size > 600) { Array.from(m.keys()).slice(0, 200).forEach((k) => m.delete(k)); }
+    return m;
+  }
+  function usedRecently(m, line, turn) {
+    const prev = m.get(line);
+    return prev !== undefined && prev < turn && (turn - prev) < WINDOW;
+  }
+
+  /** 轮转取句：同库内按 seed 定偏移 + turn 递增；若命中近期用过的句子就往后跳 */
+  function pick(bank, state, salt) {
+    const arr = B[bank];
+    if (!arr || !arr.length) return '';
+    const off = hashStr(String(state.seed || '') + ':' + bank);
+    const base = (off + (state.turn || 0) + (salt || 0)) % arr.length;
+    const m = memFor(String(state.seed || ''));
+    const turn = state.turn || 0;
+    let line = arr[base];
+    for (let k = 1; k <= 3 && usedRecently(m, line, turn); k++) {
+      line = arr[(base + k) % arr.length];
+    }
+    m.set(line, turn);
+    return line;
+  }
+
+  /** 多句不重复取（同一回合内要两句时用） */
+  function pickN(bank, state, n, salt) {
+    const arr = B[bank];
+    const out = [];
+    if (!arr || !arr.length) return out;
+    for (let k = 0; k < n && k < arr.length; k++) {
+      const off = hashStr(String(state.seed || '') + ':' + bank + ':' + k);
+      out.push(arr[(off + (state.turn || 0) + (salt || 0)) % arr.length]);
+    }
+    return out;
+  }
+
+  /* --------------------------------------------------------- 场景组装 */
+  /**
+   * 一回合的场景描写：时段天气 + 场所 + 感官/异象 + 状态反应（0~3 句）+ 分级句
+   * 返回 { lines, tags } —— tags 说明这段用了哪些库（供测试统计覆盖率）
+   */
+  function scene(state) {
+    const s = state;
+    const lines = [];
+    const tags = [];
+    lines.push(pick('timeOfDay', s) + '，' + pick('weather', s) + '。'); tags.push('timeOfDay', 'weather');
+    lines.push(pick('place', s)); tags.push('place');
+
+    // 感官与异象：交替出现，保证不会每回合都只有一种味道
+    if (s.turn % 2 === 1) { lines.push(pick('sense', s)); tags.push('sense'); }
+    else { lines.push(pick('anomaly', s)); tags.push('anomaly'); }
+
+    // 状态反应（按紧急度排序，最多取 2 条，避免刷屏）
+    const reactive = [];
+    if (s.stats.sanity < 40) reactive.push(['lowSanity', pick('lowSanity', s)]);
+    if (s.stats.humanity < 30) reactive.push(['lowHumanity', pick('lowHumanity', s)]);
+    if (s.stats.erosion >= 60) reactive.push(['highErosion', pick('highErosion', s)]);
+    if (s.stats.pollution >= 45) reactive.push(['highPollution', pick('highPollution', s)]);
+    if (s.stats.calamity >= 70) reactive.push(['highCalamity', pick('highCalamity', s)]);
+    if (s.stats.stamina < 35) reactive.push(['lowStamina', pick('lowStamina', s)]);
+    if (s.stats.stealth < 25) reactive.push(['lowStealth', pick('lowStealth', s)]);
+    else if (s.stats.stealth >= 75) reactive.push(['highStealth', pick('highStealth', s)]);
+    if (s.clues.length >= 6) reactive.push(['intel', pick('intel', s)]);
+    if (s.contracts.length >= 1 && s.turn % 3 === 0) reactive.push(['contract', pick('contract', s)]);
+    const chosen = reactive.slice(0, 2);
+    for (const [tag, line] of chosen) { lines.push(line); tags.push(tag); }
+
+    // 一切正常时给一句"平静"的话，避免正文太干
+    if (!chosen.length && !s.pending) { lines.push(pick('safe', s)); tags.push('safe'); }
+
+    // 内容分级：只影响文字强度
+    const lv = s.contentLevel || 'A';
+    if (lv === 'B') { lines.push(pick('levelB', s)); tags.push('levelB'); }
+    else if (lv === 'C') { lines.push(pick('levelC', s)); tags.push('levelC'); }
+
+    return { lines: lines, tags: tags };
+  }
+
+  /** 行动结果变体句（引擎给出 variant key，这里取对应库） */
+  function actionLine(state, variant) {
+    const bank = 'act_' + (variant || 'custom');
+    if (!B[bank]) return '';
+    return pick(bank, state);
+  }
+
+  /** 遭遇氛围句：随"掌握线索条数"变化，让同一只鬼的遭遇读起来不一样 */
+  function encounterMood(state) {
+    const p = state.pending;
+    if (!p) return '';
+    const known = (p.revealedClues || []).length;
+    if (known === 0) return '你对它一无所知。所有判断都只能靠眼前这一点东西。';
+    if (known === 1) return '你掌握的线索让它的轮廓清楚了一点——只有一点。';
+    if (known === 2) return '你知道它的规矩了，至少知道两条。';
+    return '它的规律在你脑子里几乎连成了一条线。';
+  }
+
+  /** 世界事件开场白 */
+  function eventLine(state) {
+    const ev = (state.__evLabel) || '';
+    return ev ? '接下来的一切都会围着「' + ev + '」转。' : '';
+  }
+
+  /** 供测试统计：素材库规模与条目 */
+  function stats() {
+    const out = {};
+    for (const k of Object.keys(B)) out[k] = B[k].length;
+    return out;
+  }
+
+  return {
+    banks: B,
+    scene: scene,
+    actionLine: actionLine,
+    encounterMood: encounterMood,
+    eventLine: eventLine,
+    pick: pick,
+    stats: stats,
+  };
+});
+</script>
+<script>/* ============================================================================
+ * 神秘复苏模拟器 · 本机账户与密钥保管库（vault）
+ * ----------------------------------------------------------------------------
+ * 目的：把 AI 的 API 配置绑定到本机账户上——没登录看不见、改不了。
+ *
+ * 做法：密码 → PBKDF2-SHA256（25 万次）派生密钥 → AES-GCM 加密 AI 配置，
+ *       只把「盐 + 密文」写进 localStorage；密码本身不落盘。
+ *       AES-GCM 自带完整性校验：密文被改动会解密失败（不是静默出错）。
+ *
+ * 能防住什么：同机其他人翻 localStorage / 手改存档 / 误改配置。
+ * 防不住什么：能改页面 JS 的人、知道密码的人、以及"密码本身太弱"被爆破。
+ * 没有的东西：找回密码、跨设备同步、服务端身份校验——单文件本地游戏做不到。
+ * ==========================================================================*/
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSVault = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const KEY = 'rs_vault';
+  const ITER = 250000;
+  const CHECK_PLAIN = 'rs-vault-check-v1';
+  const MIN_PASS = 6;
+
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+
+  function b64(buf) {
+    const bytes = new Uint8Array(buf);
+    let s = '';
+    for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return (typeof btoa === 'function') ? btoa(s) : Buffer.from(bytes).toString('base64');
+  }
+  function unb64(str) {
+    let s;
+    if (typeof atob === 'function') { s = atob(str); }
+    else { s = Buffer.from(str, 'base64').toString('binary'); }
+    const out = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+    return out;
+  }
+  function subtle() {
+    const c = (typeof crypto !== 'undefined' && crypto.subtle) ? crypto.subtle
+      : (typeof globalThis !== 'undefined' && globalThis.crypto && globalThis.crypto.subtle) ? globalThis.crypto.subtle : null;
+    if (!c) throw new Error('当前环境没有 WebCrypto，无法加密保存');
+    return c;
+  }
+  function rand(n) {
+    const a = new Uint8Array(n);
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(a);
+    else globalThis.crypto.getRandomValues(a);
+    return a;
+  }
+
+  async function deriveKey(pass, salt, iter) {
+    const base = await subtle().importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+    return subtle().deriveKey(
+      { name: 'PBKDF2', salt: salt, iterations: iter || ITER, hash: 'SHA-256' },
+      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  async function encrypt(key, obj) {
+    const iv = rand(12);
+    const ct = await subtle().encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(JSON.stringify(obj)));
+    return { iv: b64(iv), ct: b64(ct) };
+  }
+  async function decrypt(key, box) {
+    const iv = unb64(box.iv), ct = unb64(box.ct);
+    const plain = await subtle().decrypt({ name: 'AES-GCM', iv: iv }, key, ct);
+    return JSON.parse(dec.decode(plain));
+  }
+
+  /* --------------------------------------------------------------- 存取 */
+  function lsGet() {
+    try { return localStorage.getItem(KEY); } catch (e) { return null; }
+  }
+  function lsSet(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
+  function lsDel() { try { localStorage.removeItem(KEY); } catch (e) {} }
+
+  function read() {
+    const raw = lsGet();
+    if (!raw) return null;
+    try {
+      const v = JSON.parse(raw);
+      if (!v || v.v !== 1 || !v.salt || !v.check) return null;
+      return v;
+    } catch (e) { return null; }
+  }
+  function write(v) { lsSet(JSON.stringify(v)); }
+
+  /* --------------------------------------------------------------- 会话 */
+  let sessionKey = null;   // 只在内存里，刷新即失效（这正是"必须登录"的含义）
+  let sessionUser = null;
+
+  function hasVault() { return !!read(); }
+  function userName() { const v = read(); return v ? v.user : null; }
+  function isUnlocked() { return !!sessionKey; }
+  function lockedUser() { return sessionUser; }
+
+  /** 首次使用：创建账户并把 AI 配置加密绑定进去 */
+  async function register(user, pass, initialAI) {
+    user = String(user || '').trim();
+    pass = String(pass || '');
+    if (user.length < 2) return { error: '账户名至少 2 个字符' };
+    if (pass.length < MIN_PASS) return { error: '密码至少 ' + MIN_PASS + ' 位' };
+    if (hasVault()) return { error: '本机已存在账户，请直接登录（或先用原密码删除账户）' };
+    const salt = rand(16);
+    const key = await deriveKey(pass, salt);
+    const v = {
+      v: 1, user: user, salt: b64(salt), iter: ITER,
+      check: await encrypt(key, CHECK_PLAIN),
+      ai: initialAI ? await encrypt(key, initialAI) : null,
+    };
+    write(v);
+    sessionKey = key;
+    sessionUser = user;
+    return { ok: true, user: user, bound: !!v.ai };
+  }
+
+  /** 登录：密码不对 → 解密校验块失败 */
+  async function unlock(pass) {
+    const v = read();
+    if (!v) return { error: '本机还没有账户' };
+    try {
+      const key = await deriveKey(String(pass || ''), unb64(v.salt), v.iter);
+      const check = await decrypt(key, v.check);
+      if (check !== CHECK_PLAIN) return { error: '密码不正确' };
+      sessionKey = key;
+      sessionUser = v.user;
+      return { ok: true, user: v.user, bound: !!v.ai };
+    } catch (e) {
+      return { error: '密码不正确' };   // AES-GCM 校验失败也落在这里
+    }
+  }
+
+  function lock() { sessionKey = null; sessionUser = null; return { ok: true }; }
+
+  /* ----------------------------------------------------------- AI 绑定 */
+  async function putAI(ai) {
+    const v = read();
+    if (!v) return { error: '本机还没有账户，请先创建' };
+    if (!sessionKey) return { error: '需要登录后才能修改绑定的 API 配置' };
+    v.ai = await encrypt(sessionKey, {
+      endpoint: String(ai.endpoint || '').trim(),
+      apiKey: String(ai.apiKey || ''),
+      model: String(ai.model || 'deepseek-chat').trim(),
+    });
+    write(v);
+    return { ok: true };
+  }
+
+  function hasAI() { const v = read(); return !!(v && v.ai); }
+
+  function getAI() {
+    if (!sessionKey) return { error: '未登录：查看或修改 API 配置需要先登录账户' };
+    const v = read();
+    if (!v || !v.ai) return null;      // 已登录但还没绑定
+    return decrypt(sessionKey, v.ai).then((ai) => ai).catch(() => ({ error: '密文校验失败（保管库被改动过）' }));
+  }
+
+  function clearAI() {
+    const v = read();
+    if (!v) return { error: '本机还没有账户' };
+    if (!sessionKey) return { error: '需要登录后才能解绑' };
+    v.ai = null;
+    write(v);
+    return { ok: true };
+  }
+
+  /** 删除账户（需原密码验证） */
+  async function destroy(pass) {
+    const v = read();
+    if (!v) return { error: '本机还没有账户' };
+    const r = await unlock(pass);
+    if (r.error) return r;
+    lsDel();
+    sessionKey = null;
+    sessionUser = null;
+    return { ok: true };
+  }
+
+  return {
+    KEY: KEY,
+    MIN_PASS: MIN_PASS,
+    ITER: ITER,
+    hasVault: hasVault,
+    userName: userName,
+    isUnlocked: isUnlocked,
+    lockedUser: lockedUser,
+    hasAI: hasAI,
+    register: register,
+    unlock: unlock,
+    lock: lock,
+    putAI: putAI,
+    getAI: getAI,
+    clearAI: clearAI,
+    destroy: destroy,
+    // 仅测试用
+    _internals: { deriveKey: deriveKey, encrypt: encrypt, decrypt: decrypt, b64: b64, unb64: unb64 },
+  };
+});
+</script>
+<script>/* ============================================================================
+ * 神秘复苏模拟器 · 界面层
+ * ----------------------------------------------------------------------------
+ * 原则：
+ *  - 界面只读引擎状态，绝不参与判定；玩家无法在界面上输入任何数值。
+ *  - 所有文本经 textContent 注入（不拼 HTML），自定义输入先剥离尖括号。
+ *  - 预留 AI 叙事接口 window.RS_AI：AI 只写【剧情叙事】，判定与数值一律以引擎为准，
+ *    AI 返回的任何数值声明都会被忽略。
+ * ==========================================================================*/
+(function () {
+  'use strict';
+
+  const E = window.RSEngine;
+  const C = window.RSContent;
+  const P = window.RSProfile || null;
+  let profile = P ? P.loadProfile().profile : null;
+
+  const LS = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  };
+
+  /* ------------------------------------------------------------ AI 接口 */
+  window.RS_AI = window.RS_AI || {
+    enabled: false,
+    endpoint: '',
+    apiKey: '',
+    model: '',
+    /** 只负责把引擎给的机械结果润色成剧情文字；不得改动任何数值 */
+    async narrate(payload) {
+      if (!this.enabled || !this.endpoint) return null;
+      const sys = '你是恐怖互动小说的叙事者。只输出【剧情叙事】段落，' +
+        '禁止输出任何数值、状态、公式、选项；禁止替玩家做决定；禁止修改判定结果。';
+      const user = JSON.stringify({
+        世界: payload.world, 状态: payload.panel, 玩家行动: payload.action,
+        引擎判定: payload.settlement, 要求: '写 120~220 字的中文剧情，压抑、克制、不写爽文。',
+      });
+      const res = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' },
+          this.apiKey ? { Authorization: 'Bearer ' + this.apiKey } : {}),
+        body: JSON.stringify({
+          model: this.model || 'deepseek-chat',
+          messages: [{ role: 'system', content: sys }, { role: 'user', content: user }],
+          temperature: 0.8,
+        }),
+      });
+      if (!res.ok) throw new Error('AI 接口返回 ' + res.status);
+      const data = await res.json();
+      const txt = data && data.choices && data.choices[0] && data.choices[0].message
+        ? data.choices[0].message.content : '';
+      return txt ? String(txt).replace(/[【】]/g, '').slice(0, 600) : null;
+    },
+  };
+
+  /* -------------------------------------------------------------- 状态 */
+  let state = null;
+  let selected = {
+    difficulty: 'standard', pack: 'ordinary', level: 'A', seed: '',
+    custom: { encounter: 'normal', judge: 'normal', mercy: 'normal' },
+    legacy: null,
+  };
+
+  const $ = (id) => document.getElementById(id);
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+  /* ------------------------------------------------------------ 场景文本 */
+  const N = window.RSNarrative || null;
+
+  /** 场景描写：优先用叙事生成器（组合 + 轮转 + 状态反应），没有则退回素材库 */
+  function sceneLines(s) {
+    if (N) {
+      const r = N.scene(s);
+      const ev = C.worldClock.filter((e) => e.turn <= s.turn).slice(-1)[0];
+      if (ev && s.turn - ev.turn <= 2) r.lines.push('【世界事件】' + ev.label + ' 正在进行。');
+      return r.lines;
+    }
+    const n = C.narrative;
+    const out = [];
+    out.push(n.timeOfDay[(s.turn * 3 + s.seedInt) % n.timeOfDay.length] + '，' +
+      n.weather[(s.turn * 7 + s.seedInt) % n.weather.length] + '。');
+    out.push(n.city[(s.turn + s.seedInt) % n.city.length]);
+    return out;
+  }
+
+  let lastSceneTurn = 0;
+
+  /** 每天开始时输出一次氛围与事件提示（同一天不重复） */
+  function renderScene(force) {
+    if (!state || state.over) return;
+    if (!force && lastSceneTurn === state.turn) return;
+    lastSceneTurn = state.turn;
+    const lines = sceneLines(state);
+    const startEv = C.worldClock.find((e) => e.turn === state.turn);
+    if (startEv) {
+      addLog('event', '════ 【重大事件】' + startEv.label + ' ════');
+      addLog('event', '你正在被卷进去。它不是背景，它是接下来的一切。');
+    }
+    addLog('scene', lines);
+  }
+
+  /* ------------------------------------------------------------ 渲染 */
+  function renderPanel() {
+    const box = $('panel');
+    clear(box);
+    const p = E.panelOf(state);
+    for (const k of Object.keys(p)) {
+      const row = el('div', 'prow');
+      row.appendChild(el('span', 'pk', k));
+      row.appendChild(el('span', 'pv', String(p[k])));
+      box.appendChild(row);
+    }
+    $('turnLabel').textContent = p['回合'];
+    $('diffLabel').textContent = p['难度'];
+  }
+
+  function addLog(kind, lines) {
+    const box = $('log');
+    for (const line of [].concat(lines)) {
+      if (line === undefined || line === null || line === '') continue;
+      const d = el('div', 'line ' + kind, String(line));
+      box.appendChild(d);
+    }
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function renderChoices(choices) {
+    const box = $('choices');
+    clear(box);
+    // 遭遇中不提供自定义入口：此刻必须做出选择，避免用描述性文本绕过判定
+    $('footer').style.display = state && state.pending ? 'none' : '';
+    if (state && state.over) {
+      const b = el('button', 'btn primary', '重开一局');
+      b.onclick = () => showMenu();
+      box.appendChild(b);
+      return;
+    }
+    if (!choices.length) {
+      box.appendChild(el('div', 'muted', '（没有可选行动——请把存档贴回来继续）'));
+      return;
+    }
+    choices.forEach((c, i) => {
+      // 选项文字里已经写了「（生路）」的，不再重复追加标注
+      const note = c.note && !c.label.includes('生路') ? c.note : '';
+      const b = el('button', 'btn' + (c.note ? ' exit' : ''), (i + 1) + '｜ ' + c.label + note);
+      b.onclick = () => onChoice(c.id);
+      box.appendChild(b);
+    });
+    if (state.pending) {
+      const hint = el('div', 'muted', '可观察线索：已掌握 ' + state.pending.revealedClues.length +
+        ' 条，另有 ' + state.pending.clueHints + ' 条尚未掌握。线索越全，生路越明确。');
+      box.appendChild(hint);
+    }
+  }
+
+  function renderEncounter() {
+    if (!state.pending) return;
+    addLog('enc', '【遭遇】' + state.pending.name + '（' + state.pending.level + ' 级）');
+    addLog('', state.pending.text);
+    if (N) {
+      const mood = N.encounterMood(state);
+      if (mood) addLog('scene', mood);
+    }
+    if (state.pending.revealedClues.length) {
+      addLog('clue', state.pending.revealedClues.map((c) => '· 你掌握的线索：' + c));
+    } else {
+      addLog('warn', '· 你对它一无所知——现在只能靠判断和运气。');
+    }
+  }
+
+  function renderOver() {
+    const o = state.over;
+    const def = C.endings[o.ending] || { name: o.ending, text: '' };
+    addLog('over', '【结局】' + def.name);
+    addLog('over', def.text);
+    addLog('', '存活 ' + state.turn + ' 天（第 ' + state.chapter + ' 章）。');
+    // 跨局结算：统计、成就、周目点数（档案带校验和）
+    if (P && profile && !o.settled) {
+      o.settled = true;
+      const r = P.settle(profile, state, o.ending);
+      profile = r.profile;
+      P.saveProfile(profile);
+      addLog('muted', '【档案】本局获得周目点数 +' + r.points + '（累计可用 ' + profile.points + '）｜存活 ' +
+        r.run.turn + ' 天｜生路存活 ' + r.run.escapes + ' 次｜触发玩法 ' + r.run.mechCount + ' 条');
+      if (r.unlocked.length) {
+        addLog('over', '【解锁成就】' + r.unlocked.map((a) => a.name + '（' + a.desc + '）').join('；'));
+      }
+      const prog = P.achievementProgress(profile);
+      addLog('muted', '成就进度 ' + prog.unlocked + '/' + prog.total + '　结局收集 ' +
+        Object.keys(profile.endings).length + '/' + Object.keys(C.endings).length);
+    }
+    const lv = state.contentLevel || 'A';
+    if (lv !== 'A' && C.narrative['level' + lv]) {
+      const bank = C.narrative['level' + lv];
+      addLog('warn', bank[(state.turn + state.seedInt) % bank.length]);
+    }
+    const gallery = LS.get('rs_gallery', {});
+    if (!gallery[o.ending]) {
+      gallery[o.ending] = { times: 1, first: Date.now() };
+      LS.set('rs_gallery', gallery);
+    } else gallery[o.ending].times += 1, LS.set('rs_gallery', gallery);
+  }
+
+  async function onChoice(id, customText) {
+    const rep = E.resolve(state, id, customText);
+    if (rep.error) { addLog('warn', '【拒绝】' + rep.error); return; }
+    // 叙事
+    if (window.RS_AI.enabled && window.RS_AI.endpoint && rep.narrative.length) {
+      try {
+        const ai = await window.RS_AI.narrate({ world: C.meta.title, panel: rep.panel, action: id, settlement: rep.settlement });
+        if (ai) { addLog('', ai); addLog('muted', '（本段剧情由 AI 润色；判定与数值以引擎为准）'); }
+        else addLog('', rep.narrative);
+      } catch (e) {
+        addLog('', rep.narrative);
+        addLog('warn', '（AI 叙事失败，已回退为引擎文本：' + e.message + '）');
+      }
+    } else {
+      addLog('', rep.narrative);
+    }
+    // 行动结果变体句：让"每次休整都是同一句话"不再发生
+    if (N && rep.actionVariant && !state.over) {
+      const extra = N.actionLine(state, rep.actionVariant);
+      if (extra) addLog('scene', extra);
+    }
+    if (rep.settlement && rep.settlement.length) addLog('set', rep.settlement.map((s) => '▸ ' + s));
+    if (state.integrity.length) { addLog('warn', '【完整性告警】' + state.integrity.slice(-3).join(' / ')); }
+    renderPanel();
+    renderScene(false);
+    renderEncounter();
+    if (state.over) renderOver();
+    renderChoices(rep.choices);
+    autoSave();
+  }
+
+  /* ------------------------------------------------------------ 存档 */
+  function autoSave() {
+    // 只在「每天开始」这一干净边界自动存档（遭遇中途不覆盖，避免歧义）
+    if (state && !state.over && state.phase === 'day' && !state.actionTakenToday) {
+      LS.set('rs_autosave', E.serialize(state));
+    }
+  }
+  function saveToFile() {
+    const text = E.serialize(state);
+    const blob = new Blob([text], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '神秘复苏-存档-第' + state.turn + '天.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  function loadFromText(text) {
+    const r = E.deserialize(String(text || '').trim());
+    if (r.error) {
+      addLog('warn', '【载入失败】' + r.error + '（存档被修改过，或被截断）');
+      return false;
+    }
+    state = r.state;
+    clear($('log'));
+    addLog('', '【读档】第 ' + state.turn + ' 天（第 ' + state.chapter + ' 章），难度：' + (state.difficulty === 'hard' ? '极难' : '标准'));
+    if (state.over) renderOver();
+    renderPanel();
+    lastSceneTurn = 0;
+    renderScene(true);
+    renderChoices(E.availableActions(state)); renderEncounter();
+    return true;
+  }
+
+  /* ------------------------------------------------------------ 开局页 */
+  function showMenu() {
+    clear($('log'));
+    $('panel').style.display = 'none';
+    clear($('choices'));
+    const box = $('choices');
+    box.appendChild(el('div', 'sectionTitle', '选择难度（决定整局手感曲线）'));
+    const diffRow = el('div', 'row');
+    Object.keys(C.difficulties).forEach((id) => {
+      const d = C.difficulties[id];
+      const b = el('button', 'btn small' + (selected.difficulty === id ? ' on' : ''), d.name);
+      b.onclick = () => { selected.difficulty = id; showMenu(); };
+      diffRow.appendChild(b);
+    });
+    const cb = el('button', 'btn small' + (selected.difficulty === 'custom' ? ' on' : ''), '自定义');
+    cb.onclick = () => { selected.difficulty = 'custom'; showMenu(); };
+    diffRow.appendChild(cb);
+    box.appendChild(diffRow);
+    const cur = C.resolveTuning(selected.difficulty, selected.custom);
+    box.appendChild(el('div', 'hint', cur.blurb));
+
+    if (selected.difficulty === 'custom') {
+      Object.keys(C.tuningKnobs).forEach((key) => {
+        const knob = C.tuningKnobs[key];
+        box.appendChild(el('div', 'sectionTitle', knob.label));
+        const row = el('div', 'row');
+        knob.options.forEach((op) => {
+          const b = el('button', 'btn small' + (selected.custom[key] === op.id ? ' on' : ''), op.name);
+          b.onclick = () => { selected.custom[key] = op.id; showMenu(); };
+          row.appendChild(b);
+        });
+        box.appendChild(row);
+      });
+    }
+
+    box.appendChild(el('div', 'sectionTitle', '选择开局'));
+    for (const id of Object.keys(C.packs)) {
+      const p = C.packs[id];
+      const b = el('button', 'btn card' + (selected.pack === id ? ' on' : ''),
+        p.name + '　—　' + p.blurb);
+      b.onclick = () => { selected.pack = id; showMenu(); };
+      box.appendChild(b);
+    }
+
+    box.appendChild(el('div', 'sectionTitle', '内容分级'));
+    const lvRow = el('div', 'row');
+    [['A', 'A 影视级（默认）'], ['B', 'B 写实级'], ['C', 'C 无限制']].forEach(([id, label]) => {
+      const b = el('button', 'btn small' + (selected.level === id ? ' on' : ''), label);
+      b.onclick = () => { selected.level = id; showMenu(); };
+      lvRow.appendChild(b);
+    });
+    box.appendChild(lvRow);
+
+    box.appendChild(el('div', 'sectionTitle', '随机种子（可选，同种子=同世界）'));
+    const seedInput = el('input', 'input');
+    seedInput.placeholder = '留空则随机';
+    seedInput.value = selected.seed;
+    seedInput.oninput = () => { selected.seed = seedInput.value.trim(); };
+    box.appendChild(seedInput);
+
+    const start = el('button', 'btn primary big', '开始游戏');
+    start.onclick = () => startGame();
+    box.appendChild(start);
+
+    if (profile && P) {
+      const prog = P.achievementProgress(profile);
+      const endCount = Object.keys(profile.endings || {}).length;
+      box.appendChild(el('div', 'sectionTitle', '玩家档案（跨局保存）'));
+      const kv = el('div', 'hint');
+      kv.textContent = '成就 ' + prog.unlocked + '/' + prog.total +
+        '　｜　结局收集 ' + endCount + '/' + Object.keys(C.endings).length +
+        '　｜　最佳存活 ' + (profile.best.turn || 0) + ' 天' +
+        '　｜　总局数 ' + profile.runs.total + '（死亡 ' + profile.runs.died + '）' +
+        '　｜　周目点数 ' + profile.points;
+      box.appendChild(kv);
+      const names = Object.keys(profile.endings || {})
+        .map((k) => (C.endings[k] ? C.endings[k].name : k) + '×' + profile.endings[k]);
+      box.appendChild(el('div', 'muted', '结局图鉴：' + (names.length ? names.join('、') : '暂无')));
+      const unlockedNames = prog.list.filter((x) => x.unlocked).map((x) => x.name);
+      box.appendChild(el('div', 'muted', '已解锁成就：' + (unlockedNames.length ? unlockedNames.join('、') : '暂无')));
+
+      // 二周目：花点数换开局加成（只改初始值，写进本局存档参与校验和）
+      if (profile.points > 0 && C.legacyOptions) {
+        box.appendChild(el('div', 'sectionTitle', '二周目继承（本次开局生效，消耗周目点数）'));
+        const row = el('div', 'row');
+        const none = el('button', 'btn small' + (!selected.legacy ? ' on' : ''), '不带继承');
+        none.onclick = () => { selected.legacy = null; showMenu(); };
+        row.appendChild(none);
+        Object.keys(C.legacyOptions).forEach((id) => {
+          const leg = C.legacyOptions[id];
+          const afford = profile.points >= leg.cost;
+          const b = el('button', 'btn small' + (selected.legacy === id ? ' on' : ''),
+            leg.name + '（' + leg.cost + ' 点）' + (afford ? '' : '·点数不足'));
+          b.disabled = !afford;
+          if (afford) b.onclick = () => { selected.legacy = id; showMenu(); };
+          row.appendChild(b);
+        });
+        box.appendChild(row);
+        const cur = selected.legacy && C.legacyOptions[selected.legacy];
+        box.appendChild(el('div', 'hint', cur ? cur.desc : '继承只影响开局初始值，不参与任何判定公式。'));
+      }
+    } else {
+      const gallery = LS.get('rs_gallery', {});
+      const names = Object.keys(gallery).map((k) => (C.endings[k] ? C.endings[k].name : k) + '×' + gallery[k].times);
+      box.appendChild(el('div', 'muted', '结局图鉴（' + Object.keys(gallery).length + '/' + Object.keys(C.endings).length + '）：' +
+        (names.length ? names.join('、') : '暂无')));
+    }
+    const auto = LS.get('rs_autosave', null);
+    if (auto) {
+      const b = el('button', 'btn small', '继续上次的进度');
+      b.onclick = () => loadFromText(auto); // 注意：LS.get 已经解过一次码，不能再 JSON.stringify
+      box.appendChild(b);
+    }
+  }
+
+  function startGame() {
+    // 二周目继承：先校验点数（档案带校验和，改档会在载入时被拒）
+    let legacy = null;
+    if (selected.legacy && profile && P && C.legacyOptions[selected.legacy]) {
+      const cost = C.legacyOptions[selected.legacy].cost;
+      if (profile.points >= cost) {
+        profile.points -= cost;
+        legacy = selected.legacy;
+        P.saveProfile(profile);
+      } else {
+        legacy = null;
+      }
+      selected.legacy = null; // 只对本次开局生效
+    }
+    state = E.createGame({
+      pack: selected.pack, difficulty: selected.difficulty,
+      custom: selected.difficulty === 'custom' ? selected.custom : null,
+      seed: selected.seed || undefined, contentLevel: selected.level,
+      legacy: legacy,
+    });
+    $('panel').style.display = '';
+    clear($('log'));
+    addLog('', '【开局】' + C.packs[selected.pack].blurb);
+    // 继承提示必须写在 clear(log) 之后，否则会被清掉（玩家花了点数却看不到反馈）
+    if (legacy) {
+      addLog('', '【二周目继承】' + C.legacyOptions[legacy].name + '：' + C.legacyOptions[legacy].desc +
+        '（已消耗 ' + C.legacyOptions[legacy].cost + ' 点，剩余 ' + (profile ? profile.points : 0) + ' 点）');
+    }
+    addLog('muted', '规则引擎 ' + C.meta.version + '　种子：' + state.seed + '　难度：' + (state.tuning ? state.tuning.name : '标准') +
+      '　内容分级：' + ({ A: 'A 影视级', B: 'B 写实级', C: 'C 无限制' }[state.contentLevel] || 'A') +
+      '（同一种子+同一串选择 = 同一结果；判定永不由运气之外的因素改变）');
+    renderPanel();
+    lastSceneTurn = 0;
+    renderScene(true);
+    renderChoices(E.availableActions(state));
+  }
+
+  /* ------------------------------------------------------- 内置工具面板 */
+  /** 存档导入 / AI 设置都走页面内面板：不可用会锁死渲染线程的 prompt/alert */
+  function openToolbox(mode) {
+    const box = $('toolbox');
+    clear(box);
+    box.style.display = '';
+    if (mode === 'load') {
+      box.appendChild(el('div', 'sectionTitle', '导入存档（会被校验和检查，改过就打不开）'));
+      const ta = el('textarea', 'input');
+      ta.rows = 4;
+      ta.placeholder = '把存档 JSON 整段粘贴到这里';
+      box.appendChild(ta);
+      const row = el('div', 'row');
+      const go = el('button', 'btn small primary', '载入');
+      go.onclick = () => { if (loadFromText(ta.value)) { box.style.display = 'none'; } };
+      const cancel = el('button', 'btn small', '关闭');
+      cancel.onclick = () => { box.style.display = 'none'; };
+      row.appendChild(go); row.appendChild(cancel);
+      box.appendChild(row);
+    } else {
+      renderAccountPanel(box);
+    }
+  }
+
+  /* --------------------------------------------- 本机账户与 API 绑定面板 */
+  const V = window.RSVault || null;
+
+  function aiBadge() {
+    if (!V || !V.hasVault()) return 'AI：未设账户';
+    const u = V.userName();
+    if (!V.isUnlocked()) return 'AI：' + u + '（未登录）';
+    return 'AI：' + u + (V.hasAI() ? '（已绑定）' : '（未绑定）');
+  }
+
+  function refreshAIState() {
+    const cfg = window.RS_AI;
+    $('aiState').textContent = aiBadge();
+    if (!V || !V.isUnlocked() || !V.hasAI()) {   // 未登录 / 未绑定 → 一律回到纯程序叙事
+      cfg.enabled = false;
+      cfg.endpoint = '';
+      cfg.apiKey = '';
+      return;
+    }
+    V.getAI().then((ai) => {
+      if (!ai || ai.error) { cfg.enabled = false; return; }
+      cfg.endpoint = ai.endpoint || '';
+      cfg.apiKey = ai.apiKey || '';
+      cfg.model = ai.model || 'deepseek-chat';
+      cfg.enabled = !!cfg.endpoint;
+      $('aiState').textContent = aiBadge();
+    });
+  }
+
+  function note(el2, text, tone) {
+    const n = el('div', 'hint', text);
+    if (tone === 'warn') n.style.color = 'var(--danger)';
+    if (tone === 'ok') n.style.color = 'var(--ok)';
+    el2.appendChild(n);
+    return n;
+  }
+
+  function renderAccountPanel(box) {
+    if (!V) { note(box, '当前环境不支持本机账户（缺少 WebCrypto）', 'warn'); return; }
+    box.appendChild(el('div', 'sectionTitle', 'AI 叙事需要绑定本机账户（API 配置会加密保存）'));
+    note(box, '说明：本机账户只是把 API 配置用你的密码加密存在本地——没登录就看不到、改不了。' +
+      '它挡得住同机翻 localStorage 与手改存档，挡不住能改页面代码或知道密码的人；也没有找回密码与跨设备同步（单文件本地游戏做不到）。');
+
+    if (!V.hasVault()) {
+      // ---- 状态一：未设账户 ----
+      const u = el('input', 'input'); u.id = 'acc_user'; u.placeholder = '账户名（例如 baisonghao）';
+      const p = el('input', 'input'); p.id = 'acc_pass'; p.type = 'password'; p.placeholder = '密码（至少 ' + V.MIN_PASS + ' 位）';
+      const p2 = el('input', 'input'); p2.id = 'acc_pass2'; p2.type = 'password'; p2.placeholder = '再输一次密码';
+      box.appendChild(u); box.appendChild(p); box.appendChild(p2);
+      // 如果旧版本在档案里留过明文配置，这里带出来供一次性绑定
+      const legacy = (profile && profile.ai && profile.ai.endpoint) ? profile.ai : null;
+      const ep = el('input', 'input'); ep.id = 'ai_endpoint'; ep.placeholder = 'AI 接口地址（可留空，稍后再绑）';
+      const k = el('input', 'input'); k.id = 'ai_apiKey'; k.type = 'password'; k.placeholder = 'API Key（可留空）';
+      const m = el('input', 'input'); m.id = 'ai_model'; m.placeholder = '模型名';
+      ep.value = legacy ? (legacy.endpoint || '') : '';
+      k.value = legacy ? (legacy.apiKey || '') : '';
+      m.value = (legacy && legacy.model) || 'deepseek-chat';
+      box.appendChild(el('div', 'sectionTitle', '顺带绑定 AI 配置（可选）'));
+      box.appendChild(ep); box.appendChild(k); box.appendChild(m);
+      if (legacy) note(box, '检测到旧版本存在档案里的明文配置，已带出——绑定后我会把它从档案里删掉。');
+      const row = el('div', 'row');
+      const go = el('button', 'btn small primary', '创建账户并绑定');
+      go.onclick = async () => {
+        if (p.value !== p2.value) { note(box, '两次输入的密码不一致', 'warn'); return; }
+        const ai = ep.value.trim() ? { endpoint: ep.value.trim(), apiKey: k.value.trim(), model: m.value.trim() || 'deepseek-chat' } : null;
+        const r = await V.register(u.value, p.value, ai);
+        if (r.error) { note(box, r.error, 'warn'); return; }
+        // 绑定成功：清掉档案里的明文（如果有人看过，它就不该再留一份）
+        if (legacy && P && profile) { profile.ai = { endpoint: '', apiKey: '', model: 'deepseek-chat', enabled: false }; P.saveProfile(profile); }
+        refreshAIState();
+        addLog('muted', '【账户】已创建本机账户「' + r.user + '」' + (r.bound ? '，AI 配置已加密绑定。' : '（尚未绑定 AI 配置）。'));
+        box.style.display = 'none';
+      };
+      const cancel = el('button', 'btn small', '关闭');
+      cancel.onclick = () => { box.style.display = 'none'; };
+      row.appendChild(go); row.appendChild(cancel);
+      box.appendChild(row);
+      return;
+    }
+
+    // ---- 状态二：有账户但未登录 ----
+    if (!V.isUnlocked()) {
+      note(box, '本机账户：「' + V.userName() + '」' + (V.hasAI() ? '（已绑定 AI 配置，加密保存）' : '（未绑定 AI 配置）'));
+      note(box, '未登录时 AI 配置不可见、不可改，游戏按纯程序叙事运行。', 'warn');
+      const p = el('input', 'input'); p.id = 'acc_pass'; p.type = 'password'; p.placeholder = '输入账户密码';
+      box.appendChild(p);
+      const row = el('div', 'row');
+      const go = el('button', 'btn small primary', '登录');
+      go.onclick = async () => {
+        const r = await V.unlock(p.value);
+        if (r.error) { note(box, r.error, 'warn'); return; }
+        refreshAIState();
+        addLog('muted', '【账户】已登录「' + r.user + '」' + (r.bound ? '，AI 叙事已启用（密钥只在本页内存里，刷新需重新登录）。' : '，还未绑定 AI 配置。'));
+        box.style.display = 'none';
+      };
+      p.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') go.click(); });
+      const cancel = el('button', 'btn small', '关闭');
+      cancel.onclick = () => { box.style.display = 'none'; };
+      row.appendChild(go); row.appendChild(cancel);
+      box.appendChild(row);
+      return;
+    }
+
+    // ---- 状态三：已登录，可查看/修改绑定 ----
+    note(box, '已登录：「' + V.lockedUser() + '」。下面是绑定到该账户的 AI 配置（未绑定则留空）。', 'ok');
+    const cur = { endpoint: '', apiKey: '', model: 'deepseek-chat' };
+    const build = (ai) => {
+      if (ai && !ai.error) { cur.endpoint = ai.endpoint || ''; cur.apiKey = ai.apiKey || ''; cur.model = ai.model || 'deepseek-chat'; }
+      const ep = el('input', 'input'); ep.id = 'ai_endpoint'; ep.value = cur.endpoint; ep.placeholder = '接口地址（留空=不用 AI，回到程序叙事）';
+      const k = el('input', 'input'); k.id = 'ai_apiKey'; k.type = 'password'; k.value = cur.apiKey; k.placeholder = 'API Key';
+      const m = el('input', 'input'); m.id = 'ai_model'; m.value = cur.model;
+      box.appendChild(ep); box.appendChild(k); box.appendChild(m);
+      const row = el('div', 'row');
+      const save = el('button', 'btn small primary', '保存到账户');
+      save.onclick = async () => {
+        const r = await V.putAI({ endpoint: ep.value, apiKey: k.value, model: m.value });
+        if (r.error) { note(box, r.error, 'warn'); return; }
+        refreshAIState();
+        addLog('muted', '【账户】AI 配置已加密绑定到「' + V.userName() + '」。');
+        box.style.display = 'none';
+      };
+      const unbind = el('button', 'btn small', '解绑');
+      unbind.onclick = () => {
+        const r = V.clearAI();
+        if (r.error) { note(box, r.error, 'warn'); return; }
+        refreshAIState();
+        addLog('muted', '【账户】已解绑 AI 配置，回到纯程序叙事。');
+        box.style.display = 'none';
+      };
+      const logout = el('button', 'btn small', '登出');
+      logout.onclick = () => {
+        V.lock();
+        refreshAIState();
+        addLog('muted', '【账户】已登出，AI 配置重新变为不可见。');
+        box.style.display = 'none';
+      };
+      const del = el('button', 'btn small danger', '删除账户');
+      del.onclick = async () => {
+        const pw = (document.querySelector('#acc_delpass') || {}).value || '';
+        const r = await V.destroy(pw);
+        if (r.error) { note(box, r.error, 'warn'); return; }
+        refreshAIState();
+        addLog('muted', '【账户】本机账户已删除（含加密保存的 AI 配置）。');
+        box.style.display = 'none';
+      };
+      const row2 = el('div', 'row');
+      const dp = el('input', 'input'); dp.id = 'acc_delpass'; dp.type = 'password'; dp.placeholder = '删除账户需再输一次密码';
+      const cancel = el('button', 'btn small', '关闭');
+      cancel.onclick = () => { box.style.display = 'none'; };
+      row.appendChild(save); row.appendChild(unbind); row.appendChild(logout); row.appendChild(cancel);
+      box.appendChild(row);
+      box.appendChild(el('div', 'sectionTitle', '危险操作'));
+      box.appendChild(dp);
+      const row3 = el('div', 'row');
+      row3.appendChild(del);
+      box.appendChild(row3);
+    };
+    V.getAI().then((ai) => build(ai && ai.error ? null : ai)).catch(() => build(null));
+  }
+
+  /* ------------------------------------------------------------ 初始化 */
+  window.addEventListener('DOMContentLoaded', function () {
+    $('btnSave').onclick = saveToFile;
+    $('btnLoad').onclick = function () { openToolbox('load'); };
+    $('btnCard').onclick = function () {
+      const txt = E.serialize(state || E.createGame({}));
+      addLog('muted', '【存档卡】' + txt.slice(0, 240) + '…（完整内容用「导出存档」保存）');
+    };
+    $('btnAI').onclick = function () { openToolbox('ai'); };
+    $('btnCustom').onclick = function () {
+      const v = $('customInput').value;
+      if (!v.trim()) return;
+      $('customInput').value = '';
+      onChoice('__custom__', v);
+    };
+    refreshAIState();   // 刷新后一律回到"未登录"，AI 配置留在加密保管库里
+    showMenu();
+  });
+})();
+</script>
+</body>
+</html>
