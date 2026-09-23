@@ -3130,6 +3130,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       flags: Object.assign({ safehouse: 0, disguise: 0, intel: 0, marks: 0, favor: 0 }, pack.flags || {}),
       attempts: {},
       chapterReduction: 0,   // 本章已使用的劫难降低量（上限 5）
+      chapterPurge: 0,       // 本章已用「处置灵异源头」次数（上限 3，不受 5 点上限约束）
+      purgeRisk: 0,          // 本次处置带来的"当天遭遇率"加成（当天有效）
       chapterSpendings: 0,   // 本章收入（上限 500 万）
       clueGains: 0,          // 本章线索收获次数（旧字段，保留兼容）
       lastClueTurn: -99,     // 上次获得线索的天数（冷却 3 天）
@@ -3362,6 +3364,16 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
 
   /* ------------------------------------------------------- 劫难降低（P1） */
   const CHAPTER_REDUCTION_CAP = 5; // 补丁 P1.4：每章由 4.2 手段带来的总降幅 ≤5
+  // 「处置灵异源头」（主动压劫难）：不受上面那条 5 点上限约束（它是本设计里唯一能追上世界推进的手段），
+  // 但代价是当天遭遇率大幅上升 + 每章限 3 次 + 递减收益 + 劫难值下限仍然生效。
+  const PURGE_CALM = [8, 5, 3];      // 本章第 1/2/3 次的劫难降幅
+  const PURGE_RISK = [15, 25, 35];   // 对应这次给"当天遭遇率"的加成（百分点）
+  const PURGE_COST = [
+    [{ k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'stamina', v: -10 }, { k: 'stat', key: 'pollution', v: 6 }],
+    [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'stat', key: 'stamina', v: -16 }, { k: 'stat', key: 'pollution', v: 10 }],
+    [{ k: 'stat', key: 'sanity', v: -10 }, { k: 'stat', key: 'stamina', v: -22 }, { k: 'stat', key: 'pollution', v: 15 }],
+  ];
+  const PURGE_PER_CHAPTER = 3;
   const CHAPTER_HUMANITY_CAP = 5;  // 补丁 P7.5：每章人性回复总量上限 5 点
   const CLUE_COOLDOWN = 3;         // 线索：每 3 天最多一次实质收获（防刷线索开全图）
 
@@ -3386,6 +3398,15 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       return { ok: true, applied: real, capped: '已达劫难值下限（' + state.calamityFloor + '），降低手段失效' };
     }
     return { ok: true, applied: real };
+  }
+
+  /** 处置灵异源头专用：绕过"每章降幅 ≤5"的上限，但仍然受劫难值下限约束（下限由 bounds 钳制） */
+  function purgeCalamity(state, amount, reason) {
+    const before = state.stats.calamity;
+    addPath(state, 'stats.calamity', -Math.abs(amount), reason);
+    const real = before - state.stats.calamity;
+    const floored = real < Math.abs(amount);
+    return { applied: real, floored: floored };
   }
 
   /* ------------------------------------------------------------ 世界推进 */
@@ -3491,6 +3512,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     state.chapter = Math.ceil(state.turn / 7);
     if (state.turn % 7 === 1) {
       state.chapterReduction = 0;
+      state.chapterPurge = 0;       // 「处置灵异源头」的每章次数同时重置
       state.clueGains = 0;
       state.humanityGains = 0;
       // 本章收入上限：必须每"章"（7 天）重置一次。
@@ -3505,6 +3527,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     for (const p of Object.keys(BOUNDS)) state.ledgerStart[p] = getPath(state, p);
     state.turnRoll = dailyRoll(state);
     state.actionTakenToday = false;
+    state.purgeRisk = 0;           // 处置的风险只在当天有效
     state.phase = 'day';
     state.pending = null;
   }
@@ -3563,7 +3586,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       if (banned.indexOf(c.id) >= 0) continue;   // 某些时期不存在这条路（如古代没有"总部黄金收容"）
       if (c.when(state)) {
         const def = CONTENT.endings[c.id];
-        return endGame(state, c.id, def ? def.text : '世界线走到了尽头。');
+        return endGame(state, c.id, def ? def.text : '世界线走到了尽头。', 'world');
       }
     }
     return null;
@@ -3572,14 +3595,14 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
   /* --------------------------------------------------------- 阈值与结局 */
   function checkThresholds(state) {
     if (state.over) return;
-    if (state.stats.erosion >= 100) return endGame(state, 'p_fuxi', '鬼侵蚀抵达 100，你不再是人。');
-    if (state.stats.humanity <= 0) return endGame(state, 'p_fuxi', '人性归零，你在镜子里看见的不再是自己。');
+    if (state.stats.erosion >= 100) return endGame(state, 'p_fuxi', '鬼侵蚀抵达 100，你不再是人。', 'erosion');
+    if (state.stats.humanity <= 0) return endGame(state, 'p_fuxi', '人性归零，你在镜子里看见的不再是自己。', 'humanity');
     if (state.stats.calamity >= 100) {
       triggerCalamity(state);
       if (state.over) return;
       // 劫难代价（侵蚀 +10）可能当场把人推过终点，必须立刻复检
-      if (state.stats.erosion >= 100) return endGame(state, 'p_fuxi', CONTENT.endings.p_fuxi.text);
-      if (state.stats.humanity <= 0) return endGame(state, 'p_fuxi', CONTENT.endings.p_fuxi.text);
+      if (state.stats.erosion >= 100) return endGame(state, 'p_fuxi', CONTENT.endings.p_fuxi.text, 'calamity');
+      if (state.stats.humanity <= 0) return endGame(state, 'p_fuxi', CONTENT.endings.p_fuxi.text, 'calamity');
     }
   }
 
@@ -3598,8 +3621,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       { name: '灾厄印记', v: -marks * 10 },
     ]);
     if (!r.success) {
-      if (marks + 1 >= 5) return endGame(state, 'w_ruyu', CONTENT.endings.w_ruyu.text);
-      return endGame(state, 'dead', '劫难降临，这一次你没有躲过去。');
+      if (marks + 1 >= 5) return endGame(state, 'w_ruyu', CONTENT.endings.w_ruyu.text, 'calamity');
+      return endGame(state, 'dead', '劫难降临，这一次你没有躲过去。', 'calamity');
     }
     // 存活：回落但不得跌破下限（补丁 P1.3）
     const godTier = state.pack === 'yangji' || state.contracts.length >= 3;
@@ -3617,8 +3640,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     return null;
   }
 
-  function endGame(state, endingId, text) {
-    state.over = { ending: endingId, text: text, turn: state.turn };
+  function endGame(state, endingId, text, cause) {
+    state.over = { ending: endingId, text: text, turn: state.turn, cause: cause || 'other' };
     state.phase = 'over';
     state.meta.deaths += 1;
     state.meta.bestTurn = Math.max(state.meta.bestTurn || 0, state.turn);
@@ -3785,6 +3808,27 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
         applyEffects(s, [{ k: 'stat', key: 'sanity', v: 8 }, { k: 'stat', key: 'stamina', v: 15 }], '静养');
         const r = reduceCalamity(s, 5, '静养一夜（4.2）');
         return { lines: ['你把门窗封严，点上一支鬼烛，强迫自己睡下。', r.ok ? '劫难值 -' + r.applied + (r.capped ? '（' + r.capped + '）' : '') : r.why] };
+      },
+    });
+    add({
+      id: 'purge', label: '处置灵异源头（主动压劫难值，当天极易遭遇）', tags: ['probe'],
+      if: (s) => (s.flags.intel >= 1 || s.clues.length >= 1) && (s.chapterPurge || 0) < PURGE_PER_CHAPTER,
+      run: (s) => {
+        const n = s.chapterPurge || 0;
+        const calm = PURGE_CALM[n];
+        const risk = PURGE_RISK[n];
+        applyEffects(s, PURGE_COST[n], '处置开销');
+        s.chapterPurge = n + 1;
+        s.purgeRisk = (s.purgeRisk || 0) + risk;   // 当天遭遇率上升：压劫难要用命换
+        const r = purgeCalamity(s, calm, '处置灵异源头（本章第 ' + (n + 1) + ' 次）');
+        const lines = [
+          '你顺着线索摸到那个源头，把它的"规矩"一层层拆开，写进纸上。',
+          r.floored
+            ? '劫难值 -' + r.applied + '（已触到下限 ' + s.calamityFloor + '，再压也没用）'
+            : '劫难值 -' + r.applied,
+          '代价是你把自己亮在了明处：今天遇上东西的概率 +' + risk + '%，本章还能处置 ' + (PURGE_PER_CHAPTER - s.chapterPurge) + ' 次。',
+        ];
+        return { lines: lines };
       },
     });
     add({
@@ -4061,6 +4105,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     c += state.stats.stealth < 30 ? 10 : 0;
     c += (cityOf(state).mods && cityOf(state).mods.encounter) || 0;
     c += (eraOf(state).mods && eraOf(state).mods.encounter) || 0;
+    c += state.purgeRisk || 0;      // 「处置灵异源头」当天把自己亮出来的代价
     return clamp(c, 3, tu.encounterCap);
   }
 
@@ -4123,12 +4168,14 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     const lines = [];
     const settlement = [];
     let dead = false;
+    let deadCause = null;
 
     if (opt.kind === 'trap') {
       // 确定性必死判定；只有持有有效抵御手段才进入概率结算
       const shield = pickShield(state, g);
       if (!shield) {
         dead = true;
+        deadCause = 'encounter-trap';
         lines.push('你做出了那个选择。空气安静了一瞬——然后规律合拢。');
         settlement.push('命中「' + g.name + '」的杀人规律 → 无有效灵异道具/能力 → 默认必死（确定性判定，不含随机数）');
       } else {
@@ -4147,6 +4194,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
           lines.push(shield.text);
         } else {
           dead = true;
+          deadCause = 'encounter-resist';
           lines.push('「' + shield.name + '」没能挡住它。');
         }
       }
@@ -4170,7 +4218,8 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       if (r.refused) {
         // 引擎拒绝第三次判定：按失败结算（确定性，不放大玩家收益）
         settlement.push('中性判定被拒绝：' + r.note + ' → 按失败结算');
-        applyEffects(state, [{ k: 'stat', key: 'pollution', v: 12 }, { k: 'stat', key: 'stamina', v: -25 }], '重复试探的代价');
+        applyEffects(state, [{ k: 'stat', key: 'pollution', v: 12 }, { k: 'stat', key: 'stamina', v: -25 },
+          { k: 'stat', key: 'erosion', v: 4 }, { k: 'stat', key: 'sanity', v: -8 }], '重复试探的代价');
         lines.push('你已经用同样的方式走过这条路两遍了。这一次，它记得你。');
       } else {
         settlement.push('中性判定：' + r.formula);
@@ -4178,15 +4227,20 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
           applyEffects(state, [{ k: 'stat', key: 'pollution', v: 5 }, { k: 'stat', key: 'sanity', v: -5 }], '擦身而过');
           lines.push('你贴着墙走过去，它没有回头看你。');
         } else {
-          applyEffects(state, [{ k: 'stat', key: 'pollution', v: 12 }, { k: 'stat', key: 'stamina', v: -25 }], '被波及');
+          // 中性失败不再是"零风险"：擦身而过要留下不可逆的侵蚀。
+          // 否则一直选安全项就能无损穿过所有遭遇 → 遭遇战没有威胁，"两种威胁各占一半"永远做不到。
+          const ero = 3 + Math.floor(g.penalty / 15);   // 等级越高，被波及的不可逆代价越大（B 级 4、A 级 6、S 级 7）
+          applyEffects(state, [{ k: 'stat', key: 'pollution', v: 12 }, { k: 'stat', key: 'stamina', v: -25 },
+            { k: 'stat', key: 'erosion', v: ero }, { k: 'stat', key: 'sanity', v: -6 }], '被波及');
           lines.push('你被那股东西卷了一下，五脏六腑像被人攥了一把。');
+          settlement.push('被波及：污染 +12、体力 -25、侵蚀 +' + ero + '、理智 -6（中性失败会留下不可逆侵蚀）');
         }
       }
     }
 
     state.pending = null;
     state.phase = 'day';
-    return { lines: lines, settlement: settlement, dead: dead, ghost: g };
+    return { lines: lines, settlement: settlement, dead: dead, deadCause: deadCause, ghost: g };
   }
 
   function pickShield(state, g) {
@@ -4226,6 +4280,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     const settlement = [];
     let dead = false;
     let fatalEnding = null;
+    let fatalCause = null;
     let lastVariant = null;   // 供界面取"行动结果变体句"
 
     if (state.phase === 'encounter' && state.pending) {
@@ -4234,6 +4289,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       narrative.push.apply(narrative, r.lines);
       settlement.push.apply(settlement, r.settlement);
       dead = r.dead;
+      fatalCause = r.deadCause || 'encounter';
     } else {
       // 硬约束：一天只能有一个主动作（读档/改存档都无法复制行动）
       if (state.actionTakenToday) {
@@ -4279,7 +4335,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       state.phase = 'over';
       const eid = fatalEnding || 'dead';
       const def = CONTENT.endings[eid] || CONTENT.endings.dead;
-      state.over = { ending: eid, text: def.text, turn: state.turn };
+      state.over = { ending: eid, text: def.text, turn: state.turn, cause: fatalCause || 'other' };
       state.meta.deaths += 1;
       state.meta.bestTurn = Math.max(state.meta.bestTurn || 0, state.turn);
     } else if (!state.pending && state.phase !== 'over') {
@@ -4306,6 +4362,9 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       落地: city.name + (state.cityRandom ? '（随机）' : ''),
       时期: era.short + (state.eraRandom ? '（随机）' : ''),
       本地规矩: (city.rule && city.rule.text) || '无',
+      劫难处置: ((state.flags.intel >= 1 || state.clues.length >= 1)
+        ? '本章剩 ' + Math.max(0, PURGE_PER_CHAPTER - (state.chapterPurge || 0)) + ' 次（用「处置灵异源头」主动压）'
+        : '需要 1 点情报或 1 条线索'),
       难度: tuningOf(state).name + (state.over ? '' : ''),
       鬼侵蚀: state.stats.erosion,
       人性: state.stats.humanity + ' / ' + clamp(100 - state.stats.erosion, 0, 100),
@@ -4343,6 +4402,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
       flags: state.flags, attempts: state.attempts, calamityFloor: state.calamityFloor,
       meta: state.meta, events: state.events, calamityEscapes: state.calamityEscapes,
       worldAdvance: state.worldAdvance, chapterReduction: state.chapterReduction,
+      chapterPurge: state.chapterPurge || 0, purgeRisk: state.purgeRisk || 0,
       chapterSpendings: state.chapterSpendings, clueGains: state.clueGains,
       lastClueTurn: state.lastClueTurn, humanityGains: state.humanityGains,
       freezeUses: state.freezeUses, mechUsed: state.mechUsed, mechRequest: state.mechRequest,
@@ -4794,6 +4854,10 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
     act_custom: ['你决定不按常理来一次。', '你选了一个没人会选的做法。', '你想要点不一样的东西。'],
     act_city: ['你按本地人的规矩办了这件事。', '这里的规矩和外头不一样，你照着做了。',
       '你走了一趟只有这座城才有的路。', '本地人教你怎么办，你照办了。'],
+    act_purge: ['你顺着线索摸到源头，把它的规矩一条条拆开记下。',
+      '你把自己当成诱饵，等它先动——然后记下它怎么动。',
+      '你拆掉了那处源头赖以存在的东西，天色当场亮了一格。',
+      '你把整件事写成一份处置报告，签上自己的名字（用代号）。'],
   };
 
   /* ------------------------------------------------------------ 取句逻辑 */
