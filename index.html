@@ -150,6 +150,9 @@ body.panelOpen #side{display:block}
 .galleryArt{height:120px}
 .galleryArt svg{display:block; width:100%; height:100%}
 .galleryLabel{padding:5px 7px; font-size:12px; color:#c8d2dc}
+/* 第 21 轮：新画风样张（国漫动画风） */
+.galleryArt.v2{height:172px; background:#07090d}
+.galleryNote{padding:0 7px 7px; font-size:11.5px; color:var(--dim); line-height:1.5}
 /* ==== 画册放大：缩略图太小认不出内容（视觉核对反馈）==== */
 .galleryGrid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px}
 .galleryArt{height:158px}
@@ -246,6 +249,38 @@ body.story-mode .logwrap{max-height:22vh !important}
 @media (max-width:900px){
   .codexGrid{grid-template-columns:1fr}
   .codexMeta{margin-left:0; width:100%}
+}
+/* ==== 第 21 轮：图鉴升级（成就分类 + 厉鬼维度雷达图 + 维度总览）==== */
+.codexCat{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin:14px 0 2px;
+  padding-bottom:4px; border-bottom:1px solid #1d2530}
+.codexCatName{font-size:14px; font-weight:700; color:#ffb59a; letter-spacing:.4px}
+.codexCatProgress{font-size:12.5px; color:var(--accent)}
+.codexCatDesc{font-size:12px; color:var(--dim); margin-left:auto}
+.codexRow.clickable{cursor:pointer; transition:border-color .15s, background .15s}
+.codexRow.clickable:hover{border-color:#3d5b73; background:#101a24}
+.codexRow.clickable::after{content:'▾ 点开看维度'; position:absolute; right:10px; top:8px;
+  font-size:11.5px; color:#5e6b78}
+.codexRow{position:relative}
+.codexDetail{margin-top:10px; padding-top:10px; border-top:1px dashed #24303c}
+.dimsWrap{display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap}
+.radarBox{flex:0 0 260px; max-width:100%; border:1px solid #223040; border-radius:10px; overflow:hidden; background:#0a0f14}
+.radarBox svg{display:block}
+.dimsSide{flex:1 1 260px; min-width:220px}
+.dimsNote{font-size:12.5px; color:#c8d2dc; line-height:1.6; margin:0 0 6px}
+.dimLocked{font-size:12.5px; color:#6c7885; line-height:1.6}
+.dimBars{margin:6px 0 10px}
+.dimRow{display:flex; align-items:center; gap:8px; margin:3px 0}
+.dimKey{flex:0 0 62px; font-size:12px; color:#9fb0c0}
+.dimTrack{flex:1; height:7px; border-radius:4px; background:#161e26; overflow:hidden}
+.dimFill{height:100%; border-radius:4px}
+.dimVal{flex:0 0 26px; text-align:right; font-size:12px; color:#c8d2dc}
+.dimsOverviewChart{max-width:420px; border:1px solid #223040; border-radius:10px; overflow:hidden; background:#0a0f14; margin:6px 0 12px}
+.dimsOverviewChart svg{display:block}
+.dimRankGrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; margin:6px 0}
+.dimRankCell{border:1px solid #232c38; border-left:3px solid #3d5b73; border-radius:8px; padding:8px 10px; background:#0c1218}
+@media (max-width:900px){
+  .radarBox{flex:1 1 100%}
+  .codexRow.clickable::after{content:'▾'; position:static; float:right}
 }</style>
 </head>
 <body>
@@ -1307,6 +1342,36 @@ body.story-mode .logwrap{max-height:22vh !important}
     { id: 'p_mad', when: (s) => s.stats.sanity <= 0 },
   ];
 
+  /* ------------------------------------------------- 厉鬼维度（第 21 轮）
+   * 用户要求「加个厉鬼维度图」：给每只鬼六个 0~100 的维度分，图鉴里用雷达图画出来，
+   * 让"它有多危险 / 危险在哪"一眼看得出来。这组数字只用于图鉴展示，
+   * 不参与任何判定（判定仍然按 level / penalty / clues 走）。
+   */
+  const ghostDims = {
+    guiying: { threat: 45, rule: 50, sense: 70, pollution: 40, sanity: 55, counter: 35, note: '靠声音定位：你动得越多，它越清楚你在哪。' },
+    qiaomen: { threat: 95, rule: 95, sense: 90, pollution: 70, sanity: 80, counter: 85, note: '鬼域整栋覆盖，规律即它本身：三长两短的敲门声就是杀人规则。' },
+    wutou: { threat: 70, rule: 60, sense: 80, pollution: 55, sanity: 65, counter: 55, note: '视线锁定型：它不动，是因为它不需要动。' },
+    guiguan: { threat: 72, rule: 65, sense: 55, pollution: 70, sanity: 60, counter: 60, note: '尸气与棺器最伤人：被碰到的地方会一直往坏里走。' },
+    eshigui: { threat: 92, rule: 85, sense: 75, pollution: 80, sanity: 70, counter: 75, note: '饿：它会吃完一整座城，规律写在"吃"这件事上。' },
+    jingqiaoqiao: { threat: 22, rule: 35, sense: 45, pollution: 25, sanity: 40, counter: 20, note: '最弱的鬼：只要不出声，它连你在哪都不知道。' },
+    qigui: { threat: 68, rule: 80, sense: 60, pollution: 50, sanity: 62, counter: 65, note: '必须按棋规应对：走错一步不是输棋，是不在了。' },
+    yachuang: { threat: 50, rule: 55, sense: 40, pollution: 45, sanity: 70, counter: 40, note: '只在睡眠里动手：你看不见它的时候它最危险。' },
+    guixiang: { threat: 72, rule: 70, sense: 65, pollution: 60, sanity: 75, counter: 62, note: '镜子里的人会慢慢变成它——照着照着你就换了。' },
+    ganshigui: { threat: 55, rule: 60, sense: 50, pollution: 65, sanity: 55, counter: 45, note: '尸队过境，走到哪脏到哪：代价是跟一路的。' },
+    jietianyuan: { threat: 25, rule: 45, sense: 55, pollution: 30, sanity: 50, counter: 25, note: '电话能打到你：接不接、记不记，都是规矩的一部分。' },
+    xulie: { threat: 70, rule: 85, sense: 60, pollution: 65, sanity: 68, counter: 70, note: '顺序即规律：该第三步的药，第二步喝下去就是死。' },
+    lingqi: { threat: 65, rule: 70, sense: 55, pollution: 55, sanity: 60, counter: 70, note: '以劫为修：它扛得住的东西，普通人扛不住。' },
+    yinqigui: { threat: 50, rule: 55, sense: 45, pollution: 75, sanity: 50, counter: 42, note: '阴气入体最麻烦：不疼，但会一点点把你改成别的。' },
+    yiwang: { threat: 62, rule: 75, sense: 50, pollution: 45, sanity: 85, counter: 60, note: '精神冲击第一：它不杀你，它让你不再是"你"。' },
+    zhenname: { threat: 90, rule: 92, sense: 85, pollution: 60, sanity: 75, counter: 88, note: '真名被叫住就成立：连你自己都不能喊。' },
+    tonggui: { threat: 70, rule: 65, sense: 88, pollution: 55, sanity: 65, counter: 58, note: '看见即被锁定：它的感知维度比别的鬼高一大截。' },
+    xuanze: { threat: 48, rule: 70, sense: 45, pollution: 40, sanity: 72, counter: 50, note: '两难：它不追你，它让你自己选错。' },
+  };
+  const DIM_LABEL = {
+    threat: '威胁', rule: '规律严苛', sense: '感知追踪',
+    pollution: '污染', sanity: '精神冲击', counter: '反制难度',
+  };
+
   /* --------------------------------------------------------------- 人物 */
   const npcs = {
     lin: {
@@ -1467,6 +1532,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     hashIdx: hashIdx,
     endings: endings,
     worldEndingChecks: worldEndingChecks,
+    ghostDims: ghostDims,
+    dimLabel: DIM_LABEL,
     narrative: narrative,
     meta: { title: '灵异复苏 · 通用互动剧情模板', version: 'v3.1', engine: 'program-host' },
   };
@@ -4571,6 +4638,8 @@ body.story-mode .logwrap{max-height:22vh !important}
             { k: 'stat', key: 'stamina', v: -20 },
           ], '抵御成功的代价');
           lines.push(shield.text);
+          // 第 21 轮：记录"用道具挡下了规律"（成就用，不参与判定）
+          state.events.done.push('shield:' + shield.item + ':' + g.id);
         } else {
           dead = true;
           deadCause = 'encounter-resist';
@@ -4613,6 +4682,8 @@ body.story-mode .logwrap{max-height:22vh !important}
             { k: 'stat', key: 'erosion', v: ero }, { k: 'stat', key: 'sanity', v: -6 }], '被波及');
           lines.push('你被那股东西卷了一下，五脏六腑像被人攥了一把。');
           settlement.push('被波及：污染 +12、体力 -25、侵蚀 +' + ero + '、理智 -6（中性失败会留下不可逆侵蚀）');
+          // 第 21 轮：记录"被波及过"（成就用，不参与判定）
+          state.events.done.push('hit:neutral:' + g.id);
         }
       }
     }
@@ -4694,6 +4765,9 @@ body.story-mode .logwrap{max-height:22vh !important}
         if (r.check && r.check.formula) settlement.push(r.check.formula);
         if (r.fatal) { dead = true; fatalEnding = 'p_fuxi'; }
         lastVariant = String(act.id).split(':')[0];
+        // 第 21 轮：记录"这一局做过哪些行动"（act:<id>），供成就与图鉴统计。
+        // 只做记录、不参与判定；老存档没有这些条目也不影响任何结算。
+        state.events.done.push('act:' + act.id);
       }
       state.actionTakenToday = true;
       // 遭遇判定
@@ -4902,6 +4976,7 @@ body.story-mode .logwrap{max-height:22vh !important}
       seen: { ghostView: false, secondRun: false },
       faced: {},                 // 图鉴：遭遇过的厉鬼 id → true（跨局累积）
       knownClues: {},            // 图鉴：掌握过的规律线索 id → true
+      escaped: {},               // 图鉴：从这只鬼手里走生路存活的次数
     };
   }
 
@@ -4928,30 +5003,130 @@ body.story-mode .logwrap{max-height:22vh !important}
   }
 
   /* ------------------------------------------------------------- 成就表 */
-  // cond(ctx) → boolean；ctx = { state, ending, run }
-  const ACHIEVEMENTS = [
-    { id: 'first_contract', name: '初拥', desc: '第一次成功驾驭厉鬼', cond: (c) => c.run.contracts >= 2 || (c.state.contracts && c.state.contracts.length >= 2) },
-    { id: 'survive_10', name: '活过十天', desc: '单局存活 ≥10 天', cond: (c) => c.run.turn >= 10 },
-    { id: 'survive_30', name: '一个月', desc: '单局存活 ≥30 天', cond: (c) => c.run.turn >= 30 },
-    { id: 'survive_50', name: '钉子户', desc: '单局存活 ≥50 天', cond: (c) => c.run.turn >= 50 },
-    { id: 'escape_s', name: '规律之下', desc: '从 S 级厉鬼的遭遇里走生路存活', cond: (c) => c.run.sEscapes >= 1 },
-    { id: 'escape_3', name: '三次擦肩', desc: '累计 3 次靠生路从遭遇中存活', cond: (c) => c.run.escapes >= 3 },
-    { id: 'collector_5', name: '结局收集者', desc: '解锁 5 种结局', cond: (c) => Object.keys(c.profile.endings).length >= 5 },
-    { id: 'collector_all', name: '全结局', desc: '解锁全部 11 种结局', cond: (c) => Object.keys(c.profile.endings).length >= 11 },
-    { id: 'rich', name: '黄金满仓', desc: '单局持有 ≥50kg 黄金', cond: (c) => c.run.maxGold >= 50 },
-    { id: 'polymath', name: '玩法通', desc: '单局触发过 40 条不同玩法机制', cond: (c) => c.run.mechCount >= 40 },
-    { id: 'lorekeeper', name: '知情者', desc: '单局掌握 ≥10 条线索', cond: (c) => c.state.clues.length >= 10 },
-    { id: 'hardcore_30', name: '硬核生存', desc: '在硬核及以上难度存活 ≥30 天', cond: (c) => c.run.turn >= 30 && ['hardcore', 'nightmare'].includes(c.state.difficulty) },
-    { id: 'nightmare_death', name: '直面极难', desc: '在极难（原著档）死掉或终局一次', cond: (c) => c.state.difficulty === 'nightmare' },
-    { id: 'family', name: '人间烟火', desc: '达成家庭线结局', cond: (c) => c.ending === 'p_family' },
-    { id: 'god', name: '规则之神', desc: '达成规则之神结局', cond: (c) => c.ending === 'w_rules' },
+  // cond(ctx) → boolean；ctx = { state, ending, run, profile }
+  // 第 21 轮：15 条 → 52 条，并按分类展示（图鉴「成就」页按分类分组+分类进度）。
+  // run 字段见 runSummary()：turn/difficulty/ending/escapes/sEscapes/contracts/maxGold/
+  // mechCount/clues/erosion/marks/encounters/purges/shields/neutralHits/actions/freezeUses/
+  // godLayers/stealth/causality/humanity/sanity/calamity/contribution/cash/safehouse/relationships
+  const ACH_CATS = [
+    { id: 'survive', name: '生存', desc: '活得久、活得干净' },
+    { id: 'mastery', name: '驾驭', desc: '把鬼纳入身体，或干脆不碰' },
+    { id: 'encounter', name: '遭遇', desc: '在规矩里走出来' },
+    { id: 'world', name: '世界', desc: '压劫难、攒家底、攒线索' },
+    { id: 'collect', name: '收集', desc: '结局与图鉴' },
+    { id: 'play', name: '玩法', desc: '把机制玩出花' },
+    { id: 'easter', name: '彩蛋', desc: '不太好拿的那种' },
   ];
+
+  const ACHIEVEMENTS = [
+    // —— 生存 ——
+    { id: 'survive_10', cat: 'survive', name: '活过十天', desc: '单局存活 ≥10 天', cond: (c) => c.run.turn >= 10 },
+    { id: 'survive_30', cat: 'survive', name: '一个月', desc: '单局存活 ≥30 天', cond: (c) => c.run.turn >= 30 },
+    { id: 'survive_50', cat: 'survive', name: '钉子户', desc: '单局存活 ≥50 天', cond: (c) => c.run.turn >= 50 },
+    { id: 'survive_75', cat: 'survive', name: '两个半月', desc: '单局存活 ≥75 天', cond: (c) => c.run.turn >= 75 },
+    { id: 'survive_100', cat: 'survive', name: '百日', desc: '单局存活 ≥100 天', cond: (c) => c.run.turn >= 100 },
+    { id: 'clean_30', cat: 'survive', name: '干净地活着', desc: '存活 ≥30 天且侵蚀 <15', cond: (c) => c.run.turn >= 30 && c.run.erosion < 15 },
+    { id: 'calm_30', cat: 'survive', name: '逆势存活', desc: '存活 ≥30 天且劫难值 ≥60（世界快塌了你还活着）', cond: (c) => c.run.turn >= 30 && c.run.calamity >= 60 },
+    { id: 'sane_20', cat: 'survive', name: '头脑清醒', desc: '存活 ≥20 天且理智 ≥70', cond: (c) => c.run.turn >= 20 && c.run.sanity >= 70 },
+    { id: 'hardcore_30', cat: 'survive', name: '硬核生存', desc: '在硬核及以上难度存活 ≥30 天', cond: (c) => c.run.turn >= 30 && ['hardcore', 'nightmare'].includes(c.state.difficulty) },
+    { id: 'nightmare_win', cat: 'survive', name: '极难通关', desc: '在极难（原著档）拿到非死亡结局', cond: (c) => c.state.difficulty === 'nightmare' && c.ending && c.ending !== 'dead' && c.ending !== 'unfinished' },
+    { id: 'nightmare_death', cat: 'survive', name: '直面极难', desc: '在极难（原著档）死掉或终局一次', cond: (c) => c.state.difficulty === 'nightmare' },
+    { id: 'hot_streak', cat: 'survive', name: '连战十日', desc: '单局遭遇 ≥10 次仍然活着', cond: (c) => c.run.encounters >= 10 && c.run.turn >= 15 },
+
+    // —— 驾驭 ——
+    { id: 'first_contract', cat: 'mastery', name: '初拥', desc: '第一次成功驾驭厉鬼', cond: (c) => c.run.contracts >= 2 || (c.state.contracts && c.state.contracts.length >= 2) },
+    { id: 'contract_3', cat: 'mastery', name: '三份契约', desc: '同时持有 ≥3 份契约', cond: (c) => c.run.contracts >= 3 },
+    { id: 'contract_5', cat: 'mastery', name: '五鬼在体', desc: '同时持有 ≥5 份契约', cond: (c) => c.run.contracts >= 5 },
+    { id: 'godlayer_9', cat: 'mastery', name: '九层鬼域', desc: '杨戬开局的鬼域护体足额 9 层', cond: (c) => (c.state.godLayers || 0) >= 9 },
+    { id: 'freeze_3', cat: 'mastery', name: '死机法三连', desc: '单局使用「死机法」≥3 次还活着', cond: (c) => (c.run.freezeUses || 0) >= 3 },
+    { id: 'no_contract_20', cat: 'mastery', name: '赤手空拳', desc: '一份契约都没有，活过 20 天', cond: (c) => c.run.contracts === 0 && c.run.turn >= 20 },
+    { id: 'train_5', cat: 'mastery', name: '苦修', desc: '单局训练与冲重 ≥5 次', cond: (c) => actN(c, 'train') >= 5 },
+
+    // —— 遭遇 ——
+    { id: 'escape_s', cat: 'encounter', name: '规律之下', desc: '从 S 级厉鬼的遭遇里走生路存活', cond: (c) => c.run.sEscapes >= 1 },
+    { id: 'escape_3', cat: 'encounter', name: '三次擦肩', desc: '累计 3 次靠生路从遭遇中存活', cond: (c) => c.run.escapes >= 3 },
+    { id: 'escape_10', cat: 'encounter', name: '十次擦肩', desc: '累计 10 次靠生路从遭遇中存活', cond: (c) => c.run.escapes >= 10 },
+    { id: 'shield_1', cat: 'encounter', name: '有备而来', desc: '用道具/契约正面挡下一次杀人规律', cond: (c) => c.run.shields >= 1 },
+    { id: 'shield_3', cat: 'encounter', name: '一身家当', desc: '累计 3 次挡下杀人规律', cond: (c) => c.run.shields >= 3 },
+    { id: 'hit_survive_30', cat: 'encounter', name: '带着伤活下来', desc: '被中性失败波及过，仍活到第 30 天', cond: (c) => c.run.neutralHits >= 1 && c.run.turn >= 30 },
+    { id: 'bestiary_6', cat: 'encounter', name: '见多识广', desc: '单局遭遇过 ≥6 种不同的厉鬼', cond: (c) => c.state.bestiary && Object.keys(c.state.bestiary).length >= 6 },
+
+    // —— 世界 ——
+    { id: 'calamity_floor', cat: 'world', name: '触底', desc: '把劫难值压到本局下限', cond: (c) => c.run.calamity <= c.state.calamityFloor && c.run.turn >= 5 },
+    { id: 'purge_3', cat: 'world', name: '处置三次', desc: '单局主动处置灵异源头 ≥3 次', cond: (c) => actN(c, 'purge') >= 3 },
+    { id: 'safehouse_5', cat: 'world', name: '五处退路', desc: '建立 ≥5 处安全屋', cond: (c) => (c.state.flags.safehouse || 0) >= 5 },
+    { id: 'contribution_200', cat: 'world', name: '总部同僚', desc: '贡献值 ≥200', cond: (c) => c.state.money.contribution >= 200 },
+    { id: 'rich', cat: 'world', name: '黄金满仓', desc: '持有 ≥50kg 黄金', cond: (c) => c.run.maxGold >= 50 },
+    { id: 'gold_100', cat: 'world', name: '黄金百斤', desc: '持有 ≥100kg 黄金', cond: (c) => c.run.maxGold >= 100 },
+    { id: 'lorekeeper', cat: 'world', name: '知情者', desc: '单局掌握 ≥10 条线索', cond: (c) => c.run.clues >= 10 },
+    { id: 'clue_16', cat: 'world', name: '拼图手', desc: '单局掌握 ≥16 条线索', cond: (c) => c.run.clues >= 16 },
+    { id: 'stealth_90', cat: 'world', name: '隐姓埋名', desc: '低调值 ≥90（没人记得你）', cond: (c) => c.run.stealth >= 90 },
+    { id: 'mission_5', cat: 'world', name: '编制内的人', desc: '单局接总部任务 ≥5 次', cond: (c) => actN(c, 'mission') >= 5 },
+
+    // —— 收集 ——
+    { id: 'collector_5', cat: 'collect', name: '结局收集者', desc: '解锁 5 种结局', cond: (c) => Object.keys(c.profile.endings).length >= 5 },
+    { id: 'collector_8', cat: 'collect', name: '结局猎人', desc: '解锁 8 种结局', cond: (c) => Object.keys(c.profile.endings).length >= 8 },
+    { id: 'collector_all', cat: 'collect', name: '全结局', desc: '解锁全部 11 种结局', cond: (c) => Object.keys(c.profile.endings).length >= 11 },
+    { id: 'family', cat: 'collect', name: '人间烟火', desc: '达成家庭线结局', cond: (c) => c.ending === 'p_family' },
+    { id: 'god', cat: 'collect', name: '规则之神', desc: '达成规则之神结局', cond: (c) => c.ending === 'w_rules' },
+    { id: 'gate', cat: 'collect', name: '关门人', desc: '达成关门人结局', cond: (c) => c.ending === 'w_gate' },
+    { id: 'survivor_end', cat: 'collect', name: '幸存者', desc: '达成幸存者结局（活着退场）', cond: (c) => c.ending === 'p_survivor' },
+    { id: 'world_all', cat: 'collect', name: '四种世界', desc: '四种世界结局全部达成', cond: (c) => ['w_ruyu', 'w_golden', 'w_gate', 'w_rules', 'w_37'].every((k) => c.profile.endings[k]) },
+    { id: 'fac_18', cat: 'collect', name: '百鬼夜行', desc: '跨局遭遇过全部 18 只厉鬼', cond: (c) => Object.keys(c.profile.faced || {}).length >= 18 },
+    { id: 'know_20', cat: 'collect', name: '规律考据', desc: '跨局掌握 ≥20 条规律线索', cond: (c) => Object.keys(c.profile.knownClues || {}).length >= 20 },
+    { id: 'know_all', cat: 'collect', name: '规律全录', desc: '跨局掌握 ≥55 条规律线索', cond: (c) => Object.keys(c.profile.knownClues || {}).length >= 55 },
+
+    // —— 玩法 ——
+    { id: 'polymath', cat: 'play', name: '玩法通', desc: '单局触发过 40 条不同玩法机制', cond: (c) => c.run.mechCount >= 40 },
+    { id: 'polymath_60', cat: 'play', name: '机制大师', desc: '单局触发过 60 条不同玩法机制', cond: (c) => c.run.mechCount >= 60 },
+    { id: 'gamble_3', cat: 'play', name: '赌徒', desc: '单局进鬼事赌局 ≥3 次', cond: (c) => actN(c, 'gamble') >= 3 },
+    { id: 'marriage', cat: 'play', name: '成家', desc: '本局有了配偶', cond: (c) => !!c.state.wife },
+    { id: 'children_2', cat: 'play', name: '儿女双全', desc: '本局有 ≥2 个孩子', cond: (c) => (c.state.children || 0) >= 2 },
+    { id: 'social_5', cat: 'play', name: '关系网', desc: '维持 ≥5 段关系', cond: (c) => c.state.relationships && Object.keys(c.state.relationships).length >= 5 },
+    { id: 'explore_20', cat: 'play', name: '走遍全城', desc: '单局自由探索 ≥20 次', cond: (c) => c.run.explores >= 20 },
+
+    // —— 彩蛋 ——
+    { id: 'firstday_death', cat: 'easter', name: '开局即终', desc: '第 1 天就结束（死得很快，也是一种记录）', cond: (c) => c.run.turn <= 1 && c.ending === 'dead' },
+    { id: 'become_ghost', cat: 'easter', name: '复苏之鬼', desc: '侵蚀归零人性，自己变成鬼', cond: (c) => c.ending === 'p_fuxi' },
+    { id: 'mad_oracle', cat: 'easter', name: '疯子先知', desc: '理智归零但还活着', cond: (c) => c.ending === 'p_mad' },
+    { id: 'debt_end', cat: 'easter', name: '债主上门', desc: '因果值满，被鬼债收走', cond: (c) => c.ending === 'p_debtor' },
+    { id: 'broke_20', cat: 'easter', name: '穷着活', desc: '活过 20 天时现金 ≤0', cond: (c) => c.run.turn >= 20 && c.run.cash <= 0 },
+    { id: 'no_hit_30', cat: 'easter', name: '一次没挨过', desc: '存活 ≥30 天且从未被中性失败波及、从没死过', cond: (c) => c.run.turn >= 30 && c.run.neutralHits === 0 && c.run.erosion < 12 },
+  ];
+
+  // 统计小工具：老档案/合成数据里可能缺字段，一律当作 0 处理（缺字段不许把成就判定弄崩）
+  function actN(c, id) { return ((c.run && c.run.actions) || {})[id] || 0; }
+  function num(x) { return (typeof x === 'number' && isFinite(x)) ? x : 0; }
+
+  // 所有条件统一兜底：抛错 = 未达成（lint 会逐个执行条件，抛错会被判为定义错误）
+  for (const a of ACHIEVEMENTS) {
+    const fn = a.cond;
+    a.cond = function (c) { try { return !!fn(c); } catch (e) { return false; } };
+  }
+
+  /** 某个成就属于哪个分类（老档案里可能没有 cat 字段） */
+  function achCat(id) {
+    const a = ACHIEVEMENTS.find((x) => x.id === id);
+    return a ? (a.cat || 'survive') : 'survive';
+  }
 
   /* --------------------------------------------------- 单局统计与结算 */
   /** 从一局的状态里抽出用于成就与统计的数据 */
   function runSummary(state, ending) {
-    const escapes = (state.events.done || []).filter((x) => x.indexOf('escape:') === 0);
+    const done = (state.events.done || []);
+    const escapes = done.filter((x) => x.indexOf('escape:') === 0);
     const sEscapes = escapes.filter((x) => ['escape:qiaomen', 'escape:eshigui'].includes(x)).length;
+    const encounters = done.filter((x) => x.indexOf('enc:') === 0).length;
+    const shields = done.filter((x) => x.indexOf('shield:') === 0).length;
+    const neutralHits = done.filter((x) => x.indexOf('hit:neutral') === 0).length;
+    const actions = {};                 // act:<id> → 次数（老存档没有该前缀则为空表）
+    let explodes = 0;
+    for (const d of done) {
+      if (typeof d !== 'string' || d.indexOf('act:') !== 0) continue;
+      const id = d.slice(4);
+      actions[id] = (actions[id] || 0) + 1;
+      if (id.indexOf('probe_') === 0 || id.indexOf('city_') === 0) explodes += 1;
+    }
     return {
       turn: state.turn,
       ending: ending || (state.over ? state.over.ending : null),
@@ -4964,6 +5139,22 @@ body.story-mode .logwrap{max-height:22vh !important}
       clues: state.clues.length,
       erosion: state.stats.erosion,
       marks: state.flags.marks,
+      // 第 21 轮新增（供扩充后的成就使用）
+      encounters: encounters,
+      shields: shields,
+      neutralHits: neutralHits,
+      actions: actions,
+      explores: explodes,
+      freezeUses: state.freezeUses || 0,
+      godLayers: state.godLayers || 0,
+      stealth: state.stats.stealth,
+      humanity: state.stats.humanity,
+      sanity: state.stats.sanity,
+      calamity: state.stats.calamity,
+      causality: state.stats.causality,
+      cash: state.money.cash,
+      safehouse: state.flags.safehouse || 0,
+      contracts5: state.contracts.length,
     };
   }
 
@@ -5000,8 +5191,14 @@ body.story-mode .logwrap{max-height:22vh !important}
     // 只做记录，不参与任何判定公式，也不改变周目点数。
     if (!p.faced) p.faced = {};
     if (!p.knownClues) p.knownClues = {};
+    if (!p.escaped) p.escaped = {};
     for (const d of (state.events && state.events.done) || []) {
-      if (typeof d === 'string' && d.indexOf('enc:') === 0) p.faced[d.slice(4)] = true;
+      if (typeof d !== 'string') continue;
+      if (d.indexOf('enc:') === 0) p.faced[d.slice(4)] = true;
+      if (d.indexOf('escape:') === 0) {
+        const gid = d.slice(7);
+        p.escaped[gid] = (p.escaped[gid] || 0) + 1;
+      }
     }
     for (const c of state.clues || []) p.knownClues[c] = true;
 
@@ -5026,10 +5223,16 @@ body.story-mode .logwrap{max-height:22vh !important}
   function achievementProgress(profile) {
     const p = merge(empty(), profile);
     const list = ACHIEVEMENTS.map((a) => ({
-      id: a.id, name: a.name, desc: a.desc, unlocked: !!p.achievements[a.id],
+      id: a.id, cat: a.cat || 'survive', name: a.name, desc: a.desc, unlocked: !!p.achievements[a.id],
       at: p.achievements[a.id] ? p.achievements[a.id].at : null,
     }));
-    return { list: list, unlocked: list.filter((x) => x.unlocked).length, total: list.length };
+    const byCat = ACH_CATS.map((c) => {
+      const items = list.filter((x) => x.cat === c.id);
+      return { id: c.id, name: c.name, desc: c.desc, total: items.length,
+        unlocked: items.filter((x) => x.unlocked).length };
+    });
+    return { list: list, byCat: byCat, cats: ACH_CATS,
+      unlocked: list.filter((x) => x.unlocked).length, total: list.length };
   }
 
   /* --------------------------------------------------------- 存取（浏览器） */
@@ -5068,6 +5271,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     decode: decode,
     checksum: checksum,
     achievements: ACHIEVEMENTS,
+    achievementCats: ACH_CATS,
+    achCat: achCat,
     runSummary: runSummary,
     pointsFor: pointsFor,
     settle: settle,
@@ -6689,6 +6894,239 @@ body.story-mode .logwrap{max-height:22vh !important}
     ...[0, 1, 2, 3, 4, 5].map((i) => LN(112, 34 + i * 24, 288, 34 + i * 24, p[2], .26, 1.8)),
     E_(200, 166, 86, 12, p[2], .16)];
 
+  /* ============================================ 第 21 轮：国漫动画风（样张 5 张）
+   * 参考：《我叫杨间》动画（B站 BV1gpQZB5Ea8，第 391 集「撕信」）——
+   *   ① 赛璐璐平涂：2~3 个硬边色阶，不用渐变过渡，明暗交界是一条硬线；
+   *   ② 黑色粗描边（外轮廓 3.4，内部结构线 1.6~2）；
+   *   ③ 冷蓝夜色打底 + 单侧冷色轮廓光（rim light）勾边；
+   *   ④ 红色是唯一的暖色，只给鬼气/眼睛/血/封条，带辉光；
+   *   ⑤ 低机位、主体偏中心、四周压暗（vignette），人物只做剪影不画五官。
+   * 现在只做 5 张样张：knockdoor / crib / corridor / files / mirror。
+   * 用户确认画法后再把剩下 38 张按同一套重做（届时整组替换）。
+   */
+  const CEL_PALETTE = {
+    ancient: ['#0a1018', '#1a2533', '#5c7f9e', '#e8f4ff', '#3c4f63', '#0b1219', '#e0373f'],
+    minguo: ['#100e0c', '#241f18', '#7d6a4e', '#ffe9c0', '#4a3f31', '#0c0a08', '#d8402f'],
+    y2017: ['#080e18', '#16233a', '#5b81ab', '#eaf5ff', '#334a66', '#070c14', '#e0373f'],
+    y2018: ['#070f13', '#14262f', '#4f8a90', '#e6fff6', '#2f4a4d', '#060c0f', '#e0373f'],
+    y2019: ['#0a0814', '#1d1738', '#6d5c9c', '#f2e8ff', '#3a3157', '#08060f', '#e0373f'],
+    doomsday: ['#140808', '#2e1713', '#96513f', '#ffcf9e', '#4a2b22', '#0a0403', '#ff4a3d'],
+    after60: ['#101008', '#221f14', '#7a7250', '#fff6d2', '#46422f', '#0a0a06', '#d8402f'],
+  };
+  const CEL_INK = '#05080c';
+  const CEL_W = 400, CEL_H = 200;
+
+  /** 描边 + 平涂：赛璐璐的基本单元（先填色，再压黑描边） */
+  function celFill(d, fill, w, op) {
+    return PA(d, fill, op === undefined ? 1 : op) + PS(d, CEL_INK, 1, w || 3.4);
+  }
+  /** 硬边色带背景（不做渐变，改成两级硬分界） */
+  function celBands(pal, horizon) {
+    return R_(0, 0, CEL_W, horizon * 0.55, pal[0]) +
+      R_(0, horizon * 0.55, CEL_W, horizon - horizon * 0.55, pal[1]) +
+      R_(0, horizon, CEL_W, CEL_H - horizon, pal[5]);
+  }
+  /** 冷光窗口/灯箱：亮面 + 外溢光 */
+  function celGlowRect(x, y, w, h, color, glow) {
+    return R_(x - 6, y - 6, w + 12, h + 12, color, 0.14) +
+      R_(x, y, w, h, color, 0.92) + PS('M' + x + ' ' + y + ' h' + w + ' v' + h + ' h' + -w + ' z', CEL_INK, 1, 2.2) +
+      (glow ? R_(x - 14, y - 14, w + 28, h + 28, color, 0.08) : '');
+  }
+  /** 红色鬼气：由内到外三层同色圆，做出辉光（不用滤镜，速度更快） */
+  function celRed(x, y, r, op) {
+    const o = op === undefined ? 1 : op;
+    return C_(x, y, r * 3.2, '#e0373f', 0.10 * o) + C_(x, y, r * 2, '#ff5a52', 0.20 * o) +
+      C_(x, y, r, '#ff6a5c', 0.85 * o);
+  }
+  /** 人物剪影（背光/正身）：只做头+肩+躯干的实心块，配单侧轮廓光 */
+  function celFigure(x, yBase, h, pal, flip) {
+    const s = h / 60;
+    const k = flip ? -1 : 1;
+    const body = 'M' + (x - 19 * s) + ' ' + yBase +
+      ' L' + (x - 13 * s) + ' ' + (yBase - 34 * s) +
+      ' Q' + (x - 8 * s) + ' ' + (yBase - 44 * s) + ' ' + (x - 3 * s) + ' ' + (yBase - 46 * s) +
+      ' L' + (x + 3 * s) + ' ' + (yBase - 46 * s) +
+      ' Q' + (x + 8 * s) + ' ' + (yBase - 44 * s) + ' ' + (x + 13 * s) + ' ' + (yBase - 34 * s) +
+      ' L' + (x + 19 * s) + ' ' + yBase + ' Z';
+    const head = 'M' + (x - 8.6 * s) + ' ' + (yBase - 46 * s) +
+      ' q0 -17 ' + (8.6 * s) + ' -17 q' + (8.6 * s) + ' 0 0 17 z';
+    return PA(body, CEL_INK) + PS(body, CEL_INK, 1, 3.2) + PA(head, CEL_INK) + PS(head, CEL_INK, 1, 3.2) +
+      // 单侧冷轮廓光
+      PS('M' + (x - k * 13 * s) + ' ' + (yBase - 34 * s) + ' L' + (x - k * 19 * s) + ' ' + yBase, pal[3], 0.55, 2.2) +
+      PS('M' + (x - k * 8.6 * s) + ' ' + (yBase - 46 * s) + ' q0 -16 ' + (k * 8.6 * s) + ' -17', pal[3], 0.6, 2);
+  }
+  /** 门/窗这类矩形构件：外框 + 内框 + 黑描边 */
+
+  /* —— 样张 1：学校走廊（单点透视 + 尽头冷光 + 墙上血手印）—— */
+  function celCorridor(pal) {
+    const a = [];
+    a.push(celBands(pal, 132));
+    // 天花板 / 左右墙 / 地面（硬边色块）
+    a.push(celFill('M0 0 L400 0 L258 62 L142 62 Z', pal[5], 3.4));
+    a.push(celFill('M0 0 L142 62 L142 150 L0 200 Z', pal[4], 3.4));
+    a.push(celFill('M400 0 L258 62 L258 150 L400 200 Z', pal[4], 3.4));
+    a.push(celFill('M0 200 L142 150 L258 150 L400 200 Z', pal[1], 3.4));
+    // 两侧的门（透视梯形）
+    [[26, 116, 52, 150, 128, 104], [300, 104, 384, 140, 336, 68]].forEach((d) => {
+      a.push(celFill('M' + d[0] + ' ' + d[3] + ' L' + d[2] + ' ' + d[5] + ' L' + d[4] + ' ' + (d[5] - 6) +
+        ' L' + (d[1] - 10) + ' ' + (d[3] - 8) + ' Z', pal[2], 3));
+    });
+    // 尽头：门/窗的冷光 + 地面光斑
+    a.push(celGlowRect(168, 58, 64, 92, pal[3], true));
+    a.push(PA('M168 150 L232 150 L300 200 L120 200 Z', pal[3], 0.16));
+    // 红色：门缝溢出的鬼气 + 墙上的手印
+    a.push(R_(168, 148, 64, 5, '#ff5a52', 0.75) + R_(162, 146, 76, 10, '#e0373f', 0.12));
+    a.push(celRed(96, 96, 3.4, 0.9) + C_(96, 96, 12, '#e0373f', 0.16));
+    a.push(LN(96, 96, 92, 86, '#ff6a5c', 0.5, 3) + LN(96, 96, 96, 84, '#ff6a5c', 0.5, 3) +
+      LN(96, 96, 101, 85, '#ff6a5c', 0.5, 3));
+    return a;
+  }
+
+  /* —— 样张 2：敲门鬼·教室门（特写 + 三长两短的敲门声 + 门缝红光）—— */
+  function celKnockdoor(pal) {
+    const a = [];
+    a.push(celBands(pal, 150));
+    a.push(R_(0, 0, 400, 34, pal[0]));
+    // 门的墙体
+    a.push(celFill('M60 18 L340 18 L340 200 L60 200 Z', pal[4], 3.4));
+    // 门本体（偏右，低机位显得压迫）
+    a.push(celFill('M150 34 L286 34 L286 186 L150 186 Z', pal[2], 4));
+    a.push(R_(158, 42, 120, 62, pal[1], 1) + R_(158, 112, 120, 62, pal[1], 1));
+    a.push(PS('M158 104 h120', CEL_INK, 1, 2.4));
+    // 门缝红光（整条门缝 + 地面反光）
+    a.push(R_(146, 34, 5, 152, '#e0373f', 0.85) + R_(142, 30, 13, 160, '#e0373f', 0.12));
+    a.push(R_(150, 186, 136, 6, '#ff5a52', 0.7) + PA('M150 186 L286 186 L320 200 L116 200 Z', '#e0373f', 0.18));
+    // 三长两短的敲门：门面上的声波弧（两处）
+    [[214, 78], [214, 132]].forEach((c, i) => {
+      [0, 1, 2].forEach((k) => {
+        a.push(PS('M' + (c[0] - 16 - k * 9) + ' ' + (c[1] - 10 - k * 4) + ' q-10 ' + (10 + k * 4) + ' 0 ' + (20 + k * 8),
+          i === 0 ? pal[3] : pal[3], 0.28 - k * 0.07, 2));
+      });
+    });
+    // 前景：背对的人影（右侧三分之一，剪影压住画面）
+    a.push(celFigure(330, 200, 98, pal, true));
+    // 门缝里伸出的手（黑色剪影 + 红指甲）
+    a.push(PA('M286 152 q16 -2 22 -12 q4 8 -2 16 q-10 6 -20 4 z', CEL_INK));
+    a.push(celRed(306, 141, 1.8, 1));
+    return a;
+  }
+
+  /* —— 样张 3：鬼婴·婴儿床（幽闭 + 床单下的红眼睛）—— */
+  function celCrib(pal) {
+    const a = [];
+    a.push(celBands(pal, 140));
+    // 月光窗（左侧，冷蓝）+ 地面光斑
+    a.push(celGlowRect(30, 26, 78, 96, pal[3], true));
+    a.push(PA('M30 122 L108 122 L156 200 L36 200 Z', pal[3], 0.10));
+    // 墙裙
+    a.push(R_(0, 128, 400, 8, pal[4], 1) + PS('M0 128 h400', CEL_INK, 1, 2.4));
+    // 婴儿床（栏杆 + 硬描边）
+    a.push(celFill('M140 96 L300 96 L300 190 L140 190 Z', pal[5], 3.6));
+    for (let i = 0; i <= 8; i++) a.push(LN(146 + i * 19, 100, 146 + i * 19, 186, CEL_INK, 1, 5.2));
+    a.push(PS('M140 118 h160', CEL_INK, 1, 4));
+    // 床里的东西（被单隆起 + 一只小手）
+    a.push(celFill('M150 176 q30 -26 62 -22 q34 4 76 -6 L288 186 L150 186 Z', '#cfd8e2', 3));
+    a.push(PA('M212 150 q10 -12 20 -4 q-8 10 -20 4 z', '#e8eef4') + PS('M212 150 q10 -12 20 -4 q-8 10 -20 4 z', CEL_INK, 1, 2.4));
+    // 被单下的红眼（唯一暖色）
+    a.push(celRed(226, 166, 3.2, 1) + celRed(244, 168, 3.2, 1));
+    a.push(R_(214, 160, 44, 16, '#e0373f', 0.10));
+    // 地上的玩具（黑描边小球）
+    a.push(C_(84, 182, 12, pal[2]) + PS('M72 182 a12 12 0 1 0 24 0 a12 12 0 1 0 -24 0', CEL_INK, 1, 3.2));
+    return a;
+  }
+
+  /* —— 样张 4：调查·档案（台灯暖光 vs 冷窗 + 翻档案的人影）—— */
+  function celFiles(pal) {
+    const a = [];
+    a.push(celBands(pal, 118));
+    // 墙面与冷窗
+    a.push(celGlowRect(258, 20, 96, 76, pal[3], true));
+    // 桌面
+    a.push(celFill('M0 132 L400 132 L400 200 L0 200 Z', '#241a12', 3.6));
+    a.push(PS('M0 132 h400', CEL_INK, 1, 4));
+    // 台灯（暖黄光锥，赛璐璐两级硬边）
+    a.push(PA('M116 52 L176 52 L156 78 L136 78 Z', '#2c2a24') + PS('M116 52 L176 52 L156 78 L136 78 Z', CEL_INK, 1, 3));
+    a.push(LN(146, 78, 146, 132, CEL_INK, 1, 3.4));
+    a.push(PA('M136 80 L156 80 L232 132 L60 132 Z', '#ffcf8a', 0.16));
+    a.push(PA('M138 82 L154 82 L196 132 L96 132 Z', '#ffe3ad', 0.13));
+    // 档案堆（白灰平涂 + 硬描边）
+    a.push(celFill('M120 120 L268 120 L268 132 L120 132 Z', '#e7e3d8', 3));
+    a.push(celFill('M126 108 L274 108 L274 120 L126 120 Z', '#f2eee2', 3));
+    a.push(celFill('M132 96 L280 96 L280 108 L132 108 Z', '#fbf7ec', 3));
+    a.push(LN(146, 102, 196, 102, '#6b6257', 0.6, 2));
+    // 红色：盖在档案上的印
+    a.push(R_(236, 100, 30, 16, 'none') + PS('M236 100 h30 v16 h-30 z', '#e0373f', 0.85, 2.4) +
+      PS('M240 108 h22 M244 104 v10 M252 104 v10 M260 104 v10', '#e0373f', 0.4, 1.6));
+    // 前景人物剪影（右缘，伸手向档案）
+    a.push(celFigure(348, 200, 112, pal, true));
+    a.push(PA('M330 138 q-24 8 -38 20 q6 8 14 6 q16 -12 30 -16 z', CEL_INK));
+    return a;
+  }
+
+  /* —— 样张 5：训练·镜子（人物特写 + 镜里多出来的那个影子）—— */
+  function celMirror(pal) {
+    const a = [];
+    a.push(celBands(pal, 150));
+    // 镜框（钢蓝 + 黑粗描边）
+    a.push(celFill('M96 26 L304 26 L304 186 L96 186 Z', '#0b1118', 4));
+    a.push(R_(104, 34, 192, 144, pal[1], 1));
+    a.push(PA('M104 34 L296 34 L296 92 L104 122 Z', pal[2], 0.55));
+    // 镜中的影子（比现实更暗，带红眼）
+    a.push(celFigure(214, 178, 104, pal, true));
+    a.push(celRed(208, 122, 2.6, 1) + celRed(222, 122, 2.6, 1));
+    a.push(PS('M232 96 l26 30 M258 92 l-22 34', '#e0373f', 0.5, 2));
+    // 镜面的裂痕
+    a.push(PS('M104 122 L158 96 L150 130 L206 78', '#cfe9ff', 0.35, 1.6));
+    // 前景：正面站着的你（背光剪影，占画面下半，最接近动画的特写机位）
+    a.push(celFigure(200, 216, 132, pal, false));
+    a.push(PS('M200 84 q-14 0 -14 16', pal[3], 0.5, 2));
+    return a;
+  }
+
+  const MOTIFS_V2 = {
+    corridor: celCorridor,
+    knockdoor: celKnockdoor,
+    crib: celCrib,
+    files: celFiles,
+    mirror: celMirror,
+  };
+
+  /** 国漫动画风渲染：底 + 母题 + 压暗 + 轻颗粒（无外部素材） */
+  function sceneSvgV2(state, ctx, forceMotif) {
+    const eraId = (state && state.era) || 'y2018';
+    const pal = CEL_PALETTE[eraId] || CEL_PALETTE.y2018;
+    const seed = (state && state.seedInt) || 20180923;
+    const turn = (state && state.turn) || 1;
+    const hh = (i) => ((seed * 9301 + turn * 49297 + i * 233) % 233280) / 233280;
+    const motif = forceMotif || motifOf(state, ctx);
+    const fn = MOTIFS_V2[motif] || celKnockdoor;
+    const out = [];
+    out.push('<svg viewBox="0 0 ' + CEL_W + ' ' + CEL_H + '" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">');
+    out.push('<defs><radialGradient id="vig2" cx="50%" cy="46%" r="74%">' +
+      '<stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".78"/></radialGradient>' +
+      '<filter id="grain2"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>' +
+      '<feColorMatrix type="saturate" values="0"/></filter></defs>');
+    // 天光：一条硬边冷光带（赛璐璐不做渐变过渡）
+    out.push(R_(0, 0, CEL_W, CEL_H, pal[0]));
+    if (hh(2) > 0.35) out.push(PA('M0 0 L' + (120 + hh(3) * 260).toFixed(0) + ' 0 L' + (60 + hh(3) * 200).toFixed(0) +
+      ' ' + (40 + hh(4) * 50).toFixed(0) + ' L0 ' + (70 + hh(4) * 40).toFixed(0) + ' Z', pal[2], 0.16));
+    out.push(fn(pal).join(''));
+    // 颗粒 + 压暗
+    out.push('<rect width="' + CEL_W + '" height="' + CEL_H + '" filter="url(#grain2)" opacity=".07"/>');
+    out.push(R_(0, 0, CEL_W, CEL_H, 'url(#vig2)'));
+    out.push('</svg>');
+    return out.join('');
+  }
+
+  /** 画册样张清单（给「画册」顶部的新画风预览用） */
+  const SAMPLES_V2 = [
+    { motif: 'corridor', label: '学校走廊', note: '单点透视 + 尽头冷光 + 墙上血手印（地点类）' },
+    { motif: 'knockdoor', label: '敲门鬼·教室门', note: '门缝红光 + 三长两短的声波弧 + 前景人影（S 级鬼）' },
+    { motif: 'crib', label: '鬼婴·婴儿床', note: '月光窗 + 床单下的红眼（C/B 级鬼）' },
+    { motif: 'files', label: '调查·档案', note: '台灯暖光 vs 冷窗 + 红印章 + 伸手的人影（行动类）' },
+    { motif: 'mirror', label: '训练·镜子', note: '人物背影特写 + 镜里多出来的那个影子（动画最常见的机位）' },
+  ];
+
   function sceneSvg(state, ctx, forceMotif) {
     const pal = ERA_PALETTE[(state && state.era)] || ERA_PALETTE.y2018;
     const seed = (state && state.seedInt) || 20180923;
@@ -6789,8 +7227,25 @@ body.story-mode .logwrap{max-height:22vh !important}
     const box = $('toolbox');
     box.style.display = '';
     clear(box);
+    // ===== 第 21 轮：新画风样张（按《我叫杨间》动画风格）最上面单独一栏 =====
+    box.appendChild(el('div', 'sectionTitle', '新版样张 · 国漫动画风（5 张，按《我叫杨间》的画面来做）'));
+    box.appendChild(el('div', 'hint', '赛璐璐平涂（硬边色阶，不做渐变过渡）+ 黑色粗描边 + 冷蓝夜色 + 单侧冷轮廓光 + 红色只给鬼气/眼睛/血 + 四周压暗。' +
+      '人物只做剪影不画五官。你看过点头，我就把剩下 38 张按这套同一画法全部重做（现在的旧画风先保留在下面）。'));
+    const sgrid = el('div', 'galleryGrid');
+    SAMPLES_V2.forEach((s, i) => {
+      const fake = { era: ['y2018', 'y2017', 'y2019', 'minguo', 'y2018'][i % 5], seedInt: 20180923 + i * 977, turn: 3 + i, city: 'dachang' };
+      const cell = el('div', 'galleryCell');
+      const art = el('div', 'galleryArt v2');
+      art.innerHTML = sceneSvgV2(fake, null, s.motif);
+      cell.appendChild(art);
+      cell.appendChild(el('div', 'galleryLabel', '样张 ' + (i + 1) + '　' + s.label));
+      cell.appendChild(el('div', 'galleryNote', s.note));
+      sgrid.appendChild(cell);
+    });
+    box.appendChild(sgrid);
+
     const list = motifList();
-    box.appendChild(el('div', 'sectionTitle', '画册 · 共 ' + list.length + ' 张（每个行动 / 每只鬼 / 每类地点都有专属画面）'));
+    box.appendChild(el('div', 'sectionTitle', '现行画册 · 共 ' + list.length + ' 张（下面是正在用的旧画风）'));
     box.appendChild(el('div', 'hint', '色调随「时期」变化；自由输入的行动不配图（那张是问号）。点「关闭」回到游戏。'));
     const grid = el('div', 'galleryGrid');
     const eraIds = Object.keys(C.eras);
@@ -6849,6 +7304,7 @@ body.story-mode .logwrap{max-height:22vh !important}
    * 没遭遇过的鬼只给名字等级属地与遭遇文本，规律一律打码，避免图鉴变成通关攻略。
    */
   const LEVEL_TONE = { S: 'danger', A: 'warn', B: 'accent', C: 'success' };
+  let ghostView = 'ghost';   // 厉鬼分页里的子视图：ghost（档案）/ gdims（维度图）
 
   /** 线索 id → { text, ghost, ghostName } 全库索引（用于"这条线索属于谁"） */
   function clueIndex() {
@@ -6869,6 +7325,172 @@ body.story-mode .logwrap{max-height:22vh !important}
       bar.appendChild(b);
     });
     return bar;
+  }
+
+  /* ------------------------------------- 厉鬼维度（第 21 轮：雷达图 + 总览）
+   * 六维：威胁 / 规律严苛 / 感知追踪 / 污染 / 精神冲击 / 反制难度（0~100，见 content.ghostDims）。
+   * 全部是内联 SVG，不引用外部素材。
+   */
+  const DIM_ORDER = ['threat', 'rule', 'sense', 'pollution', 'sanity', 'counter'];
+
+  function dimLabel(k) { return (C.dimLabel && C.dimLabel[k]) || k; }
+  function dimsOf(gid) {
+    const d = (C.ghostDims && C.ghostDims[gid]) || null;
+    if (d) return d;
+    // 没有显式维度的鬼（老数据）：按等级给一组保守值，保证图鉴不空
+    const lv = ((C.ghosts[gid] || {}).level) || 'B';
+    const base = { S: 88, A: 70, B: 50, C: 25 }[lv] || 50;
+    return { threat: base, rule: base, sense: base, pollution: base, sanity: base, counter: base, note: '' };
+  }
+
+  /** 单只鬼的六维雷达图（size=画布边长） */
+  function radarSvg(gid, size) {
+    const dims = dimsOf(gid);
+    const S = size || 240;
+    const cx = S / 2, cy = S / 2 + 4;
+    const R = S * 0.33;
+    const n = DIM_ORDER.length;
+    const pt = (i, r) => {
+      const a = -Math.PI / 2 + (Math.PI * 2 * i) / n;
+      return [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+    };
+    const out = [];
+    // 网格：4 圈 + 6 条轴
+    out.push('<svg viewBox="0 0 ' + S + ' ' + (S + 10) + '" width="100%" height="' + (S + 10) +
+      '" xmlns="http://www.w3.org/2000/svg" role="img">');
+    out.push('<rect x="0" y="0" width="' + S + '" height="' + (S + 10) + '" fill="#0a0f14"/>');
+    for (let ring = 4; ring >= 1; ring--) {
+      const rr = (R * ring) / 4;
+      const pts = [];
+      for (let i = 0; i < n; i++) pts.push(pt(i, rr).map((v) => v.toFixed(1)).join(','));
+      out.push('<polygon points="' + pts.join(' ') + '" fill="' + (ring === 4 ? '#101922' : 'none') +
+        '" stroke="#26313d" stroke-width="1"/>');
+    }
+    for (let i = 0; i < n; i++) {
+      const p = pt(i, R);
+      out.push('<line x1="' + cx + '" y1="' + cy + '" x2="' + p[0].toFixed(1) + '" y2="' + p[1].toFixed(1) +
+        '" stroke="#232f3b" stroke-width="1"/>');
+    }
+    // 数据多边形
+    const dpts = [];
+    for (let i = 0; i < n; i++) {
+      const v = Math.max(0, Math.min(100, dims[DIM_ORDER[i]] || 0));
+      dpts.push(pt(i, (R * v) / 100));
+    }
+    const poly = dpts.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+    const danger = dims.threat >= 80 ? '#ef5350' : dims.threat >= 60 ? '#ffb300' : '#26c6da';
+    out.push('<polygon points="' + poly + '" fill="' + danger + '" fill-opacity="0.28" stroke="' + danger +
+      '" stroke-width="2"/>');
+    dpts.forEach((p) => out.push('<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) +
+      '" r="2.6" fill="' + danger + '"/>'));
+    // 顶点标签
+    for (let i = 0; i < n; i++) {
+      const p = pt(i, R + 20);
+      const v = dims[DIM_ORDER[i]] || 0;
+      const lx = Math.max(34, Math.min(S - 34, p[0]));
+      out.push('<text x="' + lx.toFixed(1) + '" y="' + (p[1] + 3).toFixed(1) + '" fill="#9fb0c0" font-size="10.5" ' +
+        'text-anchor="middle" font-family="sans-serif">' + dimLabel(DIM_ORDER[i]) + ' ' + v + '</text>');
+    }
+    out.push('</svg>');
+    return out.join('');
+  }
+
+  /** 展开区：雷达图 + 危险说明 + 规律结构 + 生路 + 遭遇记录 */
+  function ghostDimsBlock(g, met) {
+    const dims = dimsOf(g.id);
+    const wrap = el('div', 'dimsWrap');
+    const chart = el('div', 'radarBox');
+    chart.innerHTML = radarSvg(g.id, 240);
+    wrap.appendChild(chart);
+
+    const side = el('div', 'dimsSide');
+    if (dims.note) side.appendChild(el('div', 'dimsNote', '危险在哪：' + dims.note));
+    const bars = el('div', 'dimBars');
+    DIM_ORDER.forEach((k) => {
+      const v = dims[k] || 0;
+      const row = el('div', 'dimRow');
+      row.appendChild(el('span', 'dimKey', dimLabel(k)));
+      const track = el('div', 'dimTrack');
+      const fill = el('div', 'dimFill');
+      fill.style.width = v + '%';
+      fill.style.background = v >= 80 ? '#ef5350' : v >= 60 ? '#ffb300' : '#26c6da';
+      track.appendChild(fill);
+      row.appendChild(track);
+      row.appendChild(el('span', 'dimVal', String(v)));
+      bars.appendChild(row);
+    });
+    side.appendChild(bars);
+
+    // 规律结构（数量信息恒显示，具体文字按是否掌握给）
+    const traps = (g.traps || []).length, neutral = (g.neutral || []).length, exits = (g.exits || []).length;
+    const need = Math.min.apply(null, (g.exits || [{ needClues: 2 }]).map((e) => e.needClues || 2));
+    side.appendChild(el('div', 'dimsNote', '规律结构：' + traps + ' 个陷阱（踩中即死）· ' + neutral +
+      ' 条中性（擦身而过，失败会留不可逆侵蚀）· ' + exits + ' 条生路（最少需要 ' + need + ' 条线索撑开）'));
+    const esc = (profile && profile.escaped && profile.escaped[g.id]) || 0;
+    const seenNow = state && state.events && state.events.done &&
+      state.events.done.indexOf('escape:' + g.id) >= 0;
+    side.appendChild(el('div', 'dimsNote', '你的记录：' + (met ? '已遭遇过' : '还没遇到过') +
+      (esc || seenNow ? '　从它手里走过生路 ' + (esc + (seenNow ? 1 : 0)) + ' 次' : '')));
+    if (!met) side.appendChild(el('div', 'dimLocked', '（规律未掌握：先遭遇它、或调查这一带，才能看到它的杀人规矩）'));
+    wrap.appendChild(side);
+    return wrap;
+  }
+
+  /** 维度总览：全体厉鬼的 威胁 × 规律严苛 分布图 + 各维度 Top5 */
+  function ghostDimsOverview(faced) {
+    const box = el('div');
+    const ids = Object.keys(C.ghosts);
+    const W = 340, H = 300, pad = 40;
+    const out = [];
+    out.push('<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">');
+    out.push('<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#0a0f14"/>');
+    // 坐标轴 + 网格
+    out.push('<line x1="' + pad + '" y1="' + (H - pad) + '" x2="' + (W - 12) + '" y2="' + (H - pad) + '" stroke="#2b3846"/>');
+    out.push('<line x1="' + pad + '" y1="' + pad + '" x2="' + pad + '" y2="' + (H - pad) + '" stroke="#2b3846"/>');
+    for (let i = 1; i <= 4; i++) {
+      const x = pad + ((W - pad - 12) * i) / 4;
+      const y = (H - pad) - ((H - pad - pad) * i) / 4;
+      out.push('<line x1="' + x + '" y1="' + pad + '" x2="' + x + '" y2="' + (H - pad) + '" stroke="#1a232c"/>');
+      out.push('<line x1="' + pad + '" y1="' + y + '" x2="' + (W - 12) + '" y2="' + y + '" stroke="#1a232c"/>');
+    }
+    out.push('<text x="' + (W / 2) + '" y="' + (H - 10) + '" fill="#8b949e" font-size="11" text-anchor="middle">威胁 →</text>');
+    out.push('<text x="12" y="' + (H / 2) + '" fill="#8b949e" font-size="11" text-anchor="middle" transform="rotate(-90 12 ' + (H / 2) + ')">规律严苛 →</text>');
+    const px = (v) => pad + ((W - pad - 12) * v) / 100;
+    const py = (v) => (H - pad) - ((H - pad - pad) * v) / 100;
+    ids.forEach((gid) => {
+      const d = dimsOf(gid);
+      const g = C.ghosts[gid];
+      const met = !!(faced || {})[gid];
+      const r = 4 + ((d.counter || 0) / 100) * 8;
+      const tone = d.threat >= 80 ? '#ef5350' : d.threat >= 60 ? '#ffb300' : '#26c6da';
+      out.push('<circle cx="' + px(d.threat).toFixed(1) + '" cy="' + py(d.rule).toFixed(1) + '" r="' + r.toFixed(1) +
+        '" fill="' + tone + '" fill-opacity="' + (met ? 0.85 : 0.35) + '" stroke="' + tone + '" stroke-width="1"/>');
+      out.push('<text x="' + (px(d.threat) + r + 3).toFixed(1) + '" y="' + (py(d.rule) + 3.5).toFixed(1) +
+        '" fill="' + (met ? '#c8d2dc' : '#6c7885') + '" font-size="9.5" font-family="sans-serif">' + g.name + '</text>');
+    });
+    out.push('</svg>');
+    const chart = el('div', 'dimsOverviewChart');
+    chart.innerHTML = out.join('');
+    box.appendChild(el('div', 'sectionTitle', '厉鬼维度图 · 全体分布'));
+    box.appendChild(el('div', 'hint', '横轴＝威胁（正面杀伤力），纵轴＝规律严苛（规矩有多难绕），气泡大小＝反制难度。' +
+      '实心＝你已经遭遇过，半透明＝还没遇到。S 级集中在右上角。'));
+    box.appendChild(chart);
+
+    // 各维度 Top5
+    const rank = el('div', 'dimRankGrid');
+    DIM_ORDER.forEach((k) => {
+      const top = ids.slice().sort((a, b) => (dimsOf(b)[k] || 0) - (dimsOf(a)[k] || 0)).slice(0, 5);
+      const cell = el('div', 'dimRankCell');
+      cell.appendChild(el('div', 'codexName', dimLabel(k) + ' 最高'));
+      top.forEach((gid, i) => {
+        cell.appendChild(el('div', 'codexDesc', (i + 1) + '. ' + C.ghosts[gid].name +
+          '（' + C.ghosts[gid].level + ' 级）　' + (dimsOf(gid)[k] || 0)));
+      });
+      rank.appendChild(cell);
+    });
+    box.appendChild(el('div', 'sectionTitle', '六个维度各自的天花板'));
+    box.appendChild(rank);
+    return box;
   }
 
   function openCodex(tab) {
@@ -6900,24 +7522,32 @@ body.story-mode .logwrap{max-height:22vh !important}
       { id: 'ach', label: '成就', count: prog.unlocked + '/' + prog.total },
       { id: 'end', label: '结局', count: endHave + '/' + endTotal },
       { id: 'ghost', label: '厉鬼', count: ghostHave + '/' + ghostTotal },
+      { id: 'gdims', label: '维度图' },
       { id: 'clue', label: '线索', count: String(clueHave) },
       { id: 'stat', label: '战绩' },
-    ], active, openCodex));
+    ], active === 'gdims' ? 'gdims' : active, openCodex));
 
     if (active === 'ach') {
       box.appendChild(el('div', 'hint', '已解锁 ' + prog.unlocked + ' / ' + prog.total +
-        '　（成就只影响档案，不影响本局数值）'));
-      const grid = el('div', 'codexGrid');
-      prog.list.forEach((a) => {
-        const cell = el('div', 'codexCell' + (a.unlocked ? ' got' : ' locked'));
-        cell.appendChild(el('div', 'codexName', (a.unlocked ? '★ ' : '☆ ') + a.name));
-        cell.appendChild(el('div', 'codexDesc', a.desc));
-        cell.appendChild(el('div', 'codexMeta', a.unlocked
-          ? ('已解锁' + (a.at ? '　' + new Date(a.at).toLocaleDateString() : ''))
-          : '未解锁'));
-        grid.appendChild(cell);
+        '　共 ' + (prog.byCat ? prog.byCat.length : 0) + ' 类。成就只影响档案，不影响本局数值。'));
+      (prog.byCat || []).forEach((cat) => {
+        const head = el('div', 'codexCat');
+        head.appendChild(el('span', 'codexCatName', cat.name));
+        head.appendChild(el('span', 'codexCatProgress', cat.unlocked + '/' + cat.total));
+        head.appendChild(el('span', 'codexCatDesc', cat.desc));
+        box.appendChild(head);
+        const grid = el('div', 'codexGrid');
+        prog.list.filter((a) => a.cat === cat.id).forEach((a) => {
+          const cell = el('div', 'codexCell' + (a.unlocked ? ' got' : ' locked'));
+          cell.appendChild(el('div', 'codexName', (a.unlocked ? '★ ' : '☆ ') + a.name));
+          cell.appendChild(el('div', 'codexDesc', a.desc));
+          cell.appendChild(el('div', 'codexMeta', a.unlocked
+            ? ('已解锁' + (a.at ? '　' + new Date(a.at).toLocaleDateString() : ''))
+            : '未解锁'));
+          grid.appendChild(cell);
+        });
+        box.appendChild(grid);
       });
-      box.appendChild(grid);
     }
 
     if (active === 'end') {
@@ -6940,21 +7570,29 @@ body.story-mode .logwrap{max-height:22vh !important}
       box.appendChild(list);
     }
 
-    if (active === 'ghost') {
+    if (active === 'ghost' || active === 'gdims') {
+      ghostView = active === 'gdims' ? 'gdims' : 'ghost';
+      box.appendChild(tabBar([
+        { id: 'ghost', label: '厉鬼档案' },
+        { id: 'gdims', label: '维度图' },
+      ], ghostView, function (t) { ghostView = t; openCodex(t === 'gdims' ? 'gdims' : 'ghost'); }));
       box.appendChild(el('div', 'hint', '遭遇过 ' + ghostHave + ' / ' + ghostTotal +
         ' 只。规律（线索）在你真的遭遇过它之后才会解锁，共 ' +
-        Object.keys(idx).length + ' 条。'));
+        Object.keys(idx).length + ' 条。点一行展开它的档案与维度雷达图。'));
+
+      if (ghostView !== 'gdims') {
       const list = el('div', 'codexList');
       Object.keys(C.ghosts).forEach((gid) => {
         const g = C.ghosts[gid];
         const met = !!faced[gid];
-        const row = el('div', 'codexRow' + (met ? ' got' : ''));
+        const row = el('div', 'codexRow clickable' + (met ? ' got' : ''));
         const head = el('div', 'codexHead');
         head.appendChild(el('span', 'lvl badgetone-' + (LEVEL_TONE[g.level] || 'accent'), g.level + ' 级'));
         head.appendChild(el('span', 'codexName', (met ? '★ ' : '☆ ') + g.name));
-        head.appendChild(el('span', 'codexMeta', met ? '已遭遇' : '未遭遇'));
+        head.appendChild(el('span', 'codexMeta', met ? '已遭遇（点开看档案）' : '未遭遇（点开看档案）'));
         row.appendChild(head);
-        row.appendChild(el('div', 'codexDesc', '属地：' + (g.tie || '不明')));
+        row.appendChild(el('div', 'codexDesc', '属地：' + (g.tie || '不明') +
+          '　危险系数 ' + (g.penalty || 0) + '／60'));
         row.appendChild(el('div', 'codexQuote', g.encounter || ''));
         const known = (g.clues || []).filter((c) => knownClues[c.id] ||
           (state && state.clues && state.clues.indexOf(c.id) >= 0));
@@ -6963,9 +7601,24 @@ body.story-mode .logwrap{max-height:22vh !important}
         } else {
           (g.clues || []).forEach(() => row.appendChild(el('div', 'codexClue locked', '· ？？？（规律未掌握）')));
         }
+        // 展开区：雷达图 + 规律结构 + 生路 + 遭遇记录（默认收起，点行展开）
+        const detail = el('div', 'codexDetail');
+        detail.style.display = 'none';
+        let built = false;
+        row.onclick = () => {
+          if (!built) {
+            built = true;
+            detail.appendChild(ghostDimsBlock(g, met));
+          }
+          detail.style.display = detail.style.display === 'none' ? '' : 'none';
+        };
+        row.appendChild(detail);
         list.appendChild(row);
       });
       box.appendChild(list);
+      } else {
+        box.appendChild(ghostDimsOverview(faced));
+      }
     }
 
     if (active === 'clue') {
@@ -7461,7 +8114,8 @@ body.story-mode .logwrap{max-height:22vh !important}
   }
 
   // 供截图/测试核对：列出全部母题与生成 SVG
-  window.RSUI = { motifList: motifList, sceneSvg: sceneSvg, motifOf: motifOf, MOTIFS: MOTIFS, openGallery: openGallery, openCodex: openCodex, clueIndex: clueIndex };
+  window.RSUI = { motifList: motifList, sceneSvg: sceneSvg, motifOf: motifOf, MOTIFS: MOTIFS, openGallery: openGallery, openCodex: openCodex, clueIndex: clueIndex,
+    sceneSvgV2: sceneSvgV2, SAMPLES_V2: SAMPLES_V2, radarSvg: radarSvg, dimsOf: dimsOf };
 
   /* ------------------------------------------------------------ 初始化 */
   window.addEventListener('DOMContentLoaded', function () {
