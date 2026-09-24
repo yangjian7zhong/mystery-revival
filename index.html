@@ -128,7 +128,7 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
 .jLine.auto .jText{color:#c9d6e2}
 .jLine .star{
   background:none; border:none; color:#3d4c5c; font-size:15px; line-height:1.2;
-  cursor:pointer; padding:0 2px; min-width:22px;
+  cursor:pointer; padding:0 2px; min-width:26px;
 }
 .jLine .star.on{color:#ffd166; text-shadow:0 0 6px rgba(255,209,102,.45)}
 .jFoot{color:var(--dim); font-size:12px; margin-top:10px}
@@ -152,7 +152,7 @@ body.fontL .line{line-height:1.85}
   .journalNav .pager{flex:0 0 auto; font-size:12.5px}
   .setGrid .btn{flex:1 1 46%}
   .kvK{flex:0 0 76px}
-  .jLine .star{min-width:28px; font-size:17px}
+  .jLine .star{min-width:34px; min-height:34px; line-height:34px; font-size:18px; padding:0}
 }
 .toolbox .pk{min-width:72px; color:var(--dim); font-size:13px}
 
@@ -3716,8 +3716,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       id: 'shenlin', name: '沈林（鬼相）', level: 'A', penalty: 46, person: true,
       tie: '总部·队长（原著·鬼相）',
       faction: 'org', rank: '队长', meetBase: 0.35, valueNeed: 3,
-      introduces: ['lvjun'],
-      introLine: '李军在城西。他认同行，不认人情——你把价先摆在桌上。',
+      introduces: ['lvjun', 'jiangshangbai'],
+      introLine: '李军在城西；朋友圈那位姜尚白，也认价不认人。你把代价先摆在桌面上。',
       encounter: '他站在楼道里，你看着他的脸——像是隔着一层水。' +
         '"别盯着看，"他说，"我这张脸现在不只属于我。"',
       clues: [
@@ -3991,6 +3991,69 @@ body.story-mode .logwrap{max-height:22vh !important}
         '论坛在总部有备案。备案的意思是：能做的事有边界，越界的我不接。',
         '元山陵园那次是我带的队。你要打听它，就问别的。',
         '我奉命办事。命令是谁下的，你不必知道。',
+      ],
+    },
+
+    /* ============ 第 31 轮：原著·姜尚白（朋友圈）
+     * 用户要求：「朋友圈」这一阵营在阵营表里一直空着，补一位原著成员把它填上。
+     * 原著依据：姜尚白是朋友圈的成员，曾以"在处理别的事件"为由拒绝支援大平市的敲门鬼事件；
+     *          总部曾试图扶持沈林去制衡朋友圈——两人的来往由此而来（见 introduces）。
+     * 见面条件：他属于 circle，而玩家的四种立场都不落在朋友圈上（stanceFaction 里没有 circle），
+     *          所以正常玩见不到他，只能靠沈林这条线引荐（engine.js 的 meetableIds：跨阵营要靠 contacts）。
+     * 人设：不动声色、先算得失、不站队但谁都想拉他；他自己不主动提大平市那次拒绝支援。 */
+    jiangshangbai: {
+      id: 'jiangshangbai', name: '姜尚白', level: 'A', penalty: 42, person: true,
+      tie: '朋友圈（原著·姜尚白）',
+      faction: 'circle', rank: '成员', meetBase: 0.42, valueNeed: 3,
+      introduces: ['shenlin'],
+      introLine: '沈林在大京。你要找他，先想想拿什么换——他不看情面。',
+      desc: '朋友圈的成员，与灵异论坛并立的民间势力里的老手。凡事先算得失，不站队，出手前先称一称这笔账。',
+      encounter: '约的地方是一间关了半扇门的茶室，桌上摊着一本账。' +
+        '有人正站在桌边求他出手，他听完，拿笔尖在纸上点了一下："我这边有别的事排着。"' +
+        '那人走后，他才把另一只杯子推到你面前。' +
+        '"说吧。"他说，"你先讲你拿得出什么，我再讲我行不行。"',
+      text: '约的地方是一间关了半扇门的茶室，桌上摊着一本账。' +
+        '有人正站在桌边求他出手，他听完，拿笔尖在纸上点了一下："我这边有别的事排着。"' +
+        '那人走后，他才把另一只杯子推到你面前。' +
+        '"说吧。"他说，"你先讲你拿得出什么，我再讲我行不行。"',
+      clues: [
+        { id: 'jsb1', text: '朋友圈不是一个整体，是几摊生意共用的一个名字：要他出手，先得算清这摊事值多少。' },
+        { id: 'jsb2', text: '他从不站队：论坛、总部、境外那边都来递过话，他一律回"再说"——谁急，谁就不值钱。' },
+        { id: 'jsb3', text: '他和总部的沈林一直有来往：总部想借沈林压住朋友圈，他就把这条线留着当筹码。' },
+      ],
+      traps: [
+        { id: 'jsb_t1', label: '趁他起身，去看那本账上写着谁的名字', tags: ['偷看'] },
+      ],
+      neutral: [
+        { id: 'jsb_n1', label: '不接话，先陪他把这本账翻完', tags: ['等待'] },
+      ],
+      exits: [
+        { id: 'jsb_e1', label: '按他的规矩把价先摆上桌，问他要什么（生路·报价）', tags: ['报价'], needClues: 1,
+          cost: [{ k: 'money', key: 'cash', v: -80 }] },
+        { id: 'jsb_e2', label: '拿一条他还没听到的消息，换他挪出时间（生路·换时间）', tags: ['换时间'], needClues: 2,
+          cost: [{ k: 'flag', key: 'intel', v: -1 }, { k: 'stat', key: 'stamina', v: -5 }] },
+        { id: 'jsb_e3', label: '把沈林那条线摊开，跟他谈一次真正的合作（生路·旧账）', tags: ['旧账'], needClues: 3,
+          cost: [{ k: 'stat', key: 'causality', v: 8 }, { k: 'stat', key: 'stealth', v: -6 }] },
+      ],
+      exitText: '他把账本合上，压在茶杯底下。"这一页先记着。"他说，"我这边排完了，会有人去找你。"',
+      rewards: [{ k: 'flag', key: 'favor', v: 3 }, { k: 'flag', key: 'intel', v: 2 }],
+      masteryClue: 'jsb1',
+      persona: {
+        who: '朋友圈的成员姜尚白，民间势力里与灵异论坛并立的那一支里的老手。',
+        think: '一切先算账：这件事值多少、我要付多少、谁急谁不急。他不站队——站了队，手里就少一份价码。',
+        speak: '话短，常留半句；不表态时只说"再说""看情况"。不把话说死，也不许诺他算不出收益的事。',
+        power: '圈里的人手、渠道与消息，加上一张谁都想搭上的人情网；他真正的本钱是别人需要他。',
+        taboo: '别当着他的面提他推掉过的那次支援（他知道别人怎么议论他），也别想用交情把他绑上谁的战车。',
+        deal: '不谈情分，只谈报价：你拿得出什么先摊在桌上，他当面给你一个数，数不合适就散。',
+      },
+      abilities: ['圈里的人手与渠道', '消息与人情往来', '当面报价的谈判', '把关系当筹码', '遇事先称得失'],
+      talk: [
+        '先讲你拿得出什么。',
+        '我这边有别的事排着。',
+        '再说。',
+        '站队是别人的事。我这边只算账。',
+        '朋友是朋友，账是账，两本，别记混。',
+        '你要快，我这边偏要慢——急的人从来开不出好价。',
       ],
     },
   };
@@ -5689,6 +5752,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     // —— 第 30 轮：原著·叶真与楚校（灵异论坛） ——
     yezhen: { threat: 92, rule: 70, sense: 78, pollution: 60, sanity: 62, counter: 86, note: '替死鬼：倒下的那个"他"不一定是他，这笔账要到下一次才结。' },
     chuxiao: { threat: 58, rule: 60, sense: 70, pollution: 45, sanity: 48, counter: 54, note: '管理员：论坛里他能查到多数人的底，也能把多数人的名字划掉。' },
+    // —— 第 31 轮：原著·姜尚白（朋友圈） ——
+    jiangshangbai: { threat: 66, rule: 64, sense: 66, pollution: 44, sanity: 56, counter: 70, note: '朋友圈的人：不站队，所以谁都想拉他，谁也拿不住他；想让他出手，先得让他算得出收益。' },
     // —— 第 24 轮：原著/同人补充厉鬼 ——
     guibus: { threat: 68, rule: 82, sense: 74, pollution: 55, sanity: 62, counter: 70, note: '它按站停、按名字收人：报了名字的人才有座位，也才有下不去的资格。' },
     ghostship: { threat: 92, rule: 90, sense: 82, pollution: 78, sanity: 74, counter: 86, note: '整条船是一个阴谋：船、船员、航线都是它写好的规矩。' },
