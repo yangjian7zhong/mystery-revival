@@ -507,6 +507,1673 @@ body.story-mode .logwrap{max-height:22vh !important}
   };
 });
 </script>
+<script>/**
+ * 子场景内容表（第 29 轮）：每个主动作都有"先给一段小故事 → 再选去哪/做什么"的一层。
+ *
+ * ============================ 给内容作者的契约 ============================
+ * 键（key）可以是两种：
+ *   ① 动作精确 id：'investigate' 'purge' 'work' 'train' 'meet_driver' 'domain_probe' …
+ *   ② 动作 tag 兜底：'probe' | 'normal' | 'power' | 'rest' | 'person'
+ *                    | 'org' | 'forum' | 'outlaw' | 'endgame' | 'city'
+ *   引擎先找精确 id，再按 tag 找，都找不到就现场生成三选一（所以"每个动作都有子场景"永远成立）。
+ *
+ * 一个场景的结构：
+ *   {
+ *     title: '去哪查这条传闻？',        // 选项区的标题（≤ 12 字）
+ *     mode:  'action' | 'custom',      // 整张场景的默认模式（选项可以各自覆盖）
+ *     story: (state) => ['…','…'],      // 也可以直接写字符串数组：进场景先给玩家看的"小故事"
+ *     options: [ …3~5 个… ],
+ *   }
+ *
+ * 两种模式的区别（很重要，决定要不要重写动作本身的数值）：
+ *   'action'（缺省）：照常跑原来那套动作结算（休整/训练/驾驭/任务…的原有机制与平衡），
+ *                     选项只做"调制"——判定成功吃到 win、失败吃到 lose，mod 会加进动作内部判定；
+ *                     没有 check 时 win.effects 无条件生效（当作这条路子自带的加成）。
+ *   'custom'：完全不跑原动作，check + win/lose 就是这次行动的全部内容
+ *             （调查/去某个地方/城市专属这类"去哪查"最合适）。
+ *
+ * 一个选项的结构（除 id/label 外全部可选）：
+ *   {
+ *     id: 'iv_archive',                 // 场景内唯一（英文数字下划线）
+ *     label: '老城区·拆迁办档案室',       // 按钮文字（≤ 16 字，动词/地点开头最好）
+ *     hint: '材料多、风险低，线索偏旧',    // 按钮后的小字（≤ 14 字）
+ *     story: ['…'],                     // 选完之后、结果之前的小故事（1~2 段）
+ *     mode: 'action' | 'custom',        // 缺省 'action'：走原动作的结算；'custom'：用下面的 win/lose
+ *     check: { base: 62, mod: 0 },      // 有则先掷一次判定（base 一般 45~72；mod 是额外修正）
+ *     win:  { lines: ['…'], effects: [ … ], fatal: false },   // 判定成功（或 custom 模式的成功分支）
+ *     lose: { lines: ['…'], effects: [ … ] },                 // 判定失败（或 custom 模式的失败分支）
+ *     gain: { clue: 1, intel: 1, cash: 3 },   // 成功时的额外收益（clue 受"今天最多挖几条"限制）
+ *     cost: [ … ],                      // 无论成败都扣的行动开销
+ *     risk: 0,                          // 这次行动的遭遇率修正（百分点，正=更危险；常写 -5~+15）
+ *   }
+ *
+ * effects 只允许这几种（引擎会做边界钳制与记账）：
+ *   { k:'stat',  key:'stamina'|'sanity'|'humanity'|'erosion'|'calamity'|'stealth'|'pollution'|'causality'|'ghostEye', v:±n }
+ *   { k:'money', key:'cash'|'deposit'|'gold'|'contribution', v:±n }
+ *   { k:'flag',  key:'intel'|'favor'|'marks'|'safehouse'|'disguise'|'org'|'forum'|'outlaw'|'endgame', v:±n }
+ *   { k:'itemAdd', id:'道具id' } / { k:'itemUse', id:'道具id' }
+ *   { k:'clue', id:'线索id' }（一般别直接写，用 gain.clue 让引擎自己挑）
+ *   数值幅度参考：体力 ±5~20、理智 ±3~10、污染 ±3~10、侵蚀 ±1~6、劫难 ±2~6、低调 ±2~6、钱 2~30 万、黄金 ±1~3
+ *
+ * 文风：中文、冷静克制、以"过程与细节"为主，不写结果性宣告；不写玩家的成败结论（那是引擎的事）。
+ * 用 {city}/{era} 之类的槽位不安全——需要环境词时用 state 里现成的 cityOf/eraOf 数据（见下面示例）。
+ * ========================================================================
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory();
+  } else {
+    root.RSScenes = factory();
+  }
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  /** 取城市名（内容里要用环境词时用这个，不要自己读 state 内部结构） */
+  function cityName(state) {
+    const c = state && state.city;
+    return c ? String(c) : '这座城';
+  }
+
+  const scenes = {
+    /* ------------------------------------------------------------------ 调查传闻
+     * 这是"子场景"的样板：三种查法各有代价与线索概率，可能白跑、也可能撞上东西。 */
+    investigate: {
+      title: '去哪查这条传闻？',
+      mode: 'custom',        // 三种查法各自的判定与结果就是这次行动的全部内容
+      story: (state) => [
+        '传闻是从两条街外传过来的：有人说某栋楼里"每天凌晨会多出一层"，也有人说那只是风。',
+        '你要在用得着的东西里挑一样：纸面上的记录、现场留下的痕迹、活人嘴里的话。三条路都通，代价不一样。',
+      ],
+      options: [
+        {
+          id: 'iv_archive', label: '拆迁办的档案室', hint: '材料多、风险低，线索偏旧',
+          story: ['你托了个熟人进档案室，管理员只当你是来查自家老房的。'],
+          check: { base: 64 }, cost: [{ k: 'stat', key: 'stamina', v: -5 }],
+          gain: { clue: 1 },
+          win: { lines: ['泛黄的卷宗里夹着一张手画的楼层图，某一层被人用铅笔圈了三遍，又擦掉。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 3 }, { k: 'stat', key: 'sanity', v: -2 }] },
+          lose: { lines: ['卷宗被搬走过一次，缺的正好是那几年。管事的说"搬去别的区了"，眼神没落在你身上。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }, { k: 'flag', key: 'intel', v: 1 }] },
+        },
+        {
+          id: 'iv_scene', label: '去那栋楼底下蹲一整夜', hint: '线索最准，撞上东西的概率高',
+          story: ['你挑了对面还没拆的二楼，把窗子留一条缝，从傍晚坐到后半夜。'],
+          check: { base: 58 }, cost: [{ k: 'stat', key: 'stamina', v: -10 }, { k: 'stat', key: 'sanity', v: -4 }],
+          risk: 12, gain: { clue: 1 },
+          win: { lines: ['凌晨三点那一下很轻：楼梯间的声控灯自己亮了，亮完又灭，整整七次。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 6 }] },
+          lose: { lines: ['后半夜你熬不住，眯了十来分钟。醒来时脖子僵着，什么也没看见——只听见楼里有人在你睡着的时候数过数。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 8 }, { k: 'stat', key: 'stamina', v: -6 }] },
+        },
+        {
+          id: 'iv_people', label: '找楼下那家小卖部聊天', hint: '不冒风险，换回一点情报',
+          story: ['你买了一包烟，站在柜台前有一搭没一搭地问。老板娘一边找零一边说话，眼睛没离开过电视。'],
+          check: { base: 70 }, cost: [{ k: 'stat', key: 'stamina', v: -3 }],
+          gain: { intel: 1 },
+          win: { lines: ['她说去年冬天搬走的那户人家，走之前把家具全留下了，"说是不要了，其实是不敢回来拿"。'],
+            effects: [{ k: 'money', key: 'cash', v: -1 }] },
+          lose: { lines: ['她只重复一句话：那边早就没人住了。你问第三遍的时候，她把电视声音调大了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -2 }] },
+        },
+        {
+          id: 'iv_rumor', label: '先在论坛上放一句话试探', hint: '能钓出同行，但会暴露自己',
+          story: ['你在灵异论坛发了个帖子，只写楼的位置和一个细节——那个细节只有真见过的人才认得出来。'],
+          check: { base: 55 }, cost: [{ k: 'stat', key: 'stamina', v: -2 }],
+          risk: 6, gain: { intel: 2 },
+          win: { lines: ['半夜有人私信你，只有一句："别在楼下数台阶。"你回过去，对方已经注销了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+          lose: { lines: ['帖子沉了。第二天你收到一条匿名回复，只有你家的楼号——那是你没写在帖子里的东西。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 5 }, { k: 'stat', key: 'stealth', v: -4 }] },
+        },
+      ],
+    },
+
+    /* -------------------------------------------------------------------- 休整
+     * "休整"也有讲究：闷头睡、出去走走、还是把线索摊开对一遍——收益完全不同。 */
+    rest: {
+      title: '这一天怎么休？',
+      story: (state) => [
+        '你把手机关了，屋里的灯只留一盏。休息也是一种安排：睡过去、走出去、或者把手里的东西理一遍。',
+      ],
+      options: [
+        {
+          id: 'rest_sleep', label: '窗帘拉严，睡到自然醒', hint: '回体力最多，理智回得慢',
+          cost: [], win: {},
+          gain: {},
+          check: null,
+        },
+        {
+          id: 'rest_walk', label: '去人多的地方走一圈', hint: '回理智，顺带养低调',
+          story: ['你去了商场、菜市场、电影院——人声哄哄的地方。'],
+          win: { lines: ['你在人群里站了一个下午，什么都没想。回程时你觉得脚下的路实在了一点。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 8 }, { k: 'stat', key: 'stealth', v: 3 }, { k: 'stat', key: 'stamina', v: 4 }] },
+        },
+        {
+          id: 'rest_sort', label: '把线索摊在桌上对一遍', hint: '用休息换情报',
+          story: ['你把册子、照片和写满字的纸铺了半张桌子，一条一条排开。'],
+          check: { base: 62 }, cost: [{ k: 'stat', key: 'sanity', v: -2 }],
+          gain: { intel: 1 },
+          win: { lines: ['两条本来分开记的规矩，摆在一起之后对上了：它们说的是同一个动作。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 2 }] },
+          lose: { lines: ['你排到后半夜，越排越乱。最后你把纸全推到一边，趴在桌上睡了一会儿，梦里还在排。'],
+            effects: [{ k: 'stat', key: 'stamina', v: -6 }] },
+        },
+        {
+          id: 'rest_shop', label: '去街上吃顿好的，顺便买点东西', hint: '花钱换理智与体力',
+          story: ['你找了家还开着的老馆子，点了两个菜，米饭续了一碗。'],
+          win: { lines: ['热汤下去，人总算回到自己身上。回程你顺手补了些日用品。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 6 }, { k: 'stat', key: 'stamina', v: 8 }, { k: 'money', key: 'cash', v: -1 }] },
+        },
+      ],
+    },
+  };
+
+  return { scenes: scenes, cityName: cityName };
+});
+</script>
+<script>/**
+ * 子场景内容表 A：日常与成长（第 29 轮）
+ * 覆盖的动作（精确 id 优先，其次 tag）：
+ *   work（维持人设）、social（维持关系）、train（训练与冲重）、safehouse（加固安全屋）、
+ *   heal（心理治疗）、shop（黑市补给）、probe（去看看：某地——tag，供 probe_xxx 兜底）、
+ *   city（城市专属行动——tag）、normal（其余日常——tag）
+ * 契约与样板见 src/scenes.js 顶部注释（务必先读，尤其 'action' / 'custom' 两种模式的区别）。
+ *
+ * 本表一律用缺省的 mode:'action'：选项只做"调制"（mod / risk / cost / gain / story），
+ * 不重新发放动作本身已经给的东西（钱、理智、鬼眼、道具、安全屋等级都不重复给）。
+ * 动作自己不做判定的（work / social / safehouse / heal / shop），mod 无处可用，
+ * 所以那几处的选项改成自带一次"做法判定"（check + win/lose），成功也只有很小的额外收益。
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSScenesA = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const scenes = {
+    /* ------------------------------------------------------------------ 维持人设
+     * 原动作：记一次工作收入（3~8 万，受本章上限约束）+2 低调 -5 体力，没有内部判定。
+     * 所以这里的选项全部自带做法判定；钱只在"加班"那条里作为额外小收益出现（gain.cash），
+     * 不复述原动作的收入。 */
+    work: {
+      title: '这班怎么上？',
+      story: (state) => [
+        '你换上那身衣服出门，在楼道口停了两秒，把袖口拢平——这身打扮是为了让别人不多看你一眼。',
+        '班上今天照常开门。今天你有几分力气用来当一个普通人，得自己拿主意。',
+      ],
+      options: [
+        {
+          id: 'work_usual', label: '按点上下班，不加班', hint: '最稳，不惹人注意',
+          win: { lines: ['午休你在楼梯间坐了二十分钟，什么也没想，烟没点着就收起来了。',
+            '下班前你把桌面收干净，工牌摘下来放进内侧口袋。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 2 }] },
+        },
+        {
+          id: 'work_overtime', label: '顶别人的晚班，多熬三个钟头', hint: '多进账，人熬得虚',
+          cost: [{ k: 'stat', key: 'stamina', v: -8 }], risk: 3, gain: { cash: 2 },
+          story: ['你把排班表上属于别人的两个晚班顶了过来，理由说成家里缺钱。'],
+          win: { lines: ['十点以后整层只剩你这一盏灯。',
+            '你下楼时电梯在某一层停了很久，门开了，里面没有人，灯是亮的。'] },
+        },
+        {
+          id: 'work_hang', label: '下班陪同事多坐一会儿', hint: '混进人群，少点存在感',
+          cost: [{ k: 'money', key: 'cash', v: -1 }], check: { base: 64 },
+          story: ['你跟着他们去了路口那家还摆着的摊子，塑料凳子坐下去会响。'],
+          win: { lines: ['他们聊房价、聊孩子的补习班、聊哪个领导要调走。',
+            '没人问你为什么从来不接夜班。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 2 }, { k: 'stat', key: 'sanity', v: 3 }] },
+          lose: { lines: ['有人忽然问你手背上那道印子是怎么来的。你把袖子拉下去，把话岔到别的事上。'],
+            effects: [{ k: 'stat', key: 'stealth', v: -3 }] },
+        },
+        {
+          id: 'work_errand', label: '借着跑外勤绕两条街', hint: '摸清街区，风险小涨',
+          cost: [{ k: 'stat', key: 'stamina', v: -5 }], risk: 5,
+          check: { base: 58 }, gain: { intel: 1 },
+          story: ['你把外勤的单子多绕了一段路，把那一带的巷口、监控杆和还开着的店都走了一遍。'],
+          win: { lines: ['你在一家五金店门口站了一会儿。',
+            '老板正在给一卷封条称重，说是"上面要的"。'] },
+          lose: { lines: ['你多绕的那两条街，回程时像是有人跟着走了一段。',
+            '你数到第三次回头时，后面只剩下路灯。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 3 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 维持关系
+     * 原动作：固定花 2 万 + 好感 6~14（已婚未育时还带一次生育判定）。
+     * 选项不再重复给好感，只做小幅追加、或把 mod 加在生育判定上。 */
+    social: {
+      title: '今天怎么陪她？',
+      story: (state) => [
+        '楼下的护士和你的作息完全错开，能凑在一起的时间本来就不多。你今天把手上的事推了。',
+        '见一面总要花点钱：吃饭、打车、顺手带点东西。剩下的部分，要看你今天怎么走。',
+      ],
+      options: [
+        {
+          id: 'social_home', label: '在家做两个菜，聊到很晚', hint: '不额外花钱，缓一缓',
+          win: { lines: ['你提前收了工去买菜，两个菜一个汤，锅是她洗的。',
+            '电视开着没人看。你们把下周的排班对了一遍，又对了一遍。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 4 }] },
+        },
+        {
+          id: 'social_gift', label: '买件像样的东西送过去', hint: '多花三万，推进一点',
+          cost: [{ k: 'money', key: 'cash', v: -3 }],
+          story: ['你在柜台前站了四十分钟，最后挑了一件不算张扬的。'],
+          win: { lines: ['她拆包装的时候手停了一下，说了句"太贵了"，然后把它放进抽屉最里面。'],
+            effects: [{ k: 'flag', key: 'favor', v: 2 }] },
+        },
+        {
+          id: 'social_open', label: '把能说的实话说到一半', hint: '更近一步，也可能吓退',
+          risk: 6, check: { base: 58 },
+          story: ['你从最不吓人的那部分开始说：夜班、封掉的楼、你为什么总在包里放一盒火柴。'],
+          win: { lines: ['她听到一半，问了一句"那你自己呢"，然后就没再问。'],
+            effects: [{ k: 'flag', key: 'favor', v: 3 }, { k: 'stat', key: 'sanity', v: -4 }] },
+          lose: { lines: ['她安静了很久，把筷子放下了。你们各自看着碗里剩下的那点汤。'],
+            effects: [{ k: 'flag', key: 'favor', v: -2 }, { k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'social_talk', label: '把以后的事摆到桌面上', hint: '谈将来，孩子的事更好谈',
+          mod: 10, cost: [{ k: 'stat', key: 'sanity', v: -4 }],
+          story: ['你把两个人的排班空格和一笔存下来的钱摊在桌上，一件一件往下说。'],
+          win: { lines: ['她没接话，只是把碗里的汤喝完了，起身去洗碗。',
+            '水声响了很久，比你记得的要久。'] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 训练冲重
+     * 原动作：doCheck(45 + 侵蚀/5)，成功鬼眼 +1 / 侵蚀 +8 / 人性 -5，失败侵蚀 +5 / 理智 -10。
+     * mod 直接加在那次判定上，所以四条路都是"成功率 × 风险 × 地点"的取舍。 */
+    train: {
+      title: '在哪冲这一重？',
+      story: (state) => [
+        '冲重不是练出来的，是熬出来的：把眼睛里那层东西往外推一寸，就得拿别的地方去换。',
+        '今天在哪儿试、试之前做什么，比试几次更要紧。',
+      ],
+      options: [
+        {
+          id: 'train_quiet', label: '在安全屋里自己试', hint: '安静，出事也没人看见',
+          mod: 8, risk: -5, cost: [{ k: 'stat', key: 'stamina', v: -6 }],
+          story: ['你把窗帘拉上，符阵补过一遍，坐在屋子正中，数自己的呼吸。'],
+          win: { lines: ['窗外有车经过的时候，你正好数到第七下，没有断。'] },
+        },
+        {
+          id: 'train_open', label: '去老城区那栋空楼里试', hint: '放得开，也容易被看见',
+          mod: 10, risk: 10, cost: [{ k: 'stat', key: 'stamina', v: -10 }],
+          story: ['你挑了那栋封了一半的楼，从没有封条的那道楼梯上去，在顶层把窗子全推开。'],
+          win: { lines: ['风从楼上灌下来，整栋楼的玻璃跟着响了一阵。',
+            '你听见楼下有人说话，探头下去，水泥地上没有人。'] },
+        },
+        {
+          id: 'train_record', label: '先记一遍再动手', hint: '慢一步，心里更有数',
+          mod: 5, cost: [{ k: 'stat', key: 'sanity', v: -4 }], gain: { intel: 1 },
+          story: ['你把册子摊开，把上几次冲重前后的感觉一条一条写下来：几点、多冷、眼睛疼在哪一侧。'],
+          win: { lines: ['写到最后一条你停住了——几次记录里，疼的位置一直在换。'] },
+        },
+        {
+          id: 'train_rent', label: '花钱租个安静的地方', hint: '两万换清净，不惹邻里',
+          mod: 9, risk: -4,
+          cost: [{ k: 'money', key: 'cash', v: -2 }, { k: 'stat', key: 'stamina', v: -4 }],
+          story: ['你在城边上租了一间没人住的库房，只有一扇朝北的窗。房东收了钱就走，没多问。'],
+          win: { lines: ['库房里安静得能听见自己耳朵响。你把地扫干净，才坐下。'] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 加固安全屋
+     * 原动作：花 (等级+1)×30 万、安全屋 +1，没有内部判定。
+     * 选项只调节"顺带得到什么/多付什么"，不复述安全屋等级。 */
+    safehouse: {
+      title: '这次怎么加固？',
+      story: (state) => [
+        '房子是你唯一能关上门的地方。封条、符阵、门缝，每一样都得自己动手。',
+        '能请的人越少越好——知道这间屋子的人越多，这间屋子就越不算安全。',
+      ],
+      options: [
+        {
+          id: 'sh_standard', label: '按老法子把封条重贴', hint: '最省，只做该做的',
+          cost: [{ k: 'stat', key: 'stamina', v: -3 }],
+          win: { lines: ['你从门框顶部开始贴，一路压到门槛，胶带裁成一样长。',
+            '符阵补了三个缺口，剩下的那个留着明天。'] },
+        },
+        {
+          id: 'sh_detail', label: '多花两万把细节做足', hint: '贵一点，日子安稳些',
+          cost: [{ k: 'money', key: 'cash', v: -2 }],
+          story: ['你买了蜡和一圈更厚的胶条，跪在门口弄了半个下午。'],
+          win: { lines: ['门底那道缝也用蜡封了一道，窗框内侧贴了第二圈。',
+            '屋子里那股说不上来的味道淡了一点。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 3 }] },
+        },
+        {
+          id: 'sh_route', label: '把退路和死角走一遍', hint: '不花钱，练熟地形',
+          cost: [{ k: 'stat', key: 'stamina', v: -5 }],
+          story: ['你从消防通道上到楼顶，又从上往下走了一遍。'],
+          win: { lines: ['每层哪扇窗能开、哪个拐角看不见监控，你都在心里过了一遍。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 3 }] },
+        },
+        {
+          id: 'sh_helper', label: '叫个外人来搭手', hint: '省力，但外人知道你家',
+          cost: [{ k: 'money', key: 'cash', v: -3 }], risk: 8,
+          story: ['来的是个话不多的中年人，量了尺寸，扛着东西上楼下楼。'],
+          win: { lines: ['他干活很快，临走只留了一张手写的收据。',
+            '收据上的字很用力，纸背面都凸起来了。'],
+            effects: [{ k: 'stat', key: 'stamina', v: 6 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 心理治疗
+     * 原动作：5 万 → 理智 +12、人性 +5（人性有上限）。
+     * 这里一条都不重复：选项换成体能、低调、情报与"留不留痕迹"。 */
+    heal: {
+      title: '这次怎么治？',
+      story: (state) => [
+        '诊所在一栋老写字楼的七层，电梯要按两下才亮。等候区通常只有你一个人。',
+        '医生从不追问细节，只在你说完之后点一下头。这五万块花成什么样，得自己定。',
+      ],
+      options: [
+        {
+          id: 'heal_regular', label: '还是原来那把椅子', hint: '照旧，不多说一句',
+          win: { lines: ['你把这一周的事按顺序讲完，讲到某些地方就跳过去。',
+            '医生在本子上记了两个词，没有念出来。'] },
+        },
+        {
+          id: 'heal_deep', label: '把最不想说的那段说完', hint: '熬人，但说得透',
+          cost: [{ k: 'money', key: 'cash', v: -2 }, { k: 'stat', key: 'stamina', v: -6 }],
+          check: { base: 60 }, gain: { intel: 1 },
+          story: ['你把时间排到了最后一个号。诊室外的灯关掉一半，你才开口。'],
+          win: { lines: ['你说了很久，中间有一次停得特别长。',
+            '医生等你重新开始，没有催，也没有看表。'] },
+          lose: { lines: ['你讲到一半就停了，剩下的部分怎么都接不上去。',
+            '你们一起坐完了剩下的二十分钟。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'heal_quiet', label: '挑人少的时候去，用化名', hint: '多花两万，不留痕迹',
+          cost: [{ k: 'money', key: 'cash', v: -2 }], risk: -5,
+          story: ['你在挂号单上写了一个不常用的名字，走后楼梯上来，没从正门进。'],
+          win: { lines: ['走廊尽头那盏灯坏着，你贴着墙走完了这一段。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 3 }] },
+        },
+        {
+          id: 'heal_sleep', label: '治完直接回家睡一天', hint: '不接活，把觉补回来',
+          cost: [{ k: 'money', key: 'cash', v: -1 }],
+          story: ['回程你打车绕了点路，在楼下便利店买了水才上楼。'],
+          win: { lines: ['你把手机调成静音，窗帘拉严，中间醒过一次。',
+            '看了看天色，又睡回去了。'],
+            effects: [{ k: 'stat', key: 'stamina', v: 8 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 黑市补给
+     * 原动作：按物价算出 1~3kg 黄金的价、扣黄金、给鬼烛、低调 -3。
+     * 选项一律不碰黄金开销（否则可能把玩家压到买不起、变成白跑），只加现金/体力/risk 与自己的判定。 */
+    shop: {
+      title: '去哪种摊子买？',
+      story: (state) => [
+        '黑市没有固定的地方，它在旧货市场后面那条巷子里。摊主会先看你的手、你的鞋，和你怎么站着。',
+        '黄金是你少数能拿出去的东西。换回来的是能用一次的东西，代价是有人记住了你的脸。',
+      ],
+      options: [
+        {
+          id: 'shop_usual', label: '找熟摊子，不问价', hint: '不还价，也不留话',
+          win: { lines: ['你把金子放在柜台上，摊主用一块布盖住，没有数第二遍。',
+            '东西包在一张旧报纸里递过来，你捏了捏报纸的厚度。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 2 }] },
+        },
+        {
+          id: 'shop_haggle', label: '一点一点跟他磨价', hint: '能省下金子，摊主记仇',
+          check: { base: 62 }, cost: [{ k: 'stat', key: 'stamina', v: -4 }],
+          story: ['你没有直接还价，只是站着不走，把隔壁摊子报过的价钱说给他听。'],
+          win: { lines: ['他把金子重新放上秤，秤砣往里推了一格，又把布掀开一角给你看货。'],
+            effects: [{ k: 'money', key: 'gold', v: 1 }] },
+          lose: { lines: ['他把布一盖，转身去招呼后面的人，再没回头看你。'],
+            effects: [{ k: 'stat', key: 'stealth', v: -4 }] },
+        },
+        {
+          id: 'shop_far', label: '绕到城另一头换一家', hint: '多花现金打点，没人认得你',
+          cost: [{ k: 'money', key: 'cash', v: -3 }, { k: 'stat', key: 'stamina', v: -5 }],
+          risk: 6, check: { base: 58 },
+          story: ['你坐了两趟公交，又走了一段，去的是别人只提过一次的那条街。'],
+          win: { lines: ['那边的摊主只抬头看了你一眼，把东西从柜台底下拿出来，动作很轻。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 3 }] },
+          lose: { lines: ['你在一排摊位前走了两个来回，没有一个人理你。',
+            '离开时你听见身后有人用很轻的声音念了一遍你外套的颜色。'],
+            effects: [{ k: 'stat', key: 'stealth', v: -3 }, { k: 'stat', key: 'pollution', v: 3 }] },
+        },
+        {
+          id: 'shop_ask', label: '买完多问一句别的门路', hint: '能问出点消息，也招眼',
+          cost: [{ k: 'stat', key: 'stamina', v: -4 }], risk: 4,
+          check: { base: 60 }, gain: { intel: 1 },
+          story: ['你付完钱没有立刻走，指着摊子角落里那堆没人要的东西问了一句。'],
+          win: { lines: ['摊主讲了半句就停住了，改口说"那个不卖"。',
+            '他把你指过的那堆东西往里挪了挪。'] },
+          lose: { lines: ['摊主笑了笑，说想问别的，得先买够别的。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -2 }] },
+        },
+      ],
+    },
+
+    /* -------------------------------------------------------- 去看看（probe tag 兜底）
+     * 动作 id 形如 probe_123，标签「去看看：某地点」。这里写的是"到了那个地方之后具体怎么查"。
+     * 场景故事用 act.label 取地点名（只认「去看看：」前缀，别的动作落到这张表也能读通）。 */
+    probe: {
+      title: '到了地方怎么查？',
+      story: function (state, act) {
+        const label = (act && act.label) ? String(act.label) : '';
+        const where = (label.indexOf('去看看：') === 0) ? label.slice(4) : '那个地方';
+        return [
+          '你到了' + where + '。天还没黑透，路灯有一半是坏的。',
+          '看多久、离多近、跟谁搭话，都得当场决定——随时可以收手。',
+        ];
+      },
+      options: [
+        {
+          id: 'probe_outside', label: '先在外围绕一圈', hint: '最稳，先摸清地形',
+          cost: [{ k: 'stat', key: 'stamina', v: -4 }],
+          story: ['你没有急着靠近，先贴着墙走了半圈，脚步放得很慢。'],
+          win: { lines: ['这里有几个门、几个摄像头、哪面墙上还留着旧广告，你都过了一遍。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 3 }] },
+        },
+        {
+          id: 'probe_watch', label: '找个角落坐下来看', hint: '耗时，看得最多',
+          cost: [{ k: 'stat', key: 'stamina', v: -8 }], risk: 5,
+          check: { base: 62 }, gain: { intel: 1 },
+          story: ['你在对面的台阶上坐下，掏出手机装成在等人，视线一直没离开那扇门。'],
+          win: { lines: ['一个钟头里有两个人进去，一个也没出来。',
+            '第三个进去的人手里拎着一卷东西，进门之前在门口换了一次手。'] },
+          lose: { lines: ['你坐到腿麻，中间睡着很短的一下。',
+            '醒过来时，你坐的台阶上多了一道鞋印，方向朝里。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 4 }] },
+        },
+        {
+          id: 'probe_ask', label: '跟附近的人搭话', hint: '换消息，别问太深',
+          cost: [{ k: 'money', key: 'cash', v: -1 }, { k: 'stat', key: 'stamina', v: -3 }],
+          check: { base: 64 }, gain: { intel: 1 },
+          story: ['你在旁边的小店买了一瓶水，站着喝，慢慢把话往那栋楼引。'],
+          win: { lines: ['老板说的都是些没用的：谁家搬走了、哪年停的水。',
+            '说到一半他忽然压低声音补了一句，然后把话题转回天气。'] },
+          lose: { lines: ['他摇摇头说不知道，又看了你两眼。',
+            '你走的时候，听见他在你背后把卷帘门放下了一半。'],
+            effects: [{ k: 'stat', key: 'stealth', v: -3 }] },
+        },
+        {
+          id: 'probe_inside', label: '直接进去走一趟', hint: '最直接，也最容易出事',
+          cost: [{ k: 'stat', key: 'stamina', v: -8 }], risk: 12,
+          check: { base: 56 }, gain: { clue: 1 },
+          story: ['你把门推开一条缝，侧身进去，先站住不动，等眼睛适应里面的黑。'],
+          win: { lines: ['里面的味道比外面重。你走得极慢，每一步都先落脚跟。',
+            '上到第二层时，你看见扶手上有一块地方被反复摸得发亮。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 4 }] },
+          lose: { lines: ['你往里走了不到十步，身后的门自己合上了，声音不大。',
+            '你没有回头，一只手按在墙上，一步一步往回挪。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 8 }, { k: 'stat', key: 'sanity', v: -5 }] },
+        },
+      ],
+    },
+
+    /* ----------------------------------------------------- 城市专属行动（city tag 兜底）
+     * 各城专属行动的收益很不一样（情报/贡献/黄金/体力/污染都有），所以这里只调
+     * 现金开销、体力、risk 与低调，不去碰任何一座城已经在发的东西。 */
+    city: {
+      title: '这件事怎么办？',
+      story: function (state, act) {
+        const label = (act && act.label) ? String(act.label) : '手上这件事';
+        return [
+          '本地的事有本地的规矩：谁管、几点关门、哪句话不能说，都得先弄清。',
+          '你要办的是「' + label + '」。同一个目的，做法不同，后面要还的东西也不一样。',
+        ];
+      },
+      options: [
+        {
+          id: 'city_local', label: '按本地的老规矩来', hint: '省事，不给邻里添话',
+          win: { lines: ['你照着别人做过的样子做，不多一步，也不少一步。',
+            '窗口后面的人收了东西，没抬头，只说了一句"下一个"。'] },
+        },
+        {
+          id: 'city_pave', label: '把该打点的都打点一遍', hint: '多花现金，事办得顺',
+          cost: [{ k: 'money', key: 'cash', v: -3 }],
+          story: ['你按顺序见了三个人，每个人都说自己做不了主。'],
+          win: { lines: ['第三个人打了个电话，回来时把你的材料压在了最上面。'],
+            effects: [{ k: 'stat', key: 'stamina', v: 5 }] },
+        },
+        {
+          id: 'city_ask', label: '先跟这片的老住户问清', hint: '慢，但少踩坑',
+          cost: [{ k: 'stat', key: 'stamina', v: -5 }], risk: 0,
+          check: { base: 62 }, gain: { intel: 1 },
+          story: ['你在楼下的棋牌室门口站到一局打完，才递了根烟过去。'],
+          win: { lines: ['老人讲了些陈年的事，中间有两处前后对不上。',
+            '他自己也发现了，把那两处跳过去，接着往下说。'] },
+          lose: { lines: ['他把烟夹在耳朵上，摆摆手，说这些事不好讲。',
+            '你走远之后，棋牌室里安静了一会儿。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'city_push', label: '当天就把事办完', hint: '快，容易惊动人',
+          cost: [{ k: 'stat', key: 'stamina', v: -10 }], risk: 10,
+          story: ['你把两天的路并成一天走，中间只在便利店买了瓶水。'],
+          win: { lines: ['天黑之前你到了最后一个地方，门口的人正要锁门。',
+            '你把手里的东西举高了一点，他停住了手上的动作。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 3 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------- 其余日常（normal tag 兜底）
+     * 现在带 normal 标签的动作（work/social/safehouse/heal/shop）都已有精确场景，
+     * 这张表是给以后新增的日常动作兜底的，所以写得尽量通用。 */
+    normal: {
+      title: '这件事怎么做？',
+      story: function (state, act) {
+        const label = (act && act.label) ? String(act.label) : '手上的这件事';
+        return [
+          '「' + label + '」——同一件事在这座城里有好几种做法：花力气、花钱，或者花时间。',
+          '先挑一种。做到一半不想继续，随时可以收手。',
+        ];
+      },
+      options: [
+        {
+          id: 'normal_plain', label: '按最平常的样子做完', hint: '不额外花钱，不惊动人',
+          win: { lines: ['你把这件事按顺序做完，中间没有停，也没有多看别处一眼。'] },
+        },
+        {
+          id: 'normal_thorough', label: '多花些时间做仔细', hint: '费体力，少留尾巴',
+          cost: [{ k: 'stat', key: 'stamina', v: -6 }],
+          story: ['你把该做的地方都过了两遍，第二遍比第一遍慢。'],
+          win: { lines: ['收尾时你回头看了一眼，没有留下多余的痕迹。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 3 }] },
+        },
+        {
+          id: 'normal_money', label: '花点钱把路铺平', hint: '花三万，省事省力',
+          cost: [{ k: 'money', key: 'cash', v: -3 }],
+          story: ['该付的你都付了，该说的场面话也说完了。'],
+          win: { lines: ['对方收下东西，态度比刚才松了一点，多指了条近路给你。'],
+            effects: [{ k: 'stat', key: 'stamina', v: 5 }] },
+        },
+        {
+          id: 'normal_quiet', label: '绕开人多的时候再做', hint: '费时，不容易被注意到',
+          cost: [{ k: 'stat', key: 'stamina', v: -4 }], risk: -5,
+          story: ['你把时间往后推了一段，等人散了才开始。'],
+          win: { lines: ['街上只剩几家还亮着灯，你做事的动作也跟着慢了半拍。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 2 }] },
+        },
+      ],
+    },
+  };
+
+  return { scenes: scenes };
+});
+</script>
+<script>/**
+ * 子场景内容表 B：风险与力量（第 29 轮）
+ * 覆盖的动作（精确 id 优先，其次 tag）：
+ *   purge（处置灵异源头）、freeze（死机法）、mastery（尝试驾驭——tag power 兜底，动作 id 是 mastery:<鬼id>）、
+ *   mission（接总部任务）、gamble（鬼事赌局）、domain_probe（深入鬼域边缘）、domain_seal（封印鬼域节点）、
+ *   meet_driver（会见其他驭鬼者）、
+ *   stance_report / stance_browse / stance_oddjob / stance_plan（立场四线）、
+ *   power（其余力量类——tag）、person（人物遭遇类——tag）、org / forum / outlaw / endgame（立场 tag 兜底）
+ * 契约与样板见 src/scenes.js 顶部注释（务必先读，尤其 'action' / 'custom' 两种模式的区别）。
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSScenesB = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const scenes = {
+    /* ------------------------------------------------------------------ 处置灵异源头
+     * 原动作自己会压劫难值（8/5/3）并把当天的遭遇率顶上去（+15/25/35），
+     * 这里是"用哪种方式去处置"：只在动作内部判定上做加减（mod）、调当天的风险（risk）、
+     * 以及额外的小收获（gain）。绝不在这里再发一次劫难值。 */
+    purge: {
+      title: '这源头从哪儿下手？',
+      story: [
+        '你顺着线索摸到那一带的边上。要动一个源头，得先弄清它按哪条规矩吃人——这一步只能在现场做，纸上看不出来。',
+        '今天的时间还够，但处置这件事会把你亮在明处。挑法不一样，代价也不一样。',
+      ],
+      options: [
+        {
+          id: 'purge_file', label: '白天照册子走一遍', hint: '最稳，收获慢',
+          story: [
+            '你挑了个白天。太阳底下那条巷子看着很正常，只在地砖缝里留着一线暗。',
+            '你按册子上的顺序把该走的位置走了一遍，手电贴着墙一路扫过去。',
+          ],
+          check: { base: 66 }, cost: [{ k: 'stat', key: 'sanity', v: -3 }],
+          gain: { intel: 1 },
+          win: { lines: ['走到第四处的时候你停住了：墙上那道旧划痕的高度，和你册子里记的一样。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 3 }] },
+          lose: { lines: ['白天的光把该有的影子全冲淡了。你把册子合上，决定换个时间再来。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -4 }] },
+        },
+        {
+          id: 'purge_night', label: '夜里一个人摸进去', hint: '动静小，心里没底',
+          story: [
+            '你等到楼里的灯只剩两盏，才从消防梯上去。',
+            '楼道是声控灯，你每走一段就得屏住呼吸，等它灭。',
+          ],
+          mod: -4, risk: 8, cost: [{ k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'stamina', v: -8 }],
+          gain: { clue: 1 }, check: { base: 58 },
+          win: { lines: ['三楼的声控灯在你没动的时候亮了一次。你没有回头，只把手电往那面墙上按住。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 4 }] },
+          lose: { lines: ['你在楼梯拐角听见自己的脚步声多了一下。等你站定，它也没有再响。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'stealth', v: -3 }] },
+        },
+        {
+          id: 'purge_bait', label: '拿自己当饵引它出来', hint: '最快，也最容易撞上',
+          story: [
+            '你换了一身旧外套，把册子留在楼下，只带一支笔和一台录音机。',
+            '你在它常出现的那段路上来回走了三趟，走得很慢，故意让别人看见你。',
+          ],
+          mod: -8, risk: 15, cost: [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'stat', key: 'humanity', v: -2 }],
+          gain: { clue: 1 }, check: { base: 54 },
+          win: { lines: ['第三次回头时，路口那家店的卷帘门下半截已经放下来了——你记得它一直是开着的。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 6 }] },
+          lose: { lines: ['它比你以为的更耐心。录音机的时间戳跳过去十七分钟，你只记得自己一直在走。'],
+            effects: [{ k: 'stat', key: 'stamina', v: -14 }, { k: 'stat', key: 'pollution', v: 5 }] },
+        },
+        {
+          id: 'purge_watch', label: '先在外围蹲着看清楚', hint: '慢，但少挨一下',
+          story: [
+            '你没带任何东西，只在对面天桥上站了两个小时，看那条巷子的人怎么进、怎么出。',
+            '记完最后一个进巷子的人的时间，你把纸折起来收进内袋。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'stat', key: 'stamina', v: -6 }],
+          gain: { intel: 1 },
+          win: { lines: ['进出的人数对不上：进去十一个，出来的只有十个，差的那一个没有人报警。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 3 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 死机法
+     * 原动作自带九死一生的判定（基准 30 且逐次递减，大失败直接反噬），
+     * 成功时压低侵蚀。这里只决定"在哪做、谁在旁边"，用 mod 影响那一次判定。 */
+    freeze: {
+      title: '怎么把自己按下去？',
+      story: [
+        '死机法的道理很简单：让体内那只鬼睡过去。难的是你也得跟着睡，而它不一定愿意。',
+        '上一次你是躺着做的。这一次先想清楚：在哪做、谁在旁边、出了事谁来收尾。',
+      ],
+      options: [
+        {
+          id: 'freeze_cold', label: '泡在冷水里，屋里锁门', hint: '老法子，慢一点',
+          story: [
+            '你把浴缸放满冷水，手机丢在门外，门从里面反锁。',
+            '水漫到胸口的时候，你开始数自己的呼吸。',
+          ],
+          mod: 8, risk: -4, cost: [{ k: 'stat', key: 'stamina', v: -14 }, { k: 'stat', key: 'sanity', v: -4 }],
+          check: { base: 64 },
+          win: { lines: ['水面上浮着一层很细的波纹，不是你弄出来的。你盯着它，直到它慢慢平下去。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 3 }] },
+          lose: { lines: ['水凉得太快，你先撑不住。爬出来的时候，瓷砖上有你抓出来的指印。'],
+            effects: [{ k: 'stat', key: 'stamina', v: -6 }, { k: 'stat', key: 'erosion', v: 2 }] },
+        },
+        {
+          id: 'freeze_vault', label: '锁进安全屋的铁柜间', hint: '安静，但得有人在',
+          story: [
+            '安全屋最里面那间是从旧金库改的：门厚，缝也小。',
+            '你在门缝里塞了一张纸，纸上写着今天的时间，让看门的人两小时后过来瞧一眼。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'stat', key: 'stamina', v: -10 }, { k: 'stat', key: 'sanity', v: -6 }],
+          gain: { intel: 1 }, check: { base: 64 },
+          win: { lines: ['铁门关上那一下，外面的声音全断了。你听得见自己体内那只鬼"慢下来"时的滞涩。'],
+            effects: [{ k: 'stat', key: 'stamina', v: 5 }] },
+          lose: { lines: ['你数到第四十七下的时候睡着了。醒来时门还关着，纸也还在缝里。'],
+            effects: [{ k: 'stat', key: 'erosion', v: 2 }, { k: 'stat', key: 'sanity', v: -4 }] },
+        },
+        {
+          id: 'freeze_borrow', label: '叫醒另一只鬼去压它', hint: '硬压，两边都伤',
+          story: [
+            '你把两只手都按在胸口，先叫出来的那一只，不是要停下来的那只。',
+            '屋里没有别人，你只能听见自己的心跳变成了两遍。',
+          ],
+          mod: -8, risk: 8, cost: [{ k: 'stat', key: 'erosion', v: 4 }, { k: 'stat', key: 'sanity', v: -6 }],
+          gain: { clue: 1 }, check: { base: 52 },
+          win: { lines: ['有半分钟你分不清胸口里那两股东西哪一股在动。窗台上的水杯裂了一道纹。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 5 }] },
+          lose: { lines: ['它们谁也没有停。你扶着墙坐了很久，掌心的温度一直没回来。'],
+            effects: [{ k: 'stat', key: 'erosion', v: 3 }, { k: 'stat', key: 'humanity', v: -2 }] },
+        },
+        {
+          id: 'freeze_witness', label: '找信得过的人守在门外', hint: '花钱买个人在旁边',
+          story: [
+            '你付了钱，只说了一句"两小时没动静就砸门"，别的什么也没解释。',
+            '那人坐在楼道里抽烟，烟头一直亮到第二根。',
+          ],
+          mod: 6, risk: -4, cost: [{ k: 'money', key: 'cash', v: -4 }],
+          win: { lines: ['门外有脚步声的时候，你听见那人把烟头摁在了鞋底上。脚步停了一会儿，又走了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 4 }] },
+          lose: { lines: ['你醒过来的时候门是开着的，楼道里只剩一地的烟灰。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -5 }, { k: 'stat', key: 'stealth', v: -2 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 总部任务
+     * 原动作自带报酬（现金/黄金/贡献）与失败代价，这里只做"怎么接这趟活"的调制。 */
+    mission: {
+      title: '这趟任务怎么接？',
+      story: [
+        '总部把任务单发到你的加密邮箱：一张现场照片、两百字说明、一个坐标。剩下的什么都没有。',
+        '单子上只有一句"到场处置"。怎么进场、带不带人、按不按流程，都归你自己定。',
+      ],
+      options: [
+        {
+          id: 'mission_flow', label: '按流程报备再进场', hint: '慢，但有人兜底',
+          story: [
+            '你先打了三个电话，把时间、车牌、同行的人都报了上去。',
+            '接电话的人把每一项都念回来跟你确认了一遍。',
+          ],
+          mod: 10, risk: -4, cost: [{ k: 'stat', key: 'sanity', v: -3 }],
+          win: { lines: ['进场时门口已经拉好了警戒线。你把册子摊开，从第一页开始对着现场核。'],
+            effects: [{ k: 'flag', key: 'org', v: 1 }] },
+          lose: { lines: ['流程走了两个小时。等你到现场，警戒线已经撤了，只剩地上一道白粉线。'],
+            effects: [{ k: 'stat', key: 'stamina', v: -6 }] },
+        },
+        {
+          id: 'mission_rush', label: '抢时间，抄最近的路', hint: '省事，出事没人接',
+          story: [
+            '你没报备，直接按坐标过去。地图上那条近路是一段拆迁工地。',
+            '鞋底沾了泥，你在一堵半塌的墙前停了一下，然后翻过去。',
+          ],
+          mod: -6, risk: 12, cost: [{ k: 'stat', key: 'stamina', v: -12 }, { k: 'stat', key: 'stealth', v: -3 }],
+          gain: { clue: 1 }, check: { base: 56 },
+          win: { lines: ['废墟后面那栋楼比照片上矮了一层。你把这一点记在了照片背面。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 4 }] },
+          lose: { lines: ['工地的探照灯忽然全亮了。你在灯下站了十几秒，才想起自己该往哪边走。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'stamina', v: -8 }] },
+        },
+        {
+          id: 'mission_gear', label: '先把道具和黄金备齐', hint: '花钱买一层保险',
+          story: [
+            '你去了趟黑市，把该带的都买了：两卷封条、一块压手的黄金、一支能烧很久的蜡烛。',
+            '摊主收钱的时候多看了你两眼，什么也没问。',
+          ],
+          mod: 8, risk: -2, cost: [{ k: 'money', key: 'cash', v: -8 }],
+          win: { lines: ['东西装进背包，压得肩膀往下沉。进现场的时候，你至少知道哪一样先拿出来。'],
+            effects: [{ k: 'stat', key: 'stamina', v: 6 }] },
+        },
+        {
+          id: 'mission_vet', label: '找退下来的老队员问两句', hint: '话不值钱，但有用',
+          story: [
+            '你请人吃了顿夜宵。他把那一片的地形用筷子在桌上摆了一遍。',
+            '问到第三句的时候他停了停，说那个坐标去年用过一次，用法和现在不一样。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'money', key: 'cash', v: -3 }, { k: 'stat', key: 'sanity', v: -2 }],
+          gain: { intel: 1 }, check: { base: 68 },
+          win: { lines: ['他把碗里最后一点汤喝干净，补了一句："进去先看有几盏灯是亮的。"'],
+            effects: [{ k: 'stat', key: 'stamina', v: 4 }] },
+          lose: { lines: ['他喝多了，翻来覆去只讲同一段。你付了钱，把伞落在了店里。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 鬼事赌局
+     * 原动作自带赌本胜负与因果值记账，这里只决定下注的方式与桌上的姿态。 */
+    gamble: {
+      title: '今晚坐哪张桌子？',
+      story: [
+        '赌局在旧舞厅的地下室。桌上压的不是牌，是"次数"：谁先撑不住谁认。规矩用粉笔写在墙上，一层盖着一层。',
+        '桌边的人不看你的脸，只看你的手。',
+      ],
+      options: [
+        {
+          id: 'gamble_two', label: '只坐两圈，小注', hint: '输了不疼，赢了不多',
+          story: [
+            '你把钱压在最边上，只下最小的注。',
+            '前两把的牌你记得清清楚楚，是因为你没怎么花心思看自己的。',
+          ],
+          mod: 10, risk: -4, cost: [{ k: 'stat', key: 'sanity', v: -2 }],
+          win: { lines: ['你数牌的时候手很稳。桌对面那个人看了你两次，第三次就不看了。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 2 }] },
+          lose: { lines: ['两圈下来你不进不出。有人替你续了茶，茶是凉的。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -2 }] },
+        },
+        {
+          id: 'gamble_all', label: '把赌本一次全推上去', hint: '一把定，心跳快',
+          story: [
+            '你把桌上的钱拢成一堆推过去，推的时候没有数。',
+            '发牌前，地下室那台旧空调响了一声，又停了。',
+          ],
+          mod: -8, risk: 10, cost: [{ k: 'stat', key: 'sanity', v: -6 }],
+          gain: { cash: 8 }, check: { base: 52 },
+          win: { lines: ['牌翻过来的时候，桌边有人先笑了一声。你把笑的那个人记住了。'],
+            effects: [{ k: 'flag', key: 'outlaw', v: 1 }] },
+          lose: { lines: ['你推出去的那堆钱被人用手背拨到一边，动作快得像早就练过。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'stat', key: 'stealth', v: -3 }] },
+        },
+        {
+          id: 'gamble_watch', label: '先看三轮，摸清谁在做局', hint: '看明白再下注',
+          story: [
+            '你站在柱子旁边，只看不下：第一轮盯发牌的手，第二轮盯桌下，第三轮盯人的眼睛。',
+            '墙上那行粉笔字被人又描了一遍。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'stat', key: 'stamina', v: -5 }],
+          gain: { intel: 1 }, check: { base: 62 },
+          win: { lines: ['同一个人输的时候，右手的小指会先收一下。你把这一条记进了脑子里。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 3 }] },
+          lose: { lines: ['三轮看完你什么也没看出来，只觉得这屋子里的空气比外面沉。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'gamble_eye', label: '用鬼眼看牌面', hint: '好用，但会被人看出来',
+          story: [
+            '你低下头，让眼底那一层慢慢浮上来。桌布上的花纹在鬼眼里变成了另一副样子。',
+            '发牌的人没有抬头，只是把牌推得慢了些。',
+          ],
+          mod: -2, risk: 8, cost: [{ k: 'stat', key: 'erosion', v: 3 }, { k: 'stat', key: 'stealth', v: -4 }],
+          gain: { clue: 1 }, check: { base: 58 },
+          win: { lines: ['你隔着桌布看见底下压着的东西不止牌。有几样你认得，有几样不认得。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 4 }] },
+          lose: { lines: ['鬼眼收得比平时慢。你揉眼睛的时候，有一桌的人同时看向了你这边。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'pollution', v: 5 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 深入鬼域边缘
+     * 原动作在成功时给情报 +2、污染与理智都要付账；这里只决定"从哪一侧、走多深"。 */
+    domain_probe: {
+      title: '从哪个缺口进去？',
+      story: [
+        '鬼域的边缘不像墙，更像一层没擦干净的玻璃：街还是那条街，招牌上的字缺了几笔，走过去的人不回头。',
+        '你在外围站了一会儿。往里走多远、走哪一侧，决定你能看见什么，也决定你出来时还剩下多少。',
+      ],
+      options: [
+        {
+          id: 'dp_edge', label: '贴着边缘走一圈', hint: '看得少，退得快',
+          story: [
+            '你沿着那层"玻璃"的外沿走，右手一直贴着墙。',
+            '走到第三个路口时，你发现路灯的编号跳过了两个号。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'stat', key: 'stamina', v: -8 }],
+          win: { lines: ['你在跳过的那两个号之间来回走了两遍，两遍用的步数不一样。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 2 }] },
+          lose: { lines: ['你沿着外沿走了很久，除了自己的影子，什么也没有变。'],
+            effects: [{ k: 'stat', key: 'stamina', v: -5 }] },
+        },
+        {
+          id: 'dp_deep', label: '往域里多走两条街', hint: '看得多，出来难找路',
+          story: [
+            '你从缺口进去，往里走了两条街才回头。',
+            '回头看的那一眼，来时的路比刚才短了一截。',
+          ],
+          mod: -6, risk: 14, cost: [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'stat', key: 'pollution', v: 3 }],
+          gain: { clue: 1, intel: 1 }, check: { base: 54 },
+          win: { lines: ['域里的店招全是关着的，但你在其中一家的玻璃上看见了自己的反光——比你先到了一步。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 4 }] },
+          lose: { lines: ['你按原路退，退到第三个路口才发现街名对不上。你在那里站到腿发麻。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'stat', key: 'stamina', v: -12 }] },
+        },
+        {
+          id: 'dp_listen', label: '在域里停住听它重复', hint: '听见就好，别乱动',
+          story: [
+            '你在一个十字路口停下来，把手插进兜里，闭上嘴。',
+            '域里的声音是有顺序的：喇叭、脚步、卷帘门，然后是喇叭。',
+          ],
+          mod: 6, risk: 6, cost: [{ k: 'stat', key: 'sanity', v: -6 }],
+          gain: { clue: 1 }, check: { base: 62 },
+          win: { lines: ['第二遍回放的时候，中间少了一个声音。你在本子上画了三道竖线，各标上时间。'],
+            effects: [{ k: 'stat', key: 'stamina', v: 5 }] },
+          lose: { lines: ['声音一遍一遍重复，你数到第十一遍就数不下去了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -5 }] },
+        },
+        {
+          id: 'dp_photo', label: '带旧照片进去对着找', hint: '有参照，得多待一阵',
+          story: [
+            '你带了张十年前的街景照进去。照片里那家五金店，现在的位置上是一堵墙。',
+            '你把照片举到眼前：墙和照片在同一水平线上错开了半米。',
+          ],
+          mod: 8, risk: 2, cost: [{ k: 'stat', key: 'stamina', v: -12 }, { k: 'money', key: 'cash', v: -2 }],
+          gain: { intel: 1 }, check: { base: 64 },
+          win: { lines: ['你退后两步再看，错开的那半米正好是照片被折过的地方。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 3 }] },
+          lose: { lines: ['照片在你手上受了潮，边角卷起来。你把最后的参照也弄丢了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -4 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 封印鬼域节点
+     * 原动作每章 2 次、成功即把鬼域压回去一格；这里只决定"把节点押在哪、用什么压"。 */
+    domain_seal: {
+      title: '节点定在哪一格？',
+      story: [
+        '要压住一片域，得先找到它的"节点"：一处它反复经过、却又不属于现实的地方。可能是一根灯柱，也可能是三楼那间一直亮着的教室。',
+        '手上的线索只够押一个位置。封条、黄金、手上的活，今晚都得用掉。',
+      ],
+      options: [
+        {
+          id: 'dseal_wall', label: '顺着墙根一路铺过去', hint: '稳，用得多',
+          story: [
+            '你从街口开始，一段一段把封条压进墙缝里。',
+            '铺到一半的时候，手电的电池换了一次。',
+          ],
+          mod: 10, risk: -4, cost: [{ k: 'stat', key: 'stamina', v: -10 }, { k: 'money', key: 'cash', v: -3 }],
+          win: { lines: ['最后一段墙缝比别的都深。你把封条往里塞的时候，指尖碰到了一点凉。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 2 }] },
+          lose: { lines: ['铺到最后一段时，风把街角的纸吹得直响。你蹲下来把卷尺一圈圈收好。'],
+            effects: [{ k: 'stat', key: 'stamina', v: -6 }] },
+        },
+        {
+          id: 'dseal_core', label: '直接进最里面那一间', hint: '快，赌位置对不对',
+          story: [
+            '你没有从外往里推，直接走到那片区域的正中——三楼走廊尽头那间教室。',
+            '门是虚掩的，里面黑得很均匀，连窗外的路灯都照不进来。',
+          ],
+          mod: -8, risk: 12, cost: [{ k: 'stat', key: 'sanity', v: -8 }],
+          gain: { intel: 1 }, check: { base: 54 },
+          win: { lines: ['你把封条贴在门框正中，退到走廊另一头看。门框上那截粉笔印比你记忆里低了一点。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 5 }] },
+          lose: { lines: ['教室里的桌椅全部朝一个方向歪着。你退出来时，走廊上的灯一盏一盏灭在你身后。'],
+            effects: [{ k: 'stat', key: 'stamina', v: -14 }, { k: 'stat', key: 'pollution', v: 4 }] },
+        },
+        {
+          id: 'dseal_gold', label: '用黄金把节点钉住', hint: '靠物件，不靠手',
+          story: [
+            '你把那块压手的黄金从内袋取出来，放在节点上，用手掌压住停了很久。',
+            '黄金在夜里不反光，只有边缘挂着一点钝钝的亮。',
+          ],
+          mod: 8, risk: 0, cost: [{ k: 'money', key: 'gold', v: -2 }],
+          win: { lines: ['你把黄金留在了那里，退开五米回头看。那一点钝亮在路口很显眼，路过的人却都没有看它。'],
+            effects: [{ k: 'stat', key: 'stamina', v: 6 }] },
+        },
+        {
+          id: 'dseal_help', label: '花钱请本地人守外围', hint: '有人看着，心里有底',
+          story: [
+            '你找了两个还在上夜班的保安，让他们守在外围的路口，只说"看到奇怪的就打电话"。',
+            '其中一个问你到底在做什么，你说"拉电线"。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'money', key: 'cash', v: -6 }],
+          win: { lines: ['半夜两点，你的手机响了两次，都是"没事，就是有只猫"。你听着那两声，觉得比什么都踏实。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 4 }] },
+        },
+      ],
+    },
+    /* ------------------------------------------------------------------ 会见其他驭鬼者
+     * 原动作本身不改数值，结算完直接进入"人"的遭遇（能谈、能换、也能翻脸）。
+     * 所以这里给出的 mod/risk 只影响那一次遭遇前的姿态，收益走 gain 与 win 里的小项。 */
+    meet_driver: {
+      title: '约在哪、怎么谈？',
+      story: [
+        '同一座城里做这一行的人不多。你手上那个号码是上次在殡仪馆门口换来的，对方只回了一个地址和一个时间。',
+        '同行之间没有规矩，只有各自的底线。今天你怎么见他，就决定了你们今天是什么关系。',
+      ],
+      options: [
+        {
+          id: 'mdrv_tea', label: '约在人多的老茶馆', hint: '翻脸也有个顾忌',
+          story: [
+            '你们约在二楼靠窗的位置。他比你先到，杯子里的茶已经凉了。',
+            '说话的声音压在茶碗碰撞的声音下面。',
+          ],
+          mod: 8, risk: -6, cost: [{ k: 'money', key: 'cash', v: -2 }],
+          gain: { intel: 1 }, check: { base: 66 },
+          win: { lines: ['他把你给的那张照片翻过来看背面，看了很久，然后摸出笔在角上画了个圈。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 3 }] },
+          lose: { lines: ['他说了半下午的场面话。临走把茶钱留在桌上，没有让你付。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'mdrv_home', label: '把人请到自己的安全屋', hint: '谈得深，露得多',
+          story: [
+            '你把人领回安全屋，进门先收了手机。',
+            '他围着屋子走了一圈，在贴封条的那面墙前站住，没有问。',
+          ],
+          mod: 10, risk: 6, cost: [{ k: 'stat', key: 'stealth', v: -4 }],
+          gain: { clue: 1 }, check: { base: 60 },
+          win: { lines: ['他指着墙上那条封条的位置说："你贴错了一寸。"然后把自己那副手套解了下来。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 3 }] },
+          lose: { lines: ['他在你屋里坐了一刻钟就起身告辞，走的时候眼睛把你每一扇窗都过了一遍。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -5 }] },
+        },
+        {
+          id: 'mdrv_edge', label: '约在城外的废料场', hint: '谁也不欠谁',
+          story: [
+            '你们约在废料场边上，中间隔着一台报废的压路机。',
+            '风把地上的塑料布吹得一直响，两个人都不用压低声音。',
+          ],
+          mod: 4, risk: 2, cost: [{ k: 'stat', key: 'stamina', v: -6 }],
+          check: { base: 66 },
+          win: { lines: ['他隔着压路机把话说完，一次也没有往前迈。你们各自从两个方向离开。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 3 }] },
+          lose: { lines: ['风太大，说到后面两个人都懒得提高声音。他把烟掐了，先走了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'mdrv_gift', label: '先递上一份见面礼', hint: '花钱换个开场',
+          story: [
+            '你在旧货市场淘了件东西——一副老式铜镜，镜面是暗的。',
+            '递过去的时候，他终于抬了一次头。',
+          ],
+          mod: 10, risk: -4, cost: [{ k: 'money', key: 'cash', v: -5 }],
+          win: { lines: ['他把铜镜翻过来看背面，指腹在镜框的花纹里按了按，然后收进了大衣内袋。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 3 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 向总部汇报（队长线）
+     * 原动作必定给贡献与情报、并压低低调；这里只决定"报多少、留多少"。 */
+    stance_report: {
+      title: '这次汇报怎么写？',
+      story: [
+        '总部那边的电话下午三点到五点最好打。接线的人不问感受，只问时间、地点、处理结果。',
+        '你手上的东西比能写的多。写多少、留多少、把哪一段挪到前面，都是你自己的决定。',
+      ],
+      options: [
+        {
+          id: 'sr_plain', label: '按格式一条条写清', hint: '稳妥，功劳记在册上',
+          story: [
+            '你把时间线理了三遍，删掉两处记不清的地方，剩下的按顺序写。',
+            '写到最后一栏"其他情况"时，你停了一会儿，还是写了。',
+          ],
+          mod: 10, risk: -4, cost: [{ k: 'stat', key: 'sanity', v: -3 }],
+          win: { lines: ['对面把每一项都复述回来跟你核对。核到第三项时，他的语气比前面认真了一些。'],
+            effects: [{ k: 'flag', key: 'org', v: 1 }] },
+          lose: { lines: ['电话转到第二个人手上，对方只说"知道了"，然后让你等通知。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'sr_keep', label: '只报结果，过程自己留', hint: '省事，也少些麻烦',
+          story: [
+            '你把最关键的那一段写在另一张纸上，折起来收好。',
+            '电话里只说了地点、时间和一句"处理过了"。',
+          ],
+          mod: 8, risk: -6, cost: [{ k: 'stat', key: 'sanity', v: -2 }],
+          win: { lines: ['对面没有追问。挂电话之前他记下了你的号码，说以后直接找他。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 4 }] },
+        },
+        {
+          id: 'sr_shift', label: '把最难的那一段推给别队', hint: '推得掉，但会结怨',
+          story: [
+            '你在汇报里把最先到场的顺序改了一下，只改了四个字。',
+            '改完你把原稿撕了，纸屑冲进下水道。',
+          ],
+          mod: -4, risk: 6, cost: [{ k: 'stat', key: 'humanity', v: -2 }],
+          check: { base: 62 },
+          win: { lines: ['那块地方被划给了另一队，你的名字从那一页挪到了后面一页。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 5 }] },
+          lose: { lines: ['第二天就有人打电话来问细节，问得很细，细到时间点。'],
+            effects: [{ k: 'stat', key: 'stealth', v: -4 }, { k: 'flag', key: 'org', v: -1 }] },
+        },
+        {
+          id: 'sr_bargain', label: '顺势要一份授权和装备', hint: '开口要，多半要给',
+          story: [
+            '你把话头引到装备上：封条不够、蜡烛受潮、黄金太薄。',
+            '对面在纸上记了几笔，让你等回复。',
+          ],
+          mod: 6, risk: 0, cost: [{ k: 'stat', key: 'sanity', v: -4 }],
+          gain: { intel: 1 }, check: { base: 62 },
+          win: { lines: ['第三天有人在你门口放下一个纸箱，没敲门。箱子上没有寄件人。'],
+            effects: [{ k: 'stat', key: 'stamina', v: 6 }] },
+          lose: { lines: ['回复是"按规定办"。你把写着要装备的那一页从本子上撕了下来。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 灵异论坛
+     * 原动作必定给情报、并把低调压下去（看得越久越容易被反向找到）。 */
+    stance_browse: {
+      title: '帖子从哪一条看起？',
+      story: [
+        '论坛的老域名换了三次，老用户还在。今天的首页上飘着三条帖子：一条有图，一条没有标题，一条在问"有没有人也遇到过"。',
+        '你在网吧开的机子，摄像头用胶布贴上了。坐得越久，越容易被人在后面记住。',
+      ],
+      options: [
+        {
+          id: 'sb_pic', label: '只看带图的那几条', hint: '图和街景对得上才算',
+          story: [
+            '你把图存下来，放大到能看清店招，然后去地图上一条街一条街地对。',
+            '对到第七条的时候，你认出了那截歪的台阶。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'stat', key: 'stamina', v: -4 }],
+          gain: { clue: 1 }, check: { base: 64 },
+          win: { lines: ['照片是去年拍的，招牌上贴着一张小广告，广告上的号码你见过。'],
+            effects: [{ k: 'flag', key: 'forum', v: 1 }] },
+          lose: { lines: ['图是拼的：左边那半张和右边那半张的对角线方向不一样。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'sb_deep', label: '翻到十年没人回的沉帖', hint: '旧帖里的地名还在',
+          story: [
+            '你按关键词往回翻，翻到第七十几页，帖子已经不能回复了。',
+            '楼主最后登录的日期停在很多年前，头像一直是灰的。',
+          ],
+          mod: 0, risk: 4, cost: [{ k: 'stat', key: 'sanity', v: -6 }],
+          gain: { clue: 1 }, check: { base: 56 },
+          win: { lines: ['楼主在第九楼贴过一张手画的示意图，线条歪，但方位和现在对得上。'],
+            effects: [{ k: 'flag', key: 'forum', v: 1 }] },
+          lose: { lines: ['翻到后半夜，屏幕上的字开始重影。你只记住了一个早就拆掉的地名。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 4 }] },
+        },
+        {
+          id: 'sb_ask', label: '自己发一帖，问得很具体', hint: '钓得到同行，也钓别的',
+          story: [
+            '你注册了个新号，帖子只写三行：地点、时间、一个只有到过现场才有的细节。',
+            '发完你把网线拔了，坐在那儿看了十分钟的空白页。',
+          ],
+          mod: -6, risk: 12, cost: [{ k: 'stat', key: 'stealth', v: -4 }],
+          gain: { intel: 1 }, check: { base: 54 },
+          win: { lines: ['凌晨有个新号回了你四个字，接着帖子被删了。你记住了那个号的注册日期。'],
+            effects: [{ k: 'flag', key: 'forum', v: 1 }] },
+          lose: { lines: ['回复里有人贴了你家楼下的照片，角度是从对街拍的。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -5 }, { k: 'stat', key: 'pollution', v: 4 }] },
+        },
+        {
+          id: 'sb_quiet', label: '只看不回，把话记进册子', hint: '最安静的一条路',
+          story: [
+            '你不登录，只把有用的段落复制到本地文档里，看完就清缓存。',
+            '下机之前，你把那台机子的历史记录删了一遍。',
+          ],
+          mod: 10, risk: -8, cost: [{ k: 'stat', key: 'stamina', v: -3 }],
+          check: { base: 68 },
+          win: { lines: ['没人知道你今天看过什么。走的时候网管在打瞌睡，头一点一点的。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 3 }] },
+          lose: { lines: ['你清了三遍还是觉得没清干净。出门时回头看了一眼那排机箱。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 接私活（民间线）
+     * 原动作自带报酬与失败代价（钱多、脏、没保障），这里只决定怎么谈、怎么做。 */
+    stance_oddjob: {
+      title: '这单活怎么接？',
+      story: [
+        '活是托了三个人才递到你手上的：一张纸条，一个地址，一句"三天内"。雇主不肯说名字，也不肯先付。',
+        '私活的钱比总部干净不了多少。脏的地方在于没人替你签字。',
+      ],
+      options: [
+        {
+          id: 'so_ask', label: '先问清地方、时间和人', hint: '多问两句，少走弯路',
+          story: [
+            '你按纸条上的号码打过去，问了三个问题，对面答了两个。',
+            '第三个问题他没答，只说"你到了就知道了"。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'stat', key: 'sanity', v: -2 }],
+          gain: { intel: 1 }, check: { base: 66 },
+          win: { lines: ['你把没被回答的那个问题记在纸上，到地方之后第一个去核的就是它。'],
+            effects: [{ k: 'stat', key: 'stamina', v: 4 }] },
+          lose: { lines: ['对面把电话挂了。你握着听筒站了一会儿，才想起自己没问价。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'so_night', label: '半夜上门，办完就走', hint: '快，也最容易撞上',
+          story: [
+            '你挑了凌晨一点过去。楼道里没人，只有一层的灯泡在闪。',
+            '你戴好手套按了门铃，没有人应。门是开的。',
+          ],
+          mod: -8, risk: 12, cost: [{ k: 'stat', key: 'stamina', v: -12 }, { k: 'stat', key: 'stealth', v: -3 }],
+          gain: { cash: 6 }, check: { base: 54 },
+          win: { lines: ['屋里的东西都搬空了，只剩墙上一个没摘的挂钩。你在挂钩后面摸到了东西。'],
+            effects: [{ k: 'flag', key: 'outlaw', v: 1 }] },
+          lose: { lines: ['你退出来的时候，楼道里站着一个不该站在那儿的人。他没有说话，你也没有。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'stat', key: 'pollution', v: 4 }] },
+        },
+        {
+          id: 'so_front', label: '先垫钱把家伙备齐', hint: '花钱换一层把握',
+          story: [
+            '你自掏腰包买了两卷封条和一副厚手套，钱是从自己的卡里出的。',
+            '雇主知道这件事之后，语气比前面客气了一些。',
+          ],
+          mod: 8, risk: -2, cost: [{ k: 'money', key: 'cash', v: -6 }],
+          win: { lines: ['东西是新的，摸上去还带着包装的味道。你把它们按要用的顺序在包里排好。'],
+            effects: [{ k: 'stat', key: 'stamina', v: 6 }] },
+        },
+        {
+          id: 'so_clean', label: '只接干净的那一半', hint: '钱少，风险也小',
+          story: [
+            '你和雇主把活拆成两半：只做外面看得见的那部分。',
+            '另外一半他去找了别人，你没有问是谁。',
+          ],
+          mod: 6, risk: -8, cost: [{ k: 'stat', key: 'sanity', v: -2 }],
+          win: { lines: ['你那半做完的时候天刚亮，街上扫地的车正在转弯。没有人看你的方向。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 4 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 推进「终结计划」
+     * 原动作自己会涨劫难与因果、给一点情报，并推进一格计划；这里只决定这一步怎么落。 */
+    stance_plan: {
+      title: '这一步往哪落笔？',
+      story: [
+        '计划写在一个旧本子上：不写名字，不写日期，只写"下一步"。你很清楚，每往前走一步，这个世界就往前推得比自己更快。',
+        '本子上还剩几页。今晚你只添得上一行。',
+      ],
+      options: [
+        {
+          id: 'sp_note', label: '把已知的规矩按顺序抄一遍', hint: '慢工，底子厚',
+          story: [
+            '你把册子上记着的规矩全部抄到本子上，一条一条排，遇到重复的就并在一起。',
+            '抄到后半夜，你把其中两条的位置换了一下。',
+          ],
+          mod: 10, risk: -4, cost: [{ k: 'stat', key: 'sanity', v: -4 }],
+          check: { base: 64 },
+          win: { lines: ['换过位置之后，中间空出来的那一格正好能填上一个动作。你把它写在了旁边。'],
+            effects: [{ k: 'flag', key: 'endgame', v: 1 }] },
+          lose: { lines: ['抄到最后你发现抄重了两条。你把那一页划掉，重新起了一页。'],
+            effects: [{ k: 'stat', key: 'stamina', v: -6 }] },
+        },
+        {
+          id: 'sp_test', label: '拿一个小源头试一次', hint: '试得动，代价不小',
+          story: [
+            '你找了个小源头试手，地方选在城郊那片废砖窑。',
+            '进窑之前，你把鞋带重新系了一遍。',
+          ],
+          mod: -6, risk: 12, cost: [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'stat', key: 'humanity', v: -2 }],
+          gain: { clue: 1 }, check: { base: 52 },
+          win: { lines: ['窑口外的杂草倒向一边，倒的方向和风不一致。你在本子上记了一笔。'],
+            effects: [{ k: 'flag', key: 'endgame', v: 1 }] },
+          lose: { lines: ['你在窑里待到天亮才发现，自己一直在同一个位置转。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 6 }, { k: 'stat', key: 'stamina', v: -12 }] },
+        },
+        {
+          id: 'sp_peer', label: '找同行对一遍推演', hint: '两个人的错更少',
+          story: [
+            '你把计划里最不确定的一段抄了一份带去见同行，没有带整个本子。',
+            '他看完没说话，先把自己的本子翻开了。',
+          ],
+          mod: 8, risk: 2, cost: [{ k: 'money', key: 'cash', v: -3 }],
+          gain: { intel: 1 }, check: { base: 62 },
+          win: { lines: ['他指着你写的第三步，说这一步他试过，然后把自己纸上写的两个字划掉了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 3 }] },
+          lose: { lines: ['他把纸推回给你，说这种事别拿来问他。走的时候他先付了钱。'],
+            effects: [{ k: 'stat', key: 'stealth', v: -3 }] },
+        },
+        {
+          id: 'sp_cover', label: '把这一步混进日常里做', hint: '看不出来，慢一点',
+          story: [
+            '你没有专门腾时间，只把要做的事拆成几个动作，混进上班的路上和买菜的工夫里。',
+            '每一步都很小，小到连你自己都得翻本子才确认做没做。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'stat', key: 'stamina', v: -6 }],
+          win: { lines: ['一天下来本子上多了记号，你身边没有一个人问过你今天在忙什么。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 5 }] },
+        },
+      ],
+    },
+    /* ------------------------------------------------------------------ 力量类（tag 兜底）
+     * 最重要的一条：驾驭类动作的 id 是 mastery:<鬼id>，永远找不到精确场景，
+     * 只能落到这里。所以"怎么驾驭"必须写成通用但够具体的样子：
+     * 照册子上的规矩来 / 趁它没准备好硬按 / 借体内已有的契约 / 只靠近不出手先看清。
+     * 原动作自带成功率（还要吃重复尝试与契约惩罚），这里只用 mod 与做法本身的判定做调制。 */
+    power: {
+      title: '怎么动手去碰它？',
+      story: [
+        '驾驭不是签下来的，是压出来的：把它按进自己身体里，让它暂时同意。册子上记的是它的规矩，规矩之外的部分只能现场看。',
+        '你要决定的是：照册子一步一步来，还是趁它没准备好先动手；以及留不留后手。',
+      ],
+      options: [
+        {
+          id: 'pw_book', label: '照册子上的规矩一步步来', hint: '稳，慢，吃得住',
+          story: [
+            '你把册子摊在膝盖上，照着上面记的顺序做准备：先断声，再挡光，最后才靠近。',
+            '每两步之间你都停一会儿，等自己的手不抖了再做下一步。',
+          ],
+          mod: 10, risk: -4, cost: [{ k: 'stat', key: 'sanity', v: -4 }],
+          gain: { clue: 1 }, check: { base: 64 },
+          win: { lines: ['按顺序做到第三步时，它的动作和你册子上记的对上了——比预想的早了半拍。'],
+            effects: [{ k: 'stat', key: 'stamina', v: 5 }] },
+          lose: { lines: ['顺序是死的，它是活的。你把册子合上，决定换个时间再试。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -5 }] },
+        },
+        {
+          id: 'pw_push', label: '趁它刚露头硬按下去', hint: '快，伤身也伤神',
+          story: [
+            '它刚从那股冷意里探出来，你就扑了上去，什么准备都没做。',
+            '你的手在发抖，但你按住了没有松。',
+          ],
+          mod: -8, risk: 10, cost: [{ k: 'stat', key: 'stamina', v: -14 }, { k: 'stat', key: 'stealth', v: -3 }],
+          gain: { intel: 1 }, check: { base: 54 },
+          win: { lines: ['有一瞬间你听不见自己的心跳。等你重新听见的时候，屋里多了一股铁锈味。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 4 }] },
+          lose: { lines: ['你被什么东西从里面顶开，退了三步，后脑磕在门框上。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'stat', key: 'pollution', v: 5 }] },
+        },
+        {
+          id: 'pw_lend', label: '借体内已有的契约去压它', hint: '借力，两边都伤',
+          story: [
+            '你把体内那只老契约先叫醒，让它顶在前面。',
+            '两只东西在你身体里碰上的时候，你咬着牙没出声。',
+          ],
+          mod: -4, risk: 6, cost: [{ k: 'stat', key: 'erosion', v: 4 }, { k: 'stat', key: 'sanity', v: -6 }],
+          gain: { clue: 1 }, check: { base: 58 },
+          win: { lines: ['它们互相认了一下，然后各退了一步。你趁这时候把它看清了半张脸。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 4 }] },
+          lose: { lines: ['两只东西谁也没让步，最后让步的是你。你扶着墙，过了很久才想起来要开灯。'],
+            effects: [{ k: 'stat', key: 'erosion', v: 3 }, { k: 'stat', key: 'humanity', v: -2 }] },
+        },
+        {
+          id: 'pw_watch', label: '先只靠近不出手，把它看全', hint: '不试，先把规律看清',
+          story: [
+            '你什么都没做，只在它出现的地方待着，看它怎么动、怎么停、怎么注意你。',
+            '记满一页纸之后，你退到了门外。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'stat', key: 'stamina', v: -8 }],
+          gain: { intel: 1 }, check: { base: 66 },
+          win: { lines: ['它在同一个位置停了三次，每次停的时间一样长。你把这三个时间点排在一行上。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 2 }] },
+          lose: { lines: ['它一直不动。你等到天快亮，纸上只有自己的字迹越来越潦草。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -4 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 人物遭遇类（tag 兜底）
+     * person 这个 tag 上通常是"去见一个人"的动作；这里只决定开头怎么开。 */
+    person: {
+      title: '这场面怎么开？',
+      story: [
+        '有些人是约出来的，有些人只能在路上碰到。对方已经在那里了——你怎么开这个头，后面的事就怎么走。',
+        '先递名字最快，先站在旁边看最稳。',
+      ],
+      options: [
+        {
+          id: 'pe_name', label: '先报名字，把手摊开', hint: '痛快，但先露底',
+          story: [
+            '你在他对面坐下，先说了自己的名字，把手放在桌面上，掌心朝上。',
+            '他看了你的手一眼，才抬起眼睛。',
+          ],
+          mod: 8, risk: -2, cost: [{ k: 'stat', key: 'stealth', v: -3 }],
+          check: { base: 66 },
+          win: { lines: ['他把自己的名字也说了一遍，说得比你的慢。桌上的气氛松了半格。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 3 }] },
+          lose: { lines: ['他听完只点了点头，没有接话。你们之间的沉默比说过的话长。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'pe_watch', label: '先站远处看他做什么', hint: '看得清，耽误时间',
+          story: [
+            '你没有过去，只在对街的公交站台上站着，看他等、看他看表、看他跟谁打招呼。',
+            '车来了三趟，你都没有上。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'stat', key: 'stamina', v: -5 }],
+          gain: { intel: 1 }, check: { base: 64 },
+          win: { lines: ['他手里的东西换了三次手，每次换手都在看同一个方向——那个方向不是他等的方向。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 2 }] },
+          lose: { lines: ['他先走了。你又在站台上等了一趟车，什么也没看出来。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'pe_press', label: '把话挑明，看他反应', hint: '快刀，容易翻脸',
+          story: [
+            '你走过去，没有寒暄，直接把最要紧的那一句问了出来。',
+            '问完你没有让开，就站在他面前等他答。',
+          ],
+          mod: -6, risk: 10, cost: [{ k: 'stat', key: 'stealth', v: -4 }],
+          gain: { clue: 1 }, check: { base: 54 },
+          win: { lines: ['他的手指在裤缝上敲了两下，然后告诉了你一个地址，说完就走了。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 3 }] },
+          lose: { lines: ['他的脸色变了一下，然后笑了笑，把话题扯到天气上。你走的时候听见他在后面打电话。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'pollution', v: 4 }] },
+        },
+        {
+          id: 'pe_gift', label: '带点东西上门', hint: '花点钱，话好说',
+          story: [
+            '你在楼下买了水果和两条烟，用塑料袋提着。',
+            '开门的人看见袋子，侧身让了半步。',
+          ],
+          mod: 10, risk: -4, cost: [{ k: 'money', key: 'cash', v: -4 }],
+          win: { lines: ['杯子里的水是热的。你说话的时候，对方把烟灰缸往你这边推了一下。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 3 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 组织线（tag 兜底）
+     * 总部/编制内的通用做法：按手册走、自己留一手、先要授权、或者先做了再说。 */
+    org: {
+      title: '这条线怎么走？',
+      story: [
+        '总部那边的流程写在手册上，手册一共七页，其中三页是附表。你手边有现场的东西，也有现场之外的东西。',
+        '按流程走、自己留一手、或者干脆不打招呼——三条路都有人走过，后果各不相同。',
+      ],
+      options: [
+        {
+          id: 'og_form', label: '照手册的格式走完', hint: '麻烦，但有人认',
+          story: [
+            '你把该填的表填了：编号、时间、见证人，一项没落。',
+            '最后一栏要写"处置结果"，你停了一下才落笔。',
+          ],
+          mod: 10, risk: -4, cost: [{ k: 'stat', key: 'sanity', v: -3 }],
+          win: { lines: ['收表的人在编号旁边画了个圈，说这单归档了，以后有事按这个号查。'],
+            effects: [{ k: 'flag', key: 'org', v: 1 }] },
+          lose: { lines: ['表被退回来一次，说是编号写错了位。你重填了一份，字比原来小。'],
+            effects: [{ k: 'stat', key: 'stamina', v: -5 }] },
+        },
+        {
+          id: 'og_hold', label: '只交结果，过程留在自己手里', hint: '少惹麻烦',
+          story: [
+            '你把过程那一段从附件里删掉，只上传现场照片和一段简短说明。',
+            '上传之前你再看了一遍，确认照片里没有自己的影子。',
+          ],
+          mod: 8, risk: -6, cost: [{ k: 'stat', key: 'sanity', v: -2 }],
+          win: { lines: ['回复只有两个字：收到。你把原始文件单独拷进了另一张卡。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 3 }] },
+        },
+        {
+          id: 'og_ask', label: '先要授权，再动手', hint: '等一等，换个名分',
+          story: [
+            '你在动手之前先要了一份书面授权，把范围、时间、赔付条件都写上去。',
+            '对方让你把要求发成邮件，抄送三个人。',
+          ],
+          mod: 6, risk: -2, cost: [{ k: 'stat', key: 'stamina', v: -5 }],
+          gain: { intel: 1 }, check: { base: 62 },
+          win: { lines: ['邮件回得比你想的快。附件里多了一份没公开过的现场记录。'],
+            effects: [{ k: 'flag', key: 'org', v: 1 }] },
+          lose: { lines: ['回复让你走"既定程序"。你把邮件折叠了一次，又展开。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -4 }] },
+        },
+        {
+          id: 'og_go', label: '不打招呼，先做了再说', hint: '快，回头要写检查',
+          story: [
+            '你没有报备。等事情做完，现场已经被你自己收拾过一遍了。',
+            '第二天你才补了一份说明，写在便利贴上，贴进自己的本子。',
+          ],
+          mod: -6, risk: 12, cost: [{ k: 'stat', key: 'humanity', v: -2 }],
+          gain: { clue: 1 }, check: { base: 52 },
+          win: { lines: ['现场留下的一样东西你没有上交，用报纸包好塞进了柜子最底层。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 4 }] },
+          lose: { lines: ['第二天有人来问你昨天在哪儿。你说在家，对方记了下来，没有追问。'],
+            effects: [{ k: 'stat', key: 'stealth', v: -5 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 论坛线（tag 兜底）
+     * 与 stance_browse 同一个题材，但动作不同，做法也写成通用的一套。 */
+    forum: {
+      title: '从哪条帖子下手？',
+      story: [
+        '论坛上的东西真假掺着：有人是真见过，有人只是想让人回帖。你得自己分。',
+        '翻帖子的方式有好几种：顺着图找街景、顺着人找旧帖，或者干脆把问题拆开一句一句问。',
+      ],
+      options: [
+        {
+          id: 'fo_pic', label: '顺着图里的街景去对', hint: '对得上才信',
+          story: [
+            '你把图里能看清的三样东西记下来：一块路牌、一家店的门头、一段歪的台阶。',
+            '然后你去地图上找同时有这三样的路口。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'stat', key: 'stamina', v: -5 }],
+          gain: { clue: 1 }, check: { base: 64 },
+          win: { lines: ['路口找到了。台阶在照片里是往左歪的，现在还是往左歪。'],
+            effects: [{ k: 'flag', key: 'forum', v: 1 }] },
+          lose: { lines: ['对了两小时，只对上两样。第三样那条街去年就拆了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'fo_old', label: '翻同名旧帖与转载', hint: '旧帖里地名更全',
+          story: [
+            '你按同一条传闻的不同写法搜了一遍，把能搜到的帖子按年份排开。',
+            '最早的一条用的是老地名，后来的人照着抄，抄错了一个字。',
+          ],
+          mod: 6, risk: 0, cost: [{ k: 'stat', key: 'sanity', v: -5 }],
+          gain: { intel: 1 }, check: { base: 60 },
+          win: { lines: ['错的那个字把范围缩了一半。你在地图上把那一半圈了出来。'],
+            effects: [{ k: 'flag', key: 'forum', v: 1 }] },
+          lose: { lines: ['翻到后面几页，全是互相转载的同一段话。你把页面关了。'],
+            effects: [{ k: 'stat', key: 'stamina', v: -5 }] },
+        },
+        {
+          id: 'fo_ask', label: '拆开问，一个帖子问一句', hint: '不显眼，也能问出话',
+          story: [
+            '你不用同一个号，问的也不是同一件事：一条问时间，一条问天气，一条只问"那栋楼拆了吗"。',
+            '问完你把账号都退了。',
+          ],
+          mod: 10, risk: -8, cost: [{ k: 'stat', key: 'stamina', v: -4 }],
+          check: { base: 68 },
+          win: { lines: ['三条回复凑在一起，时间、天气、楼的状态都对得上同一个晚上。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 3 }] },
+          lose: { lines: ['只有一条回复，回的是"别问了"。你把那三个号都注销了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'fo_dm', label: '私信发过现场照片的人', hint: '钓得到人，也可能招东西',
+          story: [
+            '你给三个发过现场照片的人发了私信，措辞不一样。',
+            '第一个回得快，第二个回得慢，第三个一直没回。',
+          ],
+          mod: -6, risk: 12, cost: [{ k: 'stat', key: 'stealth', v: -4 }],
+          gain: { intel: 1 }, check: { base: 54 },
+          win: { lines: ['回得慢的那个给你发了一个位置，那个位置在他自己的主页上出现过。'],
+            effects: [{ k: 'flag', key: 'forum', v: 1 }] },
+          lose: { lines: ['第二天你的私信箱里多了一条消息，里面只有一个你昨天去过的地方。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'pollution', v: 4 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 民间线（tag 兜底）
+     * 民间这一行讲"点头算数"：价钱、人手、先付后付都能谈，谈法就是招牌。 */
+    outlaw: {
+      title: '这趟活走哪条道？',
+      story: [
+        '民间这一行讲的是"点头算数"：没有合同，只有一句"我认"。你今天怎么做，往后别人就怎么记你。',
+        '价钱、人手、先付后付，都能谈。谈法就是你的招牌。',
+      ],
+      options: [
+        {
+          id: 'ol_price', label: '先把价钱和人手谈定', hint: '麻烦，事后扯皮少',
+          story: [
+            '你把价钱、人手、分成写在纸上，让对方按了手印。',
+            '按完手印，他把纸折起来，塞进钱包最里面一层。',
+          ],
+          mod: 10, risk: -4, cost: [{ k: 'stat', key: 'sanity', v: -2 }],
+          gain: { intel: 1 }, check: { base: 64 },
+          win: { lines: ['他从兜里摸出一张手画的地图，说是上一趟留下的，让你先看。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 2 }] },
+          lose: { lines: ['谈到最后价钱没谈拢。他把纸撕了一半，留下自己那份走了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'ol_half', label: '先付一半，剩下的看结果', hint: '两头都留一手',
+          story: [
+            '你先付了一半，把另一半押在中间人那里，说好事后一起结。',
+            '中间人当着两个人的面把钱数了两遍。',
+          ],
+          mod: 8, risk: -2, cost: [{ k: 'money', key: 'cash', v: -3 }],
+          check: { base: 66 },
+          win: { lines: ['对方收了钱，话比刚才多。他把自己那边的一些忌讳先说了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 3 }] },
+          lose: { lines: ['他把钱收进内袋，剩下的半句也不肯多说。你把手插回兜里。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+        },
+        {
+          id: 'ol_tool', label: '带着家伙直接上门', hint: '有把握，也有火光',
+          story: [
+            '你把封条和一把旧铁撬塞进后腰，没跟任何人打招呼就上了楼。',
+            '门上的锁是新的，锁孔边上蹭掉了漆。',
+          ],
+          mod: -6, risk: 12, cost: [{ k: 'stat', key: 'stealth', v: -4 }, { k: 'stat', key: 'stamina', v: -10 }],
+          gain: { clue: 1 }, check: { base: 52 },
+          win: { lines: ['屋里比楼道冷。你贴着墙走过去，摸到了那处本该是窗户的地方——它是砖的。'],
+            effects: [{ k: 'flag', key: 'outlaw', v: 1 }] },
+          lose: { lines: ['撬门的声音比你以为的响。楼下的声控灯亮了，你从消防梯退下去。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'pollution', v: 5 }] },
+        },
+        {
+          id: 'ol_local', label: '只做本地的活，不出城', hint: '熟路，钱少',
+          story: [
+            '你只接了城里的活，走的路都是自己走过几遍的。',
+            '路口的修车铺还开着，老板跟你点了下头。',
+          ],
+          mod: 10, risk: -8, cost: [{ k: 'stat', key: 'stamina', v: -6 }],
+          win: { lines: ['熟悉的地方省了一半力气。你把剩下的时间用在核对手记的那几处上。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 4 }] },
+        },
+      ],
+    },
+
+    /* ------------------------------------------------------------------ 终局线（tag 兜底）
+     * 终结计划这一类动作的通用做法：推演、试手、找人核对，或者藏进日常。 */
+    endgame: {
+      title: '这一步往哪推？',
+      story: [
+        '你手上这本册子越写越厚，后半本全是"如果"。推下去的每一步都算数，也都推着这个世界往前走。',
+        '今晚你只推得动一步：写、试、问人，或者把它藏进日常里做。',
+      ],
+      options: [
+        {
+          id: 'en_write', label: '在本子上把推演补齐', hint: '慢，底子厚',
+          story: [
+            '你把"如果"那几页摊开，一条一条往下推，推到走不通的地方就画一道横线。',
+            '划掉的比留下的多。',
+          ],
+          mod: 10, risk: -4, cost: [{ k: 'stat', key: 'sanity', v: -4 }],
+          check: { base: 62 },
+          win: { lines: ['有一条线推到了底：中间只需要两个动作，而这两个动作你都做过。'],
+            effects: [{ k: 'flag', key: 'endgame', v: 1 }] },
+          lose: { lines: ['你推到天快亮，最后几行字已经看不出原样。'],
+            effects: [{ k: 'stat', key: 'stamina', v: -6 }] },
+        },
+        {
+          id: 'en_try', label: '拿一个小源头试一次', hint: '试得动，代价不小',
+          story: [
+            '你找了个最不起眼的小源头试手，地方在城郊一间废弃仓库。',
+            '进门前你把手表摘下来，放在门外的砖上。',
+          ],
+          mod: -6, risk: 12, cost: [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'stat', key: 'humanity', v: -2 }],
+          gain: { clue: 1 }, check: { base: 52 },
+          win: { lines: ['仓库里的灰浮起来又落下去，落的位置和你在本子上画的一样。'],
+            effects: [{ k: 'flag', key: 'endgame', v: 1 }] },
+          lose: { lines: ['出来的时候手表还在砖上，指针停在进门的那一分钟。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 6 }, { k: 'stat', key: 'stamina', v: -12 }] },
+        },
+        {
+          id: 'en_ask', label: '找信得过的人对一遍', hint: '两个人的错更少',
+          story: [
+            '你把最不确定的那一段抄了一份带过去，没有带整个本子。',
+            '他看完先把自己的本子翻开了，翻到中间一页停住。',
+          ],
+          mod: 8, risk: 0, cost: [{ k: 'money', key: 'cash', v: -3 }],
+          gain: { intel: 1 }, check: { base: 62 },
+          win: { lines: ['他指着你写的第三步说"这一步我试过"，然后把自己纸上那两个字划掉了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 3 }] },
+          lose: { lines: ['他把纸推回来，说这种事别问他。走的时候他先付了钱。'],
+            effects: [{ k: 'stat', key: 'stealth', v: -3 }] },
+        },
+        {
+          id: 'en_cover', label: '把这一步混进日常里做', hint: '看不出来，慢一点',
+          story: [
+            '你没有专门腾时间，只把要做的事拆成几小段，混进上班的路上和买菜的工夫里。',
+            '每一段都很小，小到要翻本子才确认做没做。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'stat', key: 'stamina', v: -6 }],
+          win: { lines: ['一天下来本子上多了两个记号，身边没有一个人问过你今天在忙什么。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 5 }] },
+        },
+      ],
+    },
+  };
+
+  return { scenes: scenes };
+});
+</script>
 <script>/* ============================================================================
  * 神秘复苏模拟器 · 内容数据（规则 v3.1）
  * ----------------------------------------------------------------------------
@@ -518,10 +2185,15 @@ body.story-mode .logwrap{max-height:22vh !important}
  *  - 所有引用的道具/线索/厉鬼 id 必须存在
  * ==========================================================================*/
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.RSContent = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./scenes.js'), require('./scenes-a.js'), require('./scenes-b.js'));
+  else root.RSContent = factory(root.RSScenes, root.RSScenesA, root.RSScenesB);
+})(typeof self !== 'undefined' ? self : this, function (SC1, SC2, SC3) {
   'use strict';
+  // 第 29 轮：子场景内容表（三个文件按动作分组，这里合并成一张 scenes 表）
+  //   scenes.js   —— 契约说明 + 样板（调查/休整）
+  //   scenes-a.js —— 日常与成长（工作/社交/训练/安全屋/治疗/补给/地点探索/城市专属）
+  //   scenes-b.js —— 风险与力量（处置/死机/驾驭/任务/赌局/鬼域/会见/立场四线）
+  const scenes = Object.assign({}, (SC1 && SC1.scenes) || {}, (SC2 && SC2.scenes) || {}, (SC3 && SC3.scenes) || {});
 
   /* ------------------------------------------------------------- 道具库 */
   const items = {
@@ -3545,28 +5217,28 @@ body.story-mode .logwrap{max-height:22vh !important}
   // 中间态，用来让玩家在开局自己挑选压力曲线；custom 则由三个旋钮现场组合。
   const difficulties = {
     easy: {
-      id: 'easy', name: '轻松', blurb: '遭遇稀疏、判定宽松、容错高。适合第一次玩、想看剧情。',
+      id: 'easy', name: '轻松', blurb: '遭遇稀疏、判定宽松、容错高，一天能做 4 件事。适合第一次玩、想看剧情。',
       encounterBase: 6, encounterCap: 45, encounterMult: 0.7, checkBonus: 10,
       retryFree: 2, worldMult: 0.7, incomeCap: 800, priceMult: 0.8, rewardMult: 1.2,
-      calamityBonus: 15,
+      calamityBonus: 15, ap: 4,
     },
     standard: {
-      id: 'standard', name: '标准', blurb: '默认体验。世界推进 ×1.0，判定无修正。',
+      id: 'standard', name: '标准', blurb: '默认体验。世界推进 ×1.0，判定无修正，一天 3 件事。',
       encounterBase: 9, encounterCap: 60, encounterMult: 1.0, checkBonus: 0,
       retryFree: 1, worldMult: 1.0, incomeCap: 500, priceMult: 1.0, rewardMult: 1.0,
-      calamityBonus: 0,
+      calamityBonus: 0, ap: 3,
     },
     hardcore: {
-      id: 'hardcore', name: '硬核', blurb: '遭遇更密、判定更严、毫无容错。给已经摸清规律的人。',
+      id: 'hardcore', name: '硬核', blurb: '遭遇更密、判定更严、一天只有 2 件事。给已经摸清规律的人。',
       encounterBase: 12, encounterCap: 80, encounterMult: 1.4, checkBonus: -5,
       retryFree: 0, worldMult: 1.25, incomeCap: 420, priceMult: 1.2, rewardMult: 0.9,
-      calamityBonus: -10,
+      calamityBonus: -10, ap: 2,
     },
     nightmare: {
-      id: 'nightmare', name: '极难（原著档）', blurb: '开局凶险、劫难来得更快、几乎没有容错。世界推进 ×1.5，价格 +40%、奖励 -25%。',
+      id: 'nightmare', name: '极难（原著档）', blurb: '开局凶险、劫难来得更快、一天只有 2 件事。世界推进 ×1.5，价格 +40%、奖励 -25%。',
       encounterBase: 15, encounterCap: 85, encounterMult: 1.4, checkBonus: -10,
       retryFree: 0, worldMult: 1.5, incomeCap: 300, priceMult: 1.4, rewardMult: 0.75,
-      calamityBonus: -15,
+      calamityBonus: -15, ap: 2,
     },
   };
 
@@ -3602,6 +5274,15 @@ body.story-mode .logwrap{max-height:22vh !important}
         { id: 'generous', name: '宽容（免罚 2 次）', free: 2 },
         { id: 'normal', name: '标准（免罚 1 次）', free: 1 },
         { id: 'harsh', name: '苛刻（无免罚）', free: 0 },
+      ],
+    },
+    // 第 29 轮：一天能做几件事（改动前固定为 1 件）
+    ap: {
+      label: '每日行动（一天能做几件事）',
+      options: [
+        { id: 'four', name: '宽松（一天 4 件事）', ap: 4 },
+        { id: 'three', name: '标准（一天 3 件事）', ap: 3 },
+        { id: 'two', name: '紧张（一天 2 件事）', ap: 2 },
       ],
     },
   };
@@ -3640,12 +5321,14 @@ body.story-mode .logwrap{max-height:22vh !important}
       const enc = (tuningKnobs.encounter.options.find((o) => o.id === c.encounter) || tuningKnobs.encounter.options[1]);
       const jud = (tuningKnobs.judge.options.find((o) => o.id === c.judge) || tuningKnobs.judge.options[1]);
       const mer = (tuningKnobs.mercy.options.find((o) => o.id === c.mercy) || tuningKnobs.mercy.options[1]);
+      const apk = (tuningKnobs.ap.options.find((o) => o.id === c.ap) || tuningKnobs.ap.options[1]);
       t.id = 'custom';
       t.name = '自定义';
-      t.blurb = '遭遇 ' + enc.name + ' · 判定 ' + jud.name + ' · 容错 ' + mer.name;
+      t.blurb = '遭遇 ' + enc.name + ' · 判定 ' + jud.name + ' · 容错 ' + mer.name + ' · 每日 ' + apk.name;
       t.encounterMult = enc.mult;
       t.checkBonus = jud.bonus;
       t.retryFree = mer.free;
+      t.ap = apk.ap || 3;
       t.worldMult = difficulties.standard.worldMult;
       t.incomeCap = difficulties.standard.incomeCap;
       t.priceMult = difficulties.standard.priceMult;
@@ -3726,6 +5409,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     ghostDims: ghostDims,
     dimLabel: DIM_LABEL,
     narrative: narrative,
+    scenes: scenes,          // 第 29 轮：子场景表（每个动作"先故事、再选去哪/做什么"）
+    scenesMeta: { files: ['scenes.js', 'scenes-a.js', 'scenes-b.js'], count: Object.keys(scenes).length },
     meta: { title: '灵异复苏 · 通用互动剧情模板', version: 'v3.1', engine: 'program-host' },
   };
 });
@@ -5490,6 +7175,10 @@ body.story-mode .logwrap{max-height:22vh !important}
     'flags.endgame': [0, 3],        // 自立·终结灵异时代
     // 第 26 轮：鬼域扩张等级（0~5，5 格全盖 = 世界结局「人间如狱」）
     'domain.lv': [0, 5],
+    // 第 29 轮：每日行动点。放进账本是为了让"直接改 state 刷行动"被守恒校验抓到
+    // （改存档仍需重签，属于已知边界；但绕过唯一写入点的直接篡改必须被发现）。
+    'apMax': [1, 6],
+    'apUsed': [0, 6],
     'meta.deaths': [0, 1e6],
     'meta.bestTurn': [0, 1e6],
   };
@@ -5582,7 +7271,13 @@ body.story-mode .logwrap{max-height:22vh !important}
       mechUsed: {},          // 玩法机制使用记录（id → 最后一次触发的回合）
       mechRequest: null,     // 玩家点名要触发的玩法
       mechLog: [],           // 最近触发的玩法（供界面显示）
-      actionTakenToday: false, // 每天只能有一个主动作（防读档复制行动）
+      actionTakenToday: false, // 今天是否已经行动过（第 28 轮起允许一天多次，见 apUsed）
+      // 第 29 轮：一天多次行动 + 子场景
+      apMax: 0,              // 今天的行动点上限（按难度派生：简单 4 / 标准 3 / 残酷 2 / 自定义可调）
+      apUsed: 0,             // 今天已用掉的行动点
+      scene: null,           // 当前子场景：{ actionId, actionLabel, title, story, options }
+      clueGainsToday: 0,     // 今天已获得的线索条数（防一天把所有线索挖空）
+      encRiskToday: 0,       // 今天累计的行动风险加成（百分点，逐次行动用掉后清）
       worldAdvance: 0,
       calamityEscapes: 0,
       // 第 26 轮：鬼域扩张
@@ -6023,6 +7718,251 @@ body.story-mode .logwrap{max-height:22vh !important}
     }));
   }
 
+  /* ------------------------------------------------ 第 29 轮：行动点与子场景 */
+  /**
+   * 每天的行动点上限：按难度派生（简单 4 / 标准 3 / 硬核 2 / 极难 2），
+   * 自定义档由「每日行动」旋钮决定（默认 3）。老存档没有这个字段也能算出来。
+   */
+  function apMaxOf(state) {
+    const tu = tuningOf(state);
+    const n = int(tu && tu.ap);
+    return clamp(n > 0 ? n : 3, 1, 6);
+  }
+  /** 今天还剩几次行动 */
+  function apLeft(state) {
+    return Math.max(0, (state.apMax || apMaxOf(state)) - (state.apUsed || 0));
+  }
+  /** 时段名（按已用行动点推进：清晨→白天→傍晚→深夜…） */
+  const AP_SLOTS = ['清晨', '白天', '傍晚', '深夜', '凌晨', '天快亮了'];
+  function apSlot(state) {
+    const i = clamp(state.apUsed || 0, 0, AP_SLOTS.length - 1);
+    return AP_SLOTS[i];
+  }
+
+  /**
+   * 子场景：每个主动作都先给一段当天的小故事，再让玩家选具体去哪/做什么。
+   * 内容表 CONTENT.scenes 支持两种键：
+   *  ① 精确 id（'investigate' / 'meet_driver' …）
+   *  ② tag 兜底（'probe' / 'normal' / 'power' / 'rest' / 'person' / 'org' / 'forum' / 'outlaw' / 'endgame' / 'city'）
+   * 都没有就现场生成三选一，保证"任何动作都有子场景"（用户要求：全部动作都要这套流程）。
+   */
+  function sceneFor(state, act) {
+    const table = (CONTENT.scenes || {});
+    let def = table[act.id];
+    if (!def) {
+      for (const t of (act.tags || [])) {
+        if (table[t]) { def = table[t]; break; }
+      }
+    }
+    if (!def) def = genericScene(state, act);
+    const opts = (def.options || []).map((o) => ({
+      id: String(o.id),
+      label: String(o.label),
+      hint: o.hint || '',
+    })).slice(0, 5);
+    // 故事文本：支持函数（按当天/城市/时期生成）或字符串数组
+    const story = (typeof def.story === 'function') ? def.story(state, act) : (def.story || []);
+    return {
+      actionId: act.id,
+      actionLabel: act.label,
+      title: def.title || '你打算怎么做？',
+      story: story.slice(0, 5),
+      options: opts,
+    };
+  }
+
+  /** 兜底子场景：任何没写内容的动作也能三选一（稳妥 / 下狠手 / 找人搭把手） */
+  function genericScene(state, act) {
+    const city = cityOf(state).name;
+    return {
+      title: '具体怎么做？',
+      story: (s) => [
+        '你要做的是「' + act.label + '」。在' + city + '，同一件事有好几种做法，代价各不相同。',
+        '（选一个做法继续；拿不准就先选最稳的那条，或者今天到此为止。）',
+      ],
+      options: [
+        { id: 'gen_safe', label: '按最稳妥的路子来', hint: '风险最低，收益也最平', mode: 'safe' },
+        { id: 'gen_bold', label: '一步到位，赌一把', hint: '收益高，出事概率也高', mode: 'bold' },
+        { id: 'gen_help', label: '找人搭把手（花点钱/人情）', hint: '要花钱，但更稳', mode: 'help' },
+      ],
+    };
+  }
+
+  /** 取某个子场景选项的完整定义（精确 id → tag 兜底 → 生成项） */
+  function sceneOptionDef(state, act, optId) {
+    const table = (CONTENT.scenes || {});
+    let def = table[act.id];
+    if (!def) for (const t of (act.tags || [])) if (table[t]) { def = table[t]; break; }
+    if (!def) def = genericScene(state, act);
+    const list = def.options || [];
+    const opt = list.filter((o) => String(o.id) === String(optId))[0];
+    if (!opt) {
+      // 生成项（safe/bold/help）没有在内容表里，现场补上它们的数值
+      if (String(optId).indexOf('gen_') === 0) {
+        const g = GENERIC_MODES[String(optId).slice(4)] || GENERIC_MODES.safe;
+        return Object.assign({ id: optId, label: '（兜底做法）', story: [], mode: 'action' }, g);
+      }
+      return null;
+    }
+    // 场景级默认 mode 下发给选项（写一次 'custom' 就能让整张场景都用自己的 win/lose）
+    if (!opt.mode && def.mode) opt.mode = def.mode;
+    return opt;
+  }
+  // 兜底三选一的数值：只影响判定与收益幅度，不碰机制
+  const GENERIC_MODES = {
+    safe: { mod: 10, risk: 0, gain: 0.8, cost: -3 },
+    bold: { mod: -8, risk: 12, gain: 1.35, cost: -7 },
+    help: { mod: 16, risk: 0, gain: 1.0, cost: -2 },
+  };
+
+  /**
+   * 子场景判定：不走「重复尝试上限」（那条是给训练/驾驭/任务用的），
+   * 但同样吃难度修正 + 场景修正；结果按 (种子, 天, 选项) 确定，读档重选同一个选项不会改命。
+   */
+  function sceneCheck(state, purpose, base, mods) {
+    const tu = tuningOf(state);
+    let chance = base + (tu.checkBonus || 0);
+    const parts = ['基础 ' + base + '%'];
+    for (const m of (mods || [])) {
+      chance += m.v;
+      if (m.v) parts.push((m.v > 0 ? '+' : '') + m.v + '% ' + m.name);
+    }
+    if (tu.checkBonus) parts.push((tu.checkBonus > 0 ? '+' : '') + tu.checkBonus + '% 难度');
+    chance = clamp(int(chance), 5, 90);
+    const value = roll100(state, purpose, hashStr(purpose) % 89);
+    return { value: value, chance: chance, success: value <= chance, formula: parts.join(' ') + ' = ' + chance + '% ｜ 1d100=' + value };
+  }
+
+  /** 线索发放（统一入口）：受"今天最多挖几条"限制，防一天把整本线索刷空 */
+  function clueDailyCap(state) {
+    const ap = state.apMax || apMaxOf(state);
+    return ap >= 4 ? 3 : 2;      // 简单档一天可挖 3 条，其余 2 条
+  }
+  function grantClue(state, reason) {
+    const cap = clueDailyCap(state);
+    if ((state.clueGainsToday || 0) >= cap) {
+      return { ok: false, why: '今天的线索已经挖到 ' + cap + ' 条了——脑子需要时间把东西记住。', text: null };
+    }
+    let g = CONTENT.ghosts[activeGhost(state)];
+    if (!g || !g.clues.some((c) => !state.clues.includes(c.id))) {
+      const alt = Object.keys(state.bestiary).filter((gid) => CONTENT.ghosts[gid] &&
+        CONTENT.ghosts[gid].clues.some((c) => !state.clues.includes(c.id)));
+      if (alt.length) g = CONTENT.ghosts[alt[hashStr(state.seed + ':alt') % alt.length]];
+    }
+    if (!g) return { ok: false, why: '这一带暂时没有什么值得深挖的东西。', text: null };
+    const pool = g.clues.filter((c) => !state.clues.includes(c.id));
+    if (!pool.length) return { ok: false, why: '关于「' + g.name + '」，你已经掌握能掌握的一切。', text: null };
+    const c = pool[hashStr(state.seed + ':' + state.turn + ':' + reason) % pool.length];
+    applyEffects(state, [{ k: 'clue', id: c.id }, { k: 'bestiary', id: g.id, clues: 1 }], '获得线索（' + reason + '）');
+    state.clueGainsToday = (state.clueGainsToday || 0) + 1;
+    state.lastClueTurn = state.turn;
+    return { ok: true, text: c.text, ghost: g, clue: c };
+  }
+
+  /** 把"给一点方向"的情报也走统一入口，避免各处直接改字段 */
+  function grantIntel(state, n, reason) {
+    applyEffects(state, [{ k: 'flag', key: 'intel', v: n }], reason);
+  }
+
+  /**
+   * 每天每种动作自带的危险权重（相对当天基础遭遇率）。
+   * 原来一天一次行动 = 一次判定；现在一天 2~4 次行动，于是把当天的基础遭遇率
+   * 按权重摊到每次行动上（除以行动点），保证"一天的总危险"和改造前接近，
+   * 但危险落在那一次行动上由玩家自己选（选休整就轻，选处置就重）。
+   */
+  const ACTION_RISK = {
+    rest: 0.6, heal: 0.6, safehouse: 0.7, work: 0.9, social: 0.9, shop: 1.0,
+    freeze: 1.0, train: 1.1, stance_report: 1.0, stance_browse: 1.1, stance_oddjob: 1.3, stance_plan: 1.1,
+    person: 0.8, probe: 1.3, city: 1.2, normal: 1.0, power: 1.4, default: 1.0,
+    mission: 1.5, gamble: 1.6, purge: 2.0, domain_probe: 2.0, domain_seal: 1.6,
+  };
+  function actionRiskWeight(act) {
+    if (ACTION_RISK[act.id] !== undefined) return ACTION_RISK[act.id];
+    for (const t of (act.tags || [])) if (ACTION_RISK[t] !== undefined) return ACTION_RISK[t];
+    return ACTION_RISK.default;
+  }
+
+  /** 跑一个子场景选项：故事 → 开销 → 判定 → 结果
+   *  两种模式（选项自己写 mode，或场景级默认）：
+   *   'action'（缺省）：照常跑原动作的结算，选项只做"调制"——判定成功吃到 win，
+   *                     失败吃到 lose，另外 mod 会加进动作内部的判定；
+   *                     没有 check 时，win 里的 effects 无条件生效（当作这条路子自带的加成）。
+   *   'custom'：完全不跑原动作，check + win/lose 就是这次行动的全部内容。 */
+  function runSceneOption(state, act, opt) {
+    const lines = [];
+    const mode = (opt.mode === 'custom') ? 'custom' : 'action';
+    lines.push.apply(lines, opt.story || []);
+    if (opt.cost && opt.cost.length) applyEffects(state, opt.cost, '子场景开销（' + act.id + '）');
+    let check = null;
+    let success = true;
+    if (opt.check) {
+      check = sceneCheck(state, 'scene:' + act.id + ':' + opt.id, int(opt.check.base) || 60,
+        [{ name: '做法', v: int(opt.check.mod) || 0 }]);
+      success = check.success;
+    }
+    let fatal = false;
+    if (mode === 'custom') {
+      const br = success ? (opt.win || {}) : (opt.lose || {});
+      lines.push.apply(lines, br.lines || []);
+      if (br.effects && br.effects.length) applyEffects(state, br.effects, '子场景结果（' + act.id + '）');
+      if (success && br.fatal) fatal = true;
+    } else {
+      const br = opt.check ? (success ? (opt.win || {}) : (opt.lose || {})) : (opt.win || null);
+      if (br) {
+        if (br.lines) lines.push.apply(lines, br.lines);
+        if (br.effects && br.effects.length) applyEffects(state, br.effects, '子场景做法（' + act.id + '）');
+      }
+      // 走原动作的结算：把场景修正挂到唯一注入点，动作内部的判定全部吃这个修正
+      state.sceneMod = int(opt.mod) || 0;
+      let r;
+      try { r = act.run(state); } finally { state.sceneMod = 0; }
+      if (r && r.lines) lines.push.apply(lines, r.lines);
+      if (r && r.check && r.check.formula) lines.push('· ' + r.check.formula);
+      if (r && r.fatal) fatal = true;
+    }
+    const g = opt.gain || {};
+    if (success && g.clue) {
+      const c = grantClue(state, act.id + ':' + opt.id);
+      if (c.ok) lines.push('你把它记了下来：' + c.text);
+      else lines.push(c.why);
+    }
+    if (success && g.intel) {
+      const n = int(g.intel) || 1;
+      grantIntel(state, n, '子场景情报');
+      lines.push('情报 +' + n + '。');
+    }
+    if (success && g.cash) {
+      const r2 = gainCash(state, 'cash', int(g.cash) || 0, '子场景收入');
+      if (r2.applied) lines.push('顺带进账 ' + r2.applied + ' 万。');
+    }
+    if (opt.risk) state.encRiskToday = (state.encRiskToday || 0) + int(opt.risk);
+    return { lines: lines, check: check, fatal: fatal, success: success, mode: mode };
+  }
+
+  /** 这一次行动有没有撞上东西（按动作危险权重摊到的单次遭遇率） */
+  function rollActionEncounter(state, act) {
+    const base = encounterChance(state);
+    const ap = state.apMax || apMaxOf(state) || 3;
+    const extra = state.encRiskToday || 0;
+    const chance = clamp(int(base * actionRiskWeight(act) / ap + extra), 0, 90);
+    state.encRiskToday = 0;             // 场景叠加的风险只作用于这一次行动
+    const v = roll100(state, 'encounter', hashStr('act:' + act.id) % 97);
+    return { chance: chance, value: v, hit: v <= chance };
+  }
+
+  /** 提前收工：剩下的行动点换成休整收益（体力 / 理智 / 少量压劫难） */
+  function endDayEarly(state, left) {
+    const lines = [];
+    if (left <= 0) { lines.push('这一天的行动点已经用完，你回到安全屋，倒头就睡。'); return lines; }
+    const stam = 3 * left;
+    const san = 2 * left;
+    applyEffects(state, [{ k: 'stat', key: 'stamina', v: stam }, { k: 'stat', key: 'sanity', v: san }], '提前收工');
+    lines.push('你把手上的事收住，提前回到安全屋。（剩余行动点 ' + left + ' → 体力 +' + stam + '、理智 +' + san + '）');
+    const r = reduceCalamity(state, left, '提前收工、睡了个整觉');
+    if (r.ok) lines.push('这一觉睡得很沉，劫难值 -' + r.applied + (r.capped ? '（' + r.capped + '）' : '') + '。');
+    return lines;
+  }
+
   /* ---------------------------------------------------------- 回合流程 */
   /** 开启新的一天：只做计数与重置；章首额外结算家庭收益 */
   function startTurn(state) {
@@ -6042,12 +7982,20 @@ body.story-mode .logwrap{max-height:22vh !important}
       if (state.wife) gainHumanity(state, 3, '配偶陪伴（每章）');
       if (state.children > 0) gainHumanity(state, 2, '子嗣羁绊（每章）');
     }
+    state.turnRoll = dailyRoll(state);
+    state.actionTakenToday = false;
+    // 第 29 轮：新的一天 → 行动点满格、清空子场景与当日风险
+    // 注意必须在 ledgerStart 快照**之前**做：apUsed 现在是账本跟踪字段，
+    // 快照之后再改会让守恒校验误报（推导值还停在昨天的用量）。
+    state.apMax = apMaxOf(state);
+    state.apUsed = 0;
+    state.scene = null;
+    state.clueGainsToday = 0;
+    state.encRiskToday = 0;
+    state.purgeRisk = 0;           // 处置的风险只在当天有效
     state.ledger = [];
     state.ledgerStart = {};
     for (const p of Object.keys(BOUNDS)) state.ledgerStart[p] = getPath(state, p);
-    state.turnRoll = dailyRoll(state);
-    state.actionTakenToday = false;
-    state.purgeRisk = 0;           // 处置的风险只在当天有效
     state.phase = 'day';
     state.pending = null;
   }
@@ -6250,6 +8198,11 @@ body.story-mode .logwrap{max-height:22vh !important}
     chance += tu.checkBonus;
     chance += at.penalty;
     if (at.penalty) parts.push(at.penalty + '% 重复尝试');
+    // 第 29 轮：子场景里选的做法会直接影响这次判定（"稳妥做法 +10%"，"硬来 -8%"）
+    if (state.sceneMod) {
+      chance += state.sceneMod;
+      parts.push((state.sceneMod > 0 ? '+' : '') + state.sceneMod + '% 做法');
+    }
     chance = clamp(int(chance), 1, 90);
     const value = roll100(state, purpose, hashStr(target) % 97);
     recordAttempt(state, at.key);
@@ -7317,11 +9270,31 @@ body.story-mode .logwrap{max-height:22vh !important}
         id: o.id, label: o.label, kind: 'encounter', note: o.kind === 'exit' ? '（生路）' : '',
       }));
     }
-    if (state.phase === 'day' && !state.actionTakenToday) {
-      return actionPool(state).map((a) => ({ id: a.id, label: a.label, kind: 'day' }));
+    // 第 29 轮：子场景——先故事、再选"去哪/做什么"，随时能退
+    if (state.phase === 'scene' && state.scene) {
+      const out = state.scene.options.map((o) => ({
+        id: o.id, label: o.label, kind: 'scene', note: o.hint ? '（' + o.hint + '）' : '',
+      }));
+      out.push({ id: 'scene_back', label: '算了，换个做法（回到今天的行动菜单）', kind: 'stop' });
+      out.push({ id: 'scene_stop', label: '收手，直接进下一天（剩下的时间留给自己）', kind: 'stop' });
+      return out;
+    }
+    if (state.phase === 'day') {
+      const out = actionPool(state).map((a) => ({ id: a.id, label: a.label, kind: 'day' }));
+      if (apLeft(state) > 0) {
+        out.push({ id: 'end_day', label: '结束这一天（早睡；剩余行动点换成体力与理智）', kind: 'stop' });
+      }
+      return out;
     }
     return [];
   }
+
+  /** 结局/流程用的保留 id：只在对应用途的阶段里有效，别处一律拒绝 */
+  const RESERVED_IDS = {
+    end_day: '今天的行动菜单（白天）',
+    scene_stop: '子场景里',
+    scene_back: '子场景里',
+  };
 
   /** 结算一次玩家选择；返回可渲染的报告。引擎是唯一裁判。 */
   function resolve(state, choiceId, customText) {
@@ -7351,13 +9324,104 @@ body.story-mode .logwrap{max-height:22vh !important}
       settlement.push.apply(settlement, r.settlement);
       dead = r.dead;
       fatalCause = r.deadCause || 'encounter';
+    } else if (state.phase === 'scene' && state.scene) {
+      /* ---------------- 第 29 轮：子场景 ----------------
+       * 玩家已经选好了"今天要做哪件事"，现在选"具体去哪/怎么做"。
+       * 这一步才真正花行动点、才做遭遇判定；随时可退回菜单或直接收工。 */
+      const scene = state.scene;
+      const act = actionPool(state).find((a) => a.id === scene.actionId);
+      if (choiceId === 'scene_back') {
+        state.scene = null;
+        state.phase = 'day';
+        narrative.push('你把这件事先放下——今天还没决定做什么。');
+        return {
+          narrative: narrative, actionVariant: null, settlement: settlement,
+          choices: availableActions(state), panel: panelOf(state), over: state.over,
+          dayContinues: true, apLeft: apLeft(state), turn: state.turn,
+        };
+      }
+      if (choiceId === 'scene_stop') {
+        const left = apLeft(state);
+        narrative.push.apply(narrative, endDayEarly(state, left));
+        settlement.push('今天到此为止（剩余行动点 ' + left + '）');
+        state.scene = null;
+        if (!state.over) endTurn(state);
+        // 必须在这里返回：endTurn 已经翻页了，落到函数尾部的"日结束判定"会再翻一次
+        //（实测就是"收手一次推进两天"的真 bug，被 sim 第 27 组抓到）
+        return {
+          narrative: narrative.concat(state.notes ? state.notes.splice(0) : []),
+          actionVariant: null, settlement: settlement.concat(state.lastMechLines || []),
+          choices: availableActions(state), panel: panelOf(state), over: state.over,
+          dayEnded: true, turn: state.turn, apLeft: apLeft(state), apMax: state.apMax || apMaxOf(state),
+          integrity: state.integrity.slice(-5),
+        };
+      }
+      if (!act) {
+        return { error: '这个子场景已经过期了，回到今天的行动菜单重新选一次', choices: availableActions(state) };
+      } else {
+        const opt = sceneOptionDef(state, act, choiceId);
+        if (!opt) return { error: '这不是当前场景里的选项', choices: availableActions(state) };
+        const badScene = assertsOutcome(customText);
+        if (badScene) {
+          return { error: '你写的是「结果」，不是「过程」（“' + badScene + '”）。' +
+            '你只能写具体怎么做，成不成由引擎按规则判定——这一次不作数，重写一句。' };
+        }
+        const r = runSceneOption(state, act, opt);
+        narrative.push.apply(narrative, r.lines);
+        if (r.check && r.check.formula) settlement.push('做法判定：' + r.check.formula);
+        // 走唯一写入点：行动点也在账本里，绕过它直接改 state 会被守恒校验抓到
+        addPath(state, 'apUsed', 1, '第 ' + state.turn + ' 天·第 ' + ((state.apUsed || 0) + 1) + ' 次行动（' + act.id + '）');
+        state.actionTakenToday = true;
+        state.scene = null;
+        state.phase = 'day';
+        lastVariant = String(act.id).split(':')[0];
+        state.events.done.push('act:' + act.id);
+        state.events.done.push('scene:' + act.id + ':' + opt.id);
+        if (r.fatal) { dead = true; fatalEnding = 'p_fuxi'; }
+        // 会见驭鬼者：这套流程走完直接进入人物遭遇（人是能谈的）
+        if (act.id === 'meet_driver' && !dead && !state.pending) {
+          if (startDriverEncounter(state)) {
+            state.lastDriverTurn = state.turn;
+            settlement.push('会见判定：今天约到的是「' + state.pending.name + '」');
+          }
+        }
+        // 遭遇判定：这一次行动有没有撞上东西（按动作危险权重摊到单次）
+        if (!dead && !state.pending) {
+          const roll = rollActionEncounter(state, act);
+          if (roll.hit) {
+            const gid = encounterGhostId(state);
+            state.lastGhost = gid;
+            if (!state.events.done.includes('enc:' + gid)) state.events.done.push('enc:' + gid);
+            if (CONTENT.ghosts[gid] && CONTENT.ghosts[gid].smart &&
+                state.events.done.indexOf('smart:' + gid) < 0) state.events.done.push('smart:' + gid);
+            state.pending = buildEncounter(state, gid);
+            state.phase = 'encounter';
+            settlement.push('遭遇判定：1d100=' + roll.value + ' ≤ ' + roll.chance + '% → 遇见「' + state.pending.name + '」（' + state.pending.level + ' 级）');
+          } else {
+            settlement.push('遭遇判定：1d100=' + roll.value + ' > ' + roll.chance + '% → 这一次没有撞上东西');
+          }
+        }
+      }
     } else {
-      // 硬约束：一天只能有一个主动作（读档/改存档都无法复制行动）
-      if (state.actionTakenToday) {
-        return { error: '今天已经行动过了（每天只能有一个主动作）', choices: availableActions(state) };
+      // 白天：今天的行动菜单（第 29 轮起，一天有多个行动点）
+      if (choiceId === 'end_day') {
+        const left = apLeft(state);
+        narrative.push.apply(narrative, endDayEarly(state, left));
+        settlement.push('今天提前收工（剩余行动点 ' + left + '）');
+        if (!state.over) endTurn(state);
+        return {
+          narrative: narrative, actionVariant: null, settlement: settlement,
+          choices: availableActions(state), panel: panelOf(state), over: state.over,
+          dayEnded: true, turn: state.turn,
+        };
       }
       const pool = actionPool(state);
       const act = pool.find((a) => a.id === choiceId);
+      // 保留 id（收尾/返回/子场景动作）只有在对应阶段才有效：
+      // 不在那个阶段时直接拒掉，避免被外部调用者当成"自定义行动"白耗一个行动点。
+      if (RESERVED_IDS[choiceId] && !act) {
+        return { error: '「' + choiceId + '」只在' + RESERVED_IDS[choiceId] + '里有效', choices: availableActions(state) };
+      }
       if (!act) {
         // 第 27 轮：自由输入只许写过程——写了结果就作废，不消耗当天行动
         const badHit2 = assertsOutcome(customText);
@@ -7376,51 +9440,53 @@ body.story-mode .logwrap{max-height:22vh !important}
           narrative.push('（已登记点名玩法：' + named.name + '，下一回合优先触发）');
         }
         applyEffects(state, [{ k: 'stat', key: 'stamina', v: -3 }], '自定义行动消耗');
+        addPath(state, 'apUsed', 1, '第 ' + state.turn + ' 天·自定义行动');
+        state.actionTakenToday = true;
+        // 自定义行动同样要过遭遇判定（不能靠"写一句自由文本"规避风险）
+        const roll2 = rollActionEncounter(state, { id: '__custom__', tags: ['default'] });
+        if (!dead && roll2.hit) {
+          const gid2 = encounterGhostId(state);
+          state.lastGhost = gid2;
+          if (!state.events.done.includes('enc:' + gid2)) state.events.done.push('enc:' + gid2);
+          state.pending = buildEncounter(state, gid2);
+          state.phase = 'encounter';
+          settlement.push('遭遇判定：1d100=' + roll2.value + ' ≤ ' + roll2.chance + '% → 遇见「' + state.pending.name + '」');
+        } else {
+          settlement.push('遭遇判定：1d100=' + roll2.value + ' > ' + roll2.chance + '% → 这一次没有撞上东西');
+        }
       } else {
-        const r = act.run(state);
-        narrative.push.apply(narrative, r.lines || []);
-        if (r.check && r.check.formula) settlement.push(r.check.formula);
-        if (r.fatal) { dead = true; fatalEnding = 'p_fuxi'; }
-        lastVariant = String(act.id).split(':')[0];
-        // 第 21 轮：记录"这一局做过哪些行动"（act:<id>），供成就与图鉴统计。
-        // 只做记录、不参与判定；老存档没有这些条目也不影响任何结算。
-        state.events.done.push('act:' + act.id);
-      }
-      state.actionTakenToday = true;
-      // 第 26 轮：封印鬼域节点——每章的次数在章首重置
-      if (choiceId === 'domain_seal') {
-        // （次数在 action.run 里自增；这里负责章首重置的兜底提示）
-        if (!state.domainSealUsed) state.domainSealUsed = 0;
-      }
-      // 第 23 轮：「会见其他驭鬼者」= 直接进入人物遭遇（人是能谈的，所以不进随机鬼池）
-      if (choiceId === 'meet_driver' && !dead) {
-        if (startDriverEncounter(state)) {
-          state.lastDriverTurn = state.turn;
-          settlement.push('会见判定：今天约到的是「' + state.pending.name + '」');
+        /* 选中了一个主动作：不立刻结算，先打开子场景——
+         * 给一段当天的小故事，再让玩家选"去哪/做什么"（第 29 轮的核心改动）。
+         * 行动点在子场景结算时才扣，所以这里只摆故事与选项。 */
+        /* 但动手之前先判一次"结局条件"：理智已经归零（疯子先知）、或世界结局条件已满足的人，
+         * 不该还能靠"选一个回理智的动作"把自己的终局刷掉（实测能刷掉「疯子先知」）。
+         * 注意这里**只判结局条件、不判阈值**（侵蚀/人性/劫难）：阈值会消耗鬼域护体层数，
+         * 一个动作里判两次就会白扣一层（sim 第 22 组抓到）。阈值仍由动作结算后那一次负责。 */
+        checkWorldEndings(state);
+        if (state.over) {
+          state.phase = 'over';
           return {
             narrative: narrative.concat(state.notes ? state.notes.splice(0) : []),
             actionVariant: null, settlement: settlement.concat(state.lastMechLines || []),
             choices: availableActions(state), panel: panelOf(state), over: state.over,
-            encounter: state.pending,
+            dayEnded: true, turn: state.turn, apLeft: apLeft(state), apMax: state.apMax || apMaxOf(state),
+            integrity: state.integrity.slice(-5),
           };
         }
+        state.scene = sceneFor(state, act);
+        state.phase = 'scene';
+        narrative.push.apply(narrative, state.scene.story);
+        return {
+          narrative: narrative.concat(state.notes ? state.notes.splice(0) : []),
+          actionVariant: null, settlement: settlement,
+          scene: state.scene,
+          choices: availableActions(state), panel: panelOf(state), over: state.over,
+          dayContinues: true, apLeft: apLeft(state), turn: state.turn,
+        };
       }
-      // 遭遇判定
-      const rc = encounterChance(state);
-      const v = roll100(state, 'encounter', 0);
-      if (!dead && v <= rc) {
-        const gid = encounterGhostId(state);
-        state.lastGhost = gid;     // 记住上一只鬼，供下一回合反重复（必须进存档，否则读档可以刷掉重复）
-        // 图鉴（第 20 轮）：记录"遇见过这只鬼"。结算时写进玩家档案，跨局累积，
-        // 让图鉴里的规律线索随实际遭遇逐步解锁，而不是一开局全送。
-        if (!state.events.done.includes('enc:' + gid)) state.events.done.push('enc:' + gid);
-        if (CONTENT.ghosts[gid] && CONTENT.ghosts[gid].smart &&
-            state.events.done.indexOf('smart:' + gid) < 0) state.events.done.push('smart:' + gid);
-        state.pending = buildEncounter(state, gid);
-        state.phase = 'encounter';
-        settlement.push('遭遇判定：1d100=' + v + ' ≤ ' + rc + '% → 遇见「' + state.pending.name + '」（' + state.pending.level + ' 级）');
-      } else if (!dead) {
-        settlement.push('遭遇判定：1d100=' + v + ' > ' + rc + '% → 今天没有撞上东西');
+      // 第 26 轮：封印鬼域节点——每章的次数在章首重置
+      if (choiceId === 'domain_seal') {
+        if (!state.domainSealUsed) state.domainSealUsed = 0;
       }
     }
 
@@ -7431,8 +9497,19 @@ body.story-mode .logwrap{max-height:22vh !important}
       state.over = { ending: eid, text: def.text, turn: state.turn, cause: fatalCause || 'other' };
       state.meta.deaths += 1;
       state.meta.bestTurn = Math.max(state.meta.bestTurn || 0, state.turn);
-    } else if (!state.pending && state.phase !== 'over') {
-      endTurn(state);
+    } else if (!state.pending && state.phase !== 'over' && state.phase !== 'scene') {
+      // 第 29 轮：行动点还有剩 → 继续今天；用完了 → 这一天结束
+      if ((state.apUsed || 0) > 0 && apLeft(state) > 0 && !state.over) {
+        state.phase = 'day';
+        state.scene = null;
+        /* 一天有多次行动，阈值与世界结局必须**每次行动后立刻判一次**——
+         * 否则"侵蚀到 100 当场复苏""劫难到 100 当场压顶"会被拖到当天最后一次行动结束才生效，
+         * 玩家就多了 2~3 次白嫖的行动（红队口径：这也是可利用的时序漏洞）。 */
+        checkWorldEndings(state);
+        if (!state.over) checkThresholds(state);
+      } else {
+        endTurn(state);
+      }
     }
 
     return {
@@ -7443,6 +9520,16 @@ body.story-mode .logwrap{max-height:22vh !important}
       panel: panelOf(state),
       over: state.over,
       pending: state.pending,
+      encounter: state.pending,     // 兼容旧口径：会见驭鬼者/遭遇都会挂在这里
+      scene: state.scene,
+      // 第 29 轮：界面靠这几个字段决定「继续」落在哪
+      //  dayContinues=true → 今天还有行动点，回今天的行动菜单
+      //  apUsed===0（说明这一天已经翻页）→ 先播新一天的剧情
+      dayContinues: !!(state.phase === 'day' && (state.apUsed || 0) > 0 && apLeft(state) > 0 && !state.over),
+      dayEnded: !!state.over || (state.apUsed || 0) === 0,
+      apLeft: apLeft(state),
+      apMax: state.apMax || apMaxOf(state),
+      turn: state.turn,
       integrity: state.integrity.slice(-5),
     };
   }
@@ -7453,6 +9540,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     const st = stanceOf(state);
     const out = {
       回合: state.turn + ' 天（第 ' + state.chapter + ' 章）',
+      今天: state.over ? '已结束'
+        : (apSlot(state) + '　今天还能行动 ' + apLeft(state) + '/' + (state.apMax || apMaxOf(state)) + ' 次' +
+           (state.phase === 'scene' && state.scene ? '　（正在：' + state.scene.actionLabel.replace(/（.*?）/g, '') + '）' : '')),
       立场: st ? st.name : '民间驭鬼者',
       落地: city.name + (state.cityRandom ? '（随机）' : ''),
       时期: era.short + (state.eraRandom ? '（随机）' : ''),
@@ -7526,6 +9616,10 @@ body.story-mode .logwrap{max-height:22vh !important}
       freezeUses: state.freezeUses, mechUsed: state.mechUsed, mechRequest: state.mechRequest,
       mechLog: state.mechLog,
       actionTakenToday: state.actionTakenToday, pending: state.pending,
+      // 第 29 轮：一天多次行动 + 子场景（必须进存档，否则读档会退回"一天一次"）
+      apMax: state.apMax || apMaxOf(state), apUsed: state.apUsed || 0,
+      scene: state.scene, clueGainsToday: state.clueGainsToday || 0,
+      encRiskToday: state.encRiskToday || 0,
       domain: state.domain,                       // 第 26 轮：鬼域扩张进度（必须进存档）
       domainSealUsed: state.domainSealUsed || 0,
       relationships: state.relationships,
@@ -7559,7 +9653,16 @@ body.story-mode .logwrap{max-height:22vh !important}
     s.ledgerStart = {};
     s.integrity = [];
     s.pending = obj.p.pending || null;
-    s.phase = s.over ? 'over' : (s.pending ? 'encounter' : 'day');
+    // 第 29 轮：读档要能回到"半天里的子场景"，而不是把进度打回一天一次的旧口径
+    s.apMax = int(obj.p.apMax) > 0 ? clamp(int(obj.p.apMax), 1, 6) : apMaxOf(s);
+    s.apUsed = clamp(int(obj.p.apUsed), 0, s.apMax);
+    s.clueGainsToday = Math.max(0, int(obj.p.clueGainsToday));
+    s.scene = null;
+    if (obj.p.scene && obj.p.scene.actionId) {
+      const act = actionPool(s).find((a) => a.id === obj.p.scene.actionId);
+      s.scene = act ? sceneFor(s, act) : null;
+    }
+    s.phase = s.over ? 'over' : (s.pending ? 'encounter' : (s.scene ? 'scene' : 'day'));
     for (const k of Object.keys(BOUNDS)) s.ledgerStart[k] = getPath(s, k);
     return { state: s };
   }
@@ -7578,6 +9681,12 @@ body.story-mode .logwrap{max-height:22vh !important}
     stripOutcome: stripOutcome,       // 只保留过程部分（喂给 AI 叙事用）
     panelOf: panelOf,
     domainLv: domainLv,                // 第 26 轮：鬼域扩张等级（面板/测试用）
+    apLeft: apLeft,                    // 第 29 轮：今天还剩几次行动
+    apMaxOf: apMaxOf,                  // 第 29 轮：今天一共几次行动（难度派生）
+    apSlot: apSlot,                    // 第 29 轮：当前时段名（清晨/白天/傍晚…）
+    clueDailyCap: clueDailyCap,        // 第 29 轮：今天最多挖几条线索
+    sceneFor: sceneFor,                // 第 29 轮：取某个动作的子场景（测试/界面用）
+    sceneOptionDef: sceneOptionDef,
     DOMAIN_MAX: DOMAIN_MAX,
     DOMAIN_ZONES: DOMAIN_ZONES,
     puzzleStageOf: puzzleStageOf,      // 第 25 轮：自动补齐拼图的阶数（图鉴/面板/测试用）
@@ -9224,8 +11333,19 @@ body.story-mode .logwrap{max-height:22vh !important}
 
   function hideNow() { const b = $('now'); if (b) { clear(b); b.style.display = 'none'; } }
 
-  function renderChoices(choices, mode, label) {
-    syncAI(state);
+  // 第 29 轮：行动点小工具（引擎是唯一裁判，界面只负责显示）
+  function apLeftNow() {
+    if (!state) return 0;
+    if (E.apLeft) return E.apLeft(state);
+    return Math.max(0, (state.apMax || 1) - (state.apUsed || 0));
+  }
+  function apSlotLabel() {
+    if (!state) return '';
+    if (E.apSlot) return E.apSlot(state);
+    return ['清晨', '白天', '傍晚', '深夜'][Math.min(3, state.apUsed || 0)];
+  }
+
+  function renderChoices(choices, mode, label) {    syncAI(state);
     const box = $('choices');
     clear(box);
     // 遭遇中不提供自定义入口：此刻必须做出选择，避免用描述性文本绕过判定。
@@ -9263,13 +11383,15 @@ body.story-mode .logwrap{max-height:22vh !important}
     }
     // 标题：明确这里是"要你选一个"，否则一排按钮看起来像不明所以的文字块
     const inEnc = !!(state && state.pending);
+    const inScene = !!(state && state.phase === 'scene' && state.scene);
     const smart = isSmartPending(state);
     const person = isPersonPending(state);
     box.appendChild(el('div', 'choicesHead',
       inEnc ? (smart ? '你有智慧级厉鬼在你面前 —— 可以直接对它说话，也可以从下面选一步'
                      : (person ? '对面也是驭鬼者 —— 可以和他谈，也可以从下面选一步'
                                : '你必须做出选择 —— 点下面任意一行（生路要线索支撑，陷阱会死人）'))
-            : '今天可以做的事 —— 选一件（每天只能做一个主动作）'));
+      : inScene ? ('你决定做「' + state.scene.actionLabel.replace(/（.*?）/g, '') + '」——' + state.scene.title)
+      : ('第 ' + state.turn + ' 天·' + apSlotLabel() + '　今天还能行动 ' + apLeftNow() + ' 次 —— 选一件事做')));
     if (inEnc) {
       const opts = state.pending.options || [];
       const kinds = { exit: 0, neutral: 0, trap: 0 };
@@ -9279,6 +11401,11 @@ body.story-mode .logwrap{max-height:22vh !important}
         '安全但会受伤的 ' + kinds.neutral + ' 条、直接触发规矩的 ' + kinds.trap + ' 条。' +
         '看不出来就先去调查——线索越全，生路越明确。' +
         (smart ? '　它是智慧级厉鬼：下面输入框可以直接说话，AI 用它自己的思维回答你（判定仍算引擎的）。' : '')));
+    } else if (inScene) {
+      // 第 29 轮：子场景要交代清楚"这是今天几件事里的第几件、做完还剩几次"
+      box.appendChild(el('div', 'choicesSub',
+        '同一个目的有好几种做法：稳妥的、下狠手的、找人搭把手的，代价和结果都不一样。' +
+        '　（这一件做完，今天还剩 ' + apLeftNow() + ' 次行动；不想做也可以直接收手。）'));
     }
     choices.forEach((c, i) => {
       // 选项文字里已经写了「（生路）」的，不再重复追加标注
@@ -9380,6 +11507,27 @@ body.story-mode .logwrap{max-height:22vh !important}
     } else gallery[o.ending].times += 1, LS.set('rs_gallery', gallery);
   }
 
+  /** 第 29 轮：子场景里的自由输入 → 对应到某个"做法"上（只做文字匹配，绝不改判定） */
+  function matchSceneOption(state, text) {
+    const t = String(text || '');
+    if (!t || !state || !state.scene) return null;
+    const opts = state.scene.options || [];
+    const tokensOf = (label) => {
+      const clean = String(label).replace(/[（(].*?[)）]/g, '').replace(/[·、，,。！？：；\s]/g, '');
+      const out = [];
+      for (let i = 0; i + 2 <= clean.length; i++) out.push(clean.slice(i, i + 2));
+      return out;
+    };
+    let best = null;
+    for (const o of opts) {
+      let hit = 0;
+      for (const tk of tokensOf(o.label)) if (t.indexOf(tk) >= 0) hit++;
+      if (hit > 0 && (!best || hit > best.hit)) best = { hit: hit, o: o };
+    }
+    if (!best || best.hit < 2) return null;      // 只认两个以上字词对上的，避免瞎猜
+    return { optionId: best.o.id, label: best.o.label };
+  }
+
   async function onChoice(id, customText) {
     lastLines = [];                 // 本轮新增行：用于「刚刚发生」卡片
     dayStoryShown = false;          // 新的一轮开始：下一天的剧情重新单独读一遍
@@ -9419,6 +11567,21 @@ body.story-mode .logwrap{max-height:22vh !important}
           }
           addLog('warn', '【此刻必须做出选择】引擎不会因为你说了什么而改变判定。');
           addLog('muted', '你可以直接写你要做的事，但必须落在下面这些选项上；选项的文字/标签对得上，我就替你选它。');
+          return;
+        }
+      } else if (state && state.phase === 'scene' && state.scene) {
+        // 第 29 轮：子场景里写自由文字 → 先试着对到某个"做法"上；对不上就友好说明
+        const si = matchSceneOption(state, customText);
+        if (si) {
+          realId = si.optionId;
+          intent = { label: si.label, via: '你写的那句话' };
+        } else {
+          addLog('warn', '【现在是在做一件事的中间】你正在做「' +
+            String(state.scene.actionLabel || '').replace(/（.*?）/g, '') + '」，得先把"具体怎么做"定下来。');
+          addLog('muted', '两种办法：① 从下面挑一个做法（写"去档案室""找人问"这类词，我也能替你选）；' +
+            '② 点「算了，换个做法」回到今天的行动菜单，再换一件事。');
+          addLog('muted', '（当前做法：' + (state.scene.options || []).map((o) => o.label).join(' / ') + '）');
+          renderNow();
           return;
         }
       } else if (E.parseIntent) {
@@ -9490,11 +11653,22 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (state.over) { renderOver(); hideNow(); renderChoices([]); autoSave(); return; }
     if (state.pending) renderEncounter();     // 进入遭遇：正文要显示在「刚刚发生」里
     renderNow();
-    renderChoices(rep.choices, 'continue');   // 先读完结果，再让玩家点「继续」
+    // 第 29 轮：「继续」的落点变了——子场景要接着选"怎么做"，一天没做完就回到今天的行动菜单
+    let contLabel = null;
+    if (state.pending) {
+      contLabel = null;                       // 默认：面对「某某」
+    } else if (state.phase === 'scene' && state.scene) {
+      contLabel = '继续 ▶　' + state.scene.title;
+    } else if (apLeftNow() > 0 && (state.apUsed || 0) > 0 && !state.over) {
+      contLabel = '继续 ▶　今天还能行动 ' + apLeftNow() + ' 次（第 ' + state.turn + ' 天·' + apSlotLabel() + '）';
+    } else {
+      contLabel = '继续 ▶　进入第 ' + (state.turn + 1) + ' 天';
+    }
+    renderChoices(rep.choices, 'continue', contLabel);   // 先读完结果，再让玩家点「继续」
     autoSave();
   }
 
-  /** 「继续」：清掉结果卡片，正式进入下一步（新的一天 / 一场遭遇）
+  /** 「继续」：清掉结果卡片，正式进入下一步（子场景 / 今天的行动菜单 / 新的一天）
    *  第 20 轮：新一天的剧情也要先单独读一遍（一天 700~800 字，直接跟选项一起给
    *  就会变成"点完选项上面还有一大段没看到"）。所以：先给剧情 + 继续，再给选项。
    */
@@ -9511,6 +11685,20 @@ body.story-mode .logwrap{max-height:22vh !important}
       renderChoices(E.availableActions(state));
       return;
     }
+    // 第 29 轮：子场景——刚读完"这件事的小故事"，现在露出"具体怎么做"的选项
+    if (state.phase === 'scene' && state.scene) {
+      dayStoryShown = false;
+      renderSceneArt(state);
+      renderChoices(E.availableActions(state));
+      return;
+    }
+    // 第 29 轮：今天还没做完（行动点有剩余）→ 直接回到今天的行动菜单，不再插一天的剧情
+    if ((state.apUsed || 0) > 0 && apLeftNow() > 0) {
+      dayStoryShown = false;
+      renderSceneArt(state);
+      renderChoices(E.availableActions(state));
+      return;
+    }
     if (!dayStoryShown) {
       // ① 新一天的剧情：单独一屏，只有剧情和「开始今天的行动」
       dayStoryShown = true;
@@ -9518,7 +11706,7 @@ body.story-mode .logwrap{max-height:22vh !important}
       renderSceneArt(state);
       renderNow();
       renderChoices(E.availableActions(state), 'continue',
-        '开始第 ' + state.turn + ' 天的行动 ▶');
+        '开始第 ' + state.turn + ' 天的行动 ▶（今天 ' + (state.apMax || apLeftNow()) + ' 次行动）');
       return;
     }
     // ② 剧情读完了：收起卡片，露出今天的选项
