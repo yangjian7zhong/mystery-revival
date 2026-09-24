@@ -6872,9 +6872,11 @@ body.story-mode .logwrap{max-height:22vh !important}
     bus: 'busstop', oldhouse: 'apartment', yangjian: 'city',
   };
 
-  function artEnabled() { return LS.get('rs_art_off', 0) ? false : true; }
+  // 第 22 轮：插画先进画册（用户：先加入画册吧）。剧情里默认不显示，
+  // 想看就点顶栏「插画」或画册里的按钮，偏好存 rs_art_on（1=剧情里显示）。
+  function artEnabled() { return LS.get('rs_art_on', 0) === 1; }
   function setArtEnabled(on) {
-    LS.set('rs_art_off', on ? 0 : 1);
+    LS.set('rs_art_on', on ? 1 : 0);
     document.body.classList.toggle('no-art', !on);
     if ($('btnArt')) $('btnArt').textContent = on ? '插画：开' : '插画：关';
   }
@@ -8146,7 +8148,16 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (ART && ART.count) {
       box.appendChild(el('div', 'sectionTitle', '画册 · 插画（' + ART.count + ' 张，绘图模型按《我叫杨间》那种诡异国漫氛围生成）'));
       box.appendChild(el('div', 'hint', '冷蓝夜色 + 红色鬼气 + 低机位特写 + 胶片颗粒。图片已内联进这个单文件里，离线也能看。' +
-        '剧情里默认会显示插画，顶栏「插画」按钮可以关掉。'));
+        '剧情里默认不显示插画——想看就点下面的按钮或顶栏「插画」。'));
+      const row = el('div', 'row');
+      const onBtn = el('button', 'btn small primary', artEnabled() ? '剧情里显示插画：已开（点一下关掉）' : '在剧情里也显示插画（点一下打开）');
+      onBtn.onclick = () => {
+        setArtEnabled(!artEnabled());
+        openGallery();     // 重画这一页，让按钮文字跟上
+        if (state && !state.over) renderSceneArt(state, lastSceneCtx);
+      };
+      row.appendChild(onBtn);
+      box.appendChild(row);
       const pgrid = el('div', 'galleryGrid');
       ART.keys.forEach((k) => {
         const cell = el('div', 'galleryCell');
