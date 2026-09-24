@@ -190,14 +190,62 @@ body.panelOpen #side{display:block}
 /* ==== 第 19 轮：剧情模式（点完选项先只看剧情，选项收起） + 取消插画 ==== */
 /* 插画按用户要求先取消：隐藏容器（画册与相关代码保留，随时可恢复） */
 #scene{display:none !important}
-/* 剧情模式：这一屏只服务"读剧情"——日志区放开高度，选项区只剩继续按钮 */
-body.story-mode .logwrap{max-height:none !important; flex:1 1 auto}
-body.story-mode #choices{display:flex; flex-direction:column; gap:8px}
+/* 第 20 轮重做剧情模式：剧情卡片排在最前（不再排在长日志之后——实测手机端它在 y=2833，
+   用户点完选项根本看不到），「继续」吸底，历史日志折叠到下面。
+   原来：日志 max-height:none 撑到 2600px，把剧情和继续按钮一起推到屏幕外。 */
+body.story-mode #stage{display:flex; flex-direction:column; gap:12px}
+body.story-mode #now{order:1; max-height:none; background:#101820; border:1px solid #223040;
+  border-left:3px solid var(--accent); padding:14px 16px; border-radius:12px}
+body.story-mode #now .nowhead{margin-bottom:8px}
+body.story-mode #choices{order:2; display:flex; flex-direction:column; gap:8px;
+  position:sticky; bottom:6px; z-index:6; padding:6px 0 8px;
+  background:linear-gradient(180deg, rgba(13,17,23,0), rgba(13,17,23,.94) 45%)}
+body.story-mode #logWrap{order:3; flex:0 0 auto; max-height:22vh !important; opacity:.9;
+  border-top:1px dashed #1c232c}
+body.story-mode #footer{order:4}
+body.story-mode #jumpNew{order:3}
 body.story-mode .storyHint{color:var(--dim); font-size:12.5px; text-align:center; padding:2px 0}
 body.story-mode #choices .btn.primary.big{padding:15px 16px; font-size:16px}
-body.story-mode #stage{gap:14px}
+/* 工具箱改成浮层：图鉴/画册/世界观/AI 设置/导入 打开时必须立刻可见（原来排在长日志之后，
+   实测面板顶部在 y=2833，点了按钮像没反应）。 */
+.toolbox{position:fixed; left:0; right:0; top:0; bottom:0; z-index:60; overflow:auto;
+  background:#0d1117; padding:14px 16px 40px; -webkit-overflow-scrolling:touch}
+@media (min-width:901px){
+  .toolbox{left:auto; right:24px; top:16px; bottom:16px; width:min(880px, 62vw);
+    border:1px solid #223040; border-radius:14px; box-shadow:0 18px 48px rgba(0,0,0,.6)}
+}
+body.story-mode .logwrap{max-height:22vh !important}
+/* ==== 第 20 轮：图鉴（成就 / 结局 / 厉鬼 / 线索 / 战绩）==== */
+.tabbar{display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 6px}
+.tabbar .tab{font:inherit; font-size:13px; padding:6px 10px; border-radius:999px; cursor:pointer;
+  background:#0e1620; color:#c8d2dc; border:1px solid #26313d}
+.tabbar .tab:hover{border-color:var(--accent)}
+.tabbar .tab.on{background:#12303a; border-color:var(--accent); color:#e6fbff}
+.codexGrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; margin:8px 0}
+.codexCell{border:1px solid #232c38; border-radius:10px; padding:9px 11px; background:#0c1218}
+.codexCell.got{border-color:#2f6b57; background:#0c1a15}
+.codexCell.locked{opacity:.62}
+.codexList{display:flex; flex-direction:column; gap:8px; margin:8px 0}
+.codexRow{border:1px solid #232c38; border-left:3px solid #3d5b73; border-radius:8px;
+  padding:8px 11px; background:#0c1218}
+.codexRow.got{border-left-color:#4f8f5f; background:#0c1a15}
+.codexRow.locked{opacity:.66; border-left-color:#39434f}
+.codexHead{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.codexName{font-size:13.5px; font-weight:600; color:#e6edf3}
+.codexDesc{font-size:12.5px; color:#c8d2dc; line-height:1.6; margin-top:2px}
+.codexMeta{font-size:12px; color:var(--dim); margin-left:auto}
+.codexQuote{font-size:12.5px; color:#a9b6c3; line-height:1.65; margin-top:4px; font-style:italic}
+.codexClue{font-size:12.5px; color:#ffd8a8; line-height:1.6; margin-top:3px}
+.codexClue.locked{color:#5e6b78}
+.codexList .hint{color:var(--dim); font-size:12.5px; line-height:1.6}
+.lvl{font-size:11.5px; padding:1px 7px; border-radius:999px; border:1px solid #39434f; color:#c8d2dc}
+.badgetone-danger{border-color:#6e3132; color:#ff9a97; background:#1e1113}
+.badgetone-warn{border-color:#6e5326; color:#ffd28a; background:#1d1608}
+.badgetone-accent{border-color:#265e6b; color:#9fe8f5; background:#0a1e24}
+.badgetone-success{border-color:#2f6b57; color:#a6e7c6; background:#0a1c15}
 @media (max-width:900px){
-  body.story-mode .logwrap{max-height:none !important}
+  .codexGrid{grid-template-columns:1fr}
+  .codexMeta{margin-left:0; width:100%}
 }</style>
 </head>
 <body>
@@ -208,6 +256,7 @@ body.story-mode #stage{gap:14px}
   <span class="spacer"></span>
   <div class="tools">
     <button class="btn small" id="btnPanel">属性</button>
+    <button class="btn small" id="btnCodex">图鉴</button>
     <button class="btn small" id="btnGallery">画册</button>
     <button class="btn small" id="btnGuide">世界观</button>
     <span class="tag" id="aiState">AI 叙事：关</span>
@@ -4186,7 +4235,8 @@ body.story-mode #stage{gap:14px}
         const c = pool[hashStr(s.seed + ':' + s.turn + ':clue') % pool.length];
         applyEffects(s, [{ k: 'clue', id: c.id }, { k: 'bestiary', id: g.id, clues: 1 }], '获得线索');
         s.lastClueTurn = s.turn;
-        return { lines: ['你在旧报纸的边角上读到一段话：', '「' + c.text + '」', '（线索已记录：' + c.id + '）'] };
+        return { lines: ['你在旧报纸的边角上读到一段话：', '「' + c.text + '」',
+          '（这条规律已记入你的册子——顶栏「图鉴 · 线索」里可以随时回看）'] };
       },
     });
     add({
@@ -4652,6 +4702,9 @@ body.story-mode #stage{gap:14px}
       if (!dead && v <= rc) {
         const gid = encounterGhostId(state);
         state.lastGhost = gid;     // 记住上一只鬼，供下一回合反重复（必须进存档，否则读档可以刷掉重复）
+        // 图鉴（第 20 轮）：记录"遇见过这只鬼"。结算时写进玩家档案，跨局累积，
+        // 让图鉴里的规律线索随实际遭遇逐步解锁，而不是一开局全送。
+        if (state.events.done.indexOf('enc:' + gid) < 0) state.events.done.push('enc:' + gid);
         state.pending = buildEncounter(state, gid);
         state.phase = 'encounter';
         settlement.push('遭遇判定：1d100=' + v + ' ≤ ' + rc + '% → 遇见「' + state.pending.name + '」（' + state.pending.level + ' 级）');
@@ -4847,6 +4900,8 @@ body.story-mode #stage{gap:14px}
       points: 0,                 // 可用周目点数
       earned: 0,                 // 累计获得
       seen: { ghostView: false, secondRun: false },
+      faced: {},                 // 图鉴：遭遇过的厉鬼 id → true（跨局累积）
+      knownClues: {},            // 图鉴：掌握过的规律线索 id → true
     };
   }
 
@@ -4940,6 +4995,15 @@ body.story-mode #stage{gap:14px}
     p.best.turn = Math.max(p.best.turn || 0, run.turn);
     p.best.byDiff[d] = Math.max(p.best.byDiff[d] || 0, run.turn);
     if (eid && eid !== 'unfinished') p.endings[eid] = (p.endings[eid] || 0) + 1;
+
+    // 图鉴（第 20 轮）：把本局遭遇过的厉鬼、掌握过的规律线索并进档案，跨局累积。
+    // 只做记录，不参与任何判定公式，也不改变周目点数。
+    if (!p.faced) p.faced = {};
+    if (!p.knownClues) p.knownClues = {};
+    for (const d of (state.events && state.events.done) || []) {
+      if (typeof d === 'string' && d.indexOf('enc:') === 0) p.faced[d.slice(4)] = true;
+    }
+    for (const c of state.clues || []) p.knownClues[c] = true;
 
     const pts = pointsFor(run);
     p.points += pts;
@@ -5458,6 +5522,9 @@ body.story-mode #stage{gap:14px}
     const s = state;
     const lines = [];
     const tags = [];
+    // 第 20 轮：先给两段成段叙事（读感），再给短句（信息）
+    const open = prose(s, 'dayOpen', 2, state.__ctx);
+    open.forEach(function (x) { lines.push(x); tags.push('dayOpen'); });
     lines.push(pick('timeOfDay', s) + '，' + pick('weather', s) + '。'); tags.push('timeOfDay', 'weather');
     lines.push(pick('place', s)); tags.push('place');
     // 第 13 轮：加厚——环境细节 + 时期感 + 地点专属细节（带库就取，没有就跳过）
@@ -5495,6 +5562,10 @@ body.story-mode #stage{gap:14px}
     const lv = s.contentLevel || 'A';
     if (lv === 'B') { lines.push(pick('levelB', s)); tags.push('levelB'); }
     else if (lv === 'C') { lines.push(pick('levelC', s)); tags.push('levelC'); }
+
+    // 第 20 轮：结尾收一段，把"今天该动了"这件事说清楚，然后才交给选项
+    const close = prose(s, 'dayClose', 1, s.__ctx);
+    close.forEach(function (x) { lines.push(x); tags.push('dayClose'); });
 
     return { lines: lines, tags: tags };
   }
@@ -5539,8 +5610,9 @@ body.story-mode #stage{gap:14px}
   function actionProcess(state, actionId) {
     const id = String(actionId || '').replace(/^city_/, 'city').replace(/^probe_/, 'probe');
     const bank = 'proc_' + (id === 'city' ? 'investigate' : (id === 'probe' ? 'investigate' : id));
-    if (B[bank]) return pickN(bank, state, 2, 3);
-    return B.proc_investigate ? pickN('proc_investigate', state, 1, 5) : [];
+    // 第 20 轮：从 2 句加到 3 句（用户反馈"剧情描述玩起来好少"）
+    if (B[bank]) return pickN(bank, state, 3, 3);
+    return B.proc_investigate ? pickN('proc_investigate', state, 2, 5) : [];
   }
 
   /** 第 15 轮：身体状态段（按侵蚀/理智/体力/污染取一句） */
@@ -5565,8 +5637,137 @@ body.story-mode #stage{gap:14px}
     return pickN('aftermath', state, n || 1, 7);
   }
 
+  /* ------------------------------------------- 第 20 轮：成段叙事（长段落）
+   * 用户反馈：「剧情描述玩起来好少」「你确定是八百字」。
+   * 实测过：一回合由 12 条短句组成（每条 30~40 字），合计只有 230~440 字，
+   * 短句适合承载信息（线索、状态、异象），但读起来是"条目"不是"小说"。
+   * 这里补的是真正的段落：每段 150~230 字，与短句交替出现。
+   * 段落里的 {time}/{weather}/{city}/{era}/{ghost} 由 fill() 按种子确定性替换。
+   */
+  const SLOT = {
+    time: ['凌晨三点', '天刚蒙蒙亮', '上午', '正午', '下午三点多', '傍晚', '入夜之后', '深夜'],
+    weather: ['下着小雨', '闷得像口盖着的锅', '风把树叶刮得响', '干冷', '雾还没散', '云压得很低',
+      '太阳晃眼', '潮得能拧出水'],
+  };
+
+  const PROSE = {
+    dayOpen: [
+      '{time}，你醒了。{weather}。醒来第一件事不是看钟，是听：楼道里有没有第三种脚步声，水管是不是又在没人用的时候响。这套动作你练了很久，久到不用想就做完了。{city}还在正常运转——电梯在响，早点摊在冒热气，远处有车按了两下喇叭。正常得像一块贴在创口上的纱布。',
+      '{time}，{city}安静得不像话。安静到你能听出风机、水管、隔壁小孩的抽泣各自属于哪一层。你在这里住了一段日子，已经学会不去数那些明显多出来的声音：数着数着，它们就会开始回应你。',
+      '{weather}。你把窗帘拉开一条缝，只留一指宽。外面没有任何异常，正因为没有异常，你才盯着看了很久。在{era}，看上去正常的一天往往最需要提防——危险从不敲门，它只是刚好和你同路。',
+      '{time}。你醒得比闹钟早，身体先动，脑子后到。昨晚的梦记不清了，只记得梦里有人一直在数数，数到某一段就断了。你摸了一下胸口，那里什么也没有，但你能觉出一点隐约的沉——像是身体里住着的东西翻了个身，又睡过去了。',
+      '你花了点时间确认自己还在这边：手指、呼吸、影子、墙上的光斑，一样一样点过去。这是你自己给自己定的规矩——每天先证明一遍自己活着，再去处理那些没法证明的事。{weather}，{city}在窗外摊开了它的一整天。',
+      '{time}，你在屋子里走了一圈。窗锁、门链、门口的粉笔印、冰箱上贴着的纸，每一样都在原位。你没觉得安心，只觉得今天还没开始收账。{era}这地方，账总是要收的，只是不知道收在谁头上。',
+      '{weather}。你煮了碗面，吃得很慢。热的东西下去，身体的疲惫才承认自己存在。你一边吃一边在心里过今天的清单：谁要见、哪里要去、什么话能说、什么话一出口就会招来东西。清单不长，但没有一项能省掉。',
+      '{time}，屋子里有点太亮了。你起身把灯按灭，让光从窗户进来。在{era}待久的人都会这样：宁可暗一点，也别让影子在墙上太清楚。影子一旦清楚，你就会开始在意它多出来的那一小块。',
+      '{time}，{city}开始有动静了：垃圾车、卷帘门、楼下有人喊了一嗓子。这些声音让你松了口气，又立刻让你紧张——太正常的日子后面，多半跟着一件很不正常的事。你把外套搭在椅背上，等着看它今天从哪个方向来。',
+      '{weather}。你昨晚睡得不好，梦里全是同一个场景：一扇门，在你不看它的时候被推开一点点；你看过去，它又是关着的。醒来之后你没有去查门，也没有回头。在{era}学会的第一件事就是——不要替它把动作做完。',
+    ],
+    dayClose: [
+      '今天要做的事只有一件，你要在它找上你之前，先往前走一步。犹豫也算一种选择，只是代价不由你定。',
+      '时间不会等你，世界更不会。你站在门口想了两秒，然后回身锁门，往楼下走。这一趟往哪个方向去，得你自己挑。',
+      '你摸了摸口袋，确认该带的都在。接下来无论做什么，都不该是随手的——在这个时代，随手做的事最容易出事。',
+      '你没有把窗帘完全拉上。不是为了看外面，是为了让外面看得见你还在。有人还在，很多东西就会晚一点动手。',
+      '关于今天到底该做什么，你心里有三个方向，它们互相排斥。你只能选一个，把剩下的留给下一次机会——如果还有下一次。',
+      '你想起一句话：活着的人不解决问题，活着的人只是不断换位置。你决定今天也换一个位置，换到更有利的那一格去。',
+      '你把手机关成静音，又打开。有些电话必须接，有些电话一接就来不及了。今天你得自己判断哪个是哪个。',
+      '外面的天色在往下沉。你提醒自己：天黑之前把想做的事做完，天黑之后不要再做决定。这条规矩救过你一次，你不介意它再救你一次。',
+    ],
+    actionProse: [
+      '事情做完了，影响还在往外扩。你能感觉到那种扩散：某个人的目光、某段被人记住的描述、某扇被打开的档案柜。做过的事不会停在你做完的那一刻，它会继续长。',
+      '你收手的时候才发觉手心在出汗。这不是害怕——害怕是之后的情绪，此刻只有专注过后的空。你在原地多站了十几秒，确认没有任何东西跟着你，这才往回走。',
+      '你把过程在心里重放了一遍，找出最不该做的那一步。下次遇到同样的局面，你会先做别的。这不是聪明，是吃过苦以后剩下的本能。',
+      '回程比来的时候慢。不是因为累，是因为你在听：走过的每一段路，刚才的脚步声和现在的脚步声是不是一样多。一样多，你才继续往前走。',
+      '你知道自己碰到的只是表层。真正的东西还在更深的地方，等着被翻到第二页、第三页。可今天你只翻到一页，这就够了——翻太快的人往往看不到最后一页。',
+      '这一趟让你多了一点把握，也多了一点麻烦。麻烦具体长什么样你还不知道，但你至少知道它冲谁来了。知道方向的人，比什么都不知道的人多一条命。',
+      '你把带回来的东西摊在桌上，借着灯看。看的时候你没有说话——有些信息只能慢慢消化，急着解读就会被它带着走。',
+      '做完之后你没有立刻休息。你把门窗重新检查了一遍，把鞋底在门口蹭干净。这些细碎的动作让你从那种"被什么盯着"的感觉里退出来一点。退出来一点，就够你熬过今晚了。',
+    ],
+    encProse: [
+      '你没有跑。跑是错的——跑等于告诉它"我懂了你的规矩"，而它要的正是这个反应。你站在原地，把呼吸压到最浅，让身体先别替你做决定。{ghost}给你的压迫不是声音，是那种"你已经站在它的范围里了"的感觉。',
+      '周围的东西都还在原位：墙、灯、栏杆、地上的水渍。可它们看起来都薄了一层，像是有人从背面透了一盏灯过来。你很清楚这意味着什么——这地方已经不完全属于活人了。',
+      '空气里有种很淡的味道，像铁锈，也像烧过的纸。你想起有人说过：真正要命的东西从不带杀气，它只是很安静地把它该做的事做完，然后你就不在了。',
+      '时间在这种时候会变慢。你听得见自己心跳的间隔，听得见风从某个缝里进来又出去。你提醒自己别去数——在鬼域里数数的人，最后都会数到不属于自己的那一下。',
+      '你的手在口袋里，摸到了那件东西。有它在，你至少还有一次反悔的余地，也只有一次。所以现在不能急着用，先看清楚它要什么。',
+      '你意识到自己已经想不起外面的事：今天几号、刚才在做什么、手机放在哪个兜里。这些不是消失了，是被压住了。被压住的东西不是死的，只是暂时不出声。',
+      '{ghost}不着急。这是最让人难受的地方——它不着急，所以你有时间想，而想得越多越容易做错。你逼着自己只看眼前三米，只看能确认的东西。',
+      '你把重心往前压了一点，脚尖朝向来路。这不是要逃，是给自己留一条一秒钟就能动起来的路。在遭遇里，能动的身体比勇敢的念头管用。',
+    ],
+    encClose: [
+      '它已经把你圈进了它的规矩里。现在你要做的，是挑一步最不像死的。',
+      '选择很快就要做出。你只有一次机会，而且不能收回。',
+      '所有的退路都只写在纸面上，真正的退路要看它留了哪一条。',
+      '你逼自己冷静下来。冷静不是不怕，是怕着也能把事情做完。',
+      '它不会给你太多时间。你必须在它下一次动作之前，先动。',
+      '你数了一下手里的牌：线索、器物、体力，还有一点点运气。不够，但比什么都没有强。',
+    ],
+    // 日常行动收尾：把"今天剩下的时间"交代掉，再交回选项
+    actionClose: [
+      '做完这件事，今天剩下的时间就不多了。你回到住处，把过程在心里又过了一遍，然后决定明天要不要继续顺着这条线往下走。',
+      '天色在你还忙着的时候已经变了。你在街边站了一会儿，看着路灯一盏盏亮起来——亮灯的顺序和昨天一样，这让你稍微安心了一点。',
+      '今天该做的做完了。你把手上的灰拍掉，走进人多的地方待了一会儿，让自己的呼吸频率跟周围的人对齐。这是最有效的伪装：随大流。',
+      '你回到屋里，先洗手，再坐下。水从指缝里下去的时候，你忽然想不起自己今天到底摸过哪些东西。你决定不再往下想。',
+      '这一天就到这里。你没有得到想要的答案，但拿到了三条可以继续查的线头。线头比答案有用——答案会骗人，线头不会。',
+      '你把今天的收获记在一张纸上，写完又划掉两句。有些东西写下来就不再是秘密了，而秘密一旦落在纸上，就可能会被别人读到。',
+    ],
+    // 遭遇结算之后：活下来的那口气（不含死亡，死亡走 deathProse）
+    encResolve: [
+      '事后你才发觉自己的手一直在抖。抖不是因为怕，是因为身体在把那几分钟重新过了一遍——它比脑子记得更清楚。你靠着墙站了一会儿，等抖停下来。',
+      '你走远之后回头看了一眼。那地方看起来跟刚才一模一样，人来人往，什么都没少。只有你知道刚才那里发生过什么，以及你差点就留在里面了。',
+      '这件事会被你记很久：不是因为惊险，是因为你终于确认了一件事——规矩是可以被算出来的。能被算出来的东西，就能被绕过去。',
+      '你把手里的东西收好，脚步放回正常的速度。不能跑，跑会让别人看出你刚从什么地方出来。在这座城市里，被人看出你和"那种事"有关，往往比那件事本身更麻烦。',
+      '{ghost}没有再跟上来。但你隐约知道，它记住了你——就像你也记住了它。下一次见面，你们都会比这次更懂对方。',
+      '回去的路上你一直在整理细节：它动了多久、什么先变、什么后变、你在哪一刻做对了。你把这些一件件收进脑子里，像收进抽屉，标签朝外。',
+      '你花了很长时间才把心跳压回正常。身体一旦尝过一次"差点没了"，之后很多天都会替你把警戒线拉得很高。这是好事，也是消耗。',
+      '你活下来了，代价记在账上：身上那些看不见的地方又沉了一点。你确认了一下自己还能思考、还认得路、还想回家，然后才继续往前走。',
+    ],
+    // 死亡结局：写在「【结局】」之前，让死亡也是一段叙事而不是一行判定
+    deathProse: [
+      '你想动，但身体已经不属于"想"这个动作了。视野边缘先暗下去，声音像退潮一样远了。最后一个念头很小，也很普通：原来今天是这样的一个天气。',
+      '你没有喊。喊是没用的——这地方已经不听活人的话了。你只是站着，看着那件事按它的规矩做完。它做得很慢，慢得像在照顾你。',
+      '倒下去之前你想起很多不相干的东西：窗户没关、碗还泡在水槽里、有人约了你明天见面。这些琐碎的东西一起涌上来，把你最后那点力气填满了。',
+      '你在心里数了一下自己做过的事，发现没有一件能用得上。线索不够、准备不足、运气也刚好用完。规律合拢的时候，它甚至不需要凶。',
+      '最后的画面很安静。{city}还在照常运转：公交车进站，楼上有人开窗，远处有人在笑。这个城市不会因为少一个人而改变节奏。',
+      '你终于明白那些前辈为什么总是说得那么少。知道得越多，能说出口的越少——因为说出来的每一句，都可能是别人最后的依据。',
+    ],
+  };
+
+  // 注册进句库，复用 pick/pickN 的种子轮转（前缀 p_ 便于测试统计区分）
+  for (const k of Object.keys(PROSE)) B['p_' + k] = PROSE[k];
+
+  /** 段落槽位替换：{time} {weather} {city} {era} {ghost} {day} {clues} */
+  function fill(tpl, state, ctx) {
+    const s = state || {};
+    const c = ctx || {};
+    const one = function (bank) {
+      const arr = SLOT[bank];
+      if (!arr) return '';
+      return arr[hashStr(String(s.seed || '') + ':' + bank + ':' + (s.turn || 0)) % arr.length];
+    };
+    const ghost = (s.pending && s.pending.name) || c.ghost || (s.lastGhostName || '那只鬼');
+    return String(tpl)
+      .replace(/\{time\}/g, c.time || one('time'))
+      .replace(/\{weather\}/g, c.weather || one('weather'))
+      .replace(/\{city\}/g, c.city || '这座城市')
+      .replace(/\{era\}/g, c.era || '这个时代')
+      .replace(/\{ghost\}/g, ghost)
+      .replace(/\{day\}/g, '第 ' + (s.turn || 0) + ' 天')
+      .replace(/\{clues\}/g, String(((s.clues || []).length)));
+  }
+
+  /** 取 n 个段落（已填充槽位）。kind: dayOpen / dayClose / actionProse / encProse / encClose */
+  function prose(state, kind, n, ctx) {
+    const bank = 'p_' + kind;
+    if (!B[bank]) return [];
+    const salt = { dayOpen: 21, encProse: 22, encResolve: 24, deathProse: 25, actionClose: 26 }[kind] || 23;
+    return pickN(bank, state, n || 1, salt).map(function (x) { return fill(x, state, ctx); });
+  }
+
   return {
     banks: B,
+    prose: prose,
+    fill: fill,
+    proseBanks: PROSE,
     scene: scene,
     actionProcess: actionProcess,
     bodyState: bodyState,
@@ -5872,9 +6073,17 @@ body.story-mode #stage{gap:14px}
     return (C.eras && C.eras[s && s.era]) || null;
   }
 
+  /** 段落槽位用的上下文（城市名/时期名），供 narrative 的长段落替换 {city}/{era} */
+  function ctxOf(s) {
+    const c = cityInfo(s);
+    const e = eraInfo(s);
+    return { city: c ? c.name : '', era: e ? e.name : '' };
+  }
+
   /** 场景描写：优先用叙事生成器（组合 + 轮转 + 状态反应），没有则退回素材库 */
   function sceneLines(s) {
     if (N) {
+      s.__ctx = ctxOf(s);
       const r = N.scene(s);
       const clock = eraClock(s);
       const ev = clock.filter((e) => e.turn <= s.turn).slice(-1)[0];
@@ -5933,6 +6142,7 @@ body.story-mode #stage{gap:14px}
    */
   let lastLines = [];        // 本轮新增的行（供「刚刚发生」卡片）
   let nowLineCount = 0;
+  let dayStoryShown = false; // 第 20 轮：新一天的剧情是否已经单独读过一遍
 
   function scrollLog() {
     const box = $('logWrap');
@@ -5960,8 +6170,11 @@ body.story-mode #stage{gap:14px}
     const rows = lastLines.filter((x) => x.kind !== 'set');
     if (!rows.length) { box.style.display = 'none'; return; }
     box.style.display = '';
-    box.appendChild(el('div', 'nowhead', '刚刚发生 · 第 ' + (state ? state.turn : '?') + ' 天'));
-    rows.slice(-8).forEach((r) => {
+    const chars = rows.map((r) => r.text.length).reduce((a, b) => a + b, 0);
+    box.appendChild(el('div', 'nowhead', '第 ' + (state ? state.turn : '?') + ' 天 · 这一段的完整剧情（' +
+      chars + ' 字）'));
+    // 剧情模式下这张卡片就是"读剧情"的主视图，不能截断：本轮新增的文字全部显示
+    rows.forEach((r) => {
       const cls = r.kind === 'enc' ? 'line say ghost' : (r.kind === 'over' ? 'line say ghost' : 'line narr');
       box.appendChild(el('div', cls, r.text));
     });
@@ -5970,7 +6183,7 @@ body.story-mode #stage{gap:14px}
 
   function hideNow() { const b = $('now'); if (b) { clear(b); b.style.display = 'none'; } }
 
-  function renderChoices(choices, mode) {
+  function renderChoices(choices, mode, label) {
     const box = $('choices');
     clear(box);
     // 遭遇中不提供自定义入口：此刻必须做出选择，避免用描述性文本绕过判定
@@ -5985,11 +6198,12 @@ body.story-mode #stage{gap:14px}
     // 剧情模式（用户要求）：点完选项先把选项收起来，只显示这一段剧情；读完再点「继续」回到选项
     if (mode === 'continue') {
       document.body.classList.add('story-mode');
-      const hint = el('div', 'storyHint', '（读完上面这段剧情，再点下面继续）');
+      const chars = lastLines.reduce((a, x) => a + (x.text ? x.text.length : 0), 0);
+      const hint = el('div', 'storyHint', '（这是这一段的完整剧情，共 ' + chars + ' 字·读完再点下面继续）');
       box.appendChild(hint);
-      const b = el('button', 'btn primary big', state && state.pending
+      const b = el('button', 'btn primary big', label || (state && state.pending
         ? '继续 ▶　面对「' + state.pending.name + '」'
-        : '继续 ▶　进入第 ' + (state.turn + 1) + ' 天');
+        : '继续 ▶　进入第 ' + (state.turn + 1) + ' 天'));
       b.onclick = continueNext;
       box.appendChild(b);
       return;
@@ -6033,6 +6247,11 @@ body.story-mode #stage{gap:14px}
     addLog('enc', '【遭遇】' + state.pending.name + '（' + state.pending.level + ' 级）');
     addLog('', state.pending.text);
     if (N) {
+      // 第 20 轮：先两段成段叙事（读感），再补短句细节（信息）
+      if (N.prose) {
+        const ps = N.prose(state, 'encProse', 2, ctxOf(state));
+        if (ps.length) addLog('scene', ps);
+      }
       const mood = N.encounterMood(state);
       if (mood) addLog('scene', mood);
       const sense = N.encounterSense ? N.encounterSense(state) : '';
@@ -6044,6 +6263,10 @@ body.story-mode #stage{gap:14px}
       addLog('clue', state.pending.revealedClues.map((c) => '· 你掌握的线索：' + c));
     } else {
       addLog('warn', '· 你对它一无所知——现在只能靠判断和运气。');
+    }
+    if (N && N.prose) {
+      const cs = N.prose(state, 'encClose', 1, ctxOf(state));
+      if (cs.length) addLog('scene', cs);
     }
   }
 
@@ -6082,6 +6305,7 @@ body.story-mode #stage{gap:14px}
 
   async function onChoice(id, customText) {
     lastLines = [];                 // 本轮新增行：用于「刚刚发生」卡片
+    dayStoryShown = false;          // 新的一轮开始：下一天的剧情重新单独读一遍
     // 自由输入：先尝试识别成"真实行动"（不接 AI 也能有自由度）
     let realId = id;
     let intent = null;
@@ -6105,6 +6329,8 @@ body.story-mode #stage{gap:14px}
         }
       }
     }
+    // 第 20 轮：先判断这是不是"遭遇结算"（结算后的文字与日常行动完全不同）
+    const wasEncounter = !!(state && state.pending);
     const rep = E.resolve(state, realId, customText);
     if (rep.error) { addLog('warn', '【拒绝】' + rep.error); return; }
     if (intent && realId !== '__custom__') {
@@ -6136,10 +6362,27 @@ body.story-mode #stage{gap:14px}
       if (extra) addLog('scene', extra);
     }
     if (rep.settlement && rep.settlement.length) addLog('set', rep.settlement.map((s) => '▸ ' + s));
+    // 第 20 轮：行动之后补成段叙事（"这一趟留下了什么" + "今天剩下的时间"）
+    if (N && N.prose && !state.over) {
+      if (wasEncounter) {
+        const ap = N.prose(state, 'encResolve', 3, ctxOf(state));
+        if (ap.length) addLog('scene', ap);
+      } else {
+        const ap = N.prose(state, 'actionProse', 2, ctxOf(state));
+        if (ap.length) addLog('scene', ap);
+        const ac = N.prose(state, 'actionClose', 1, ctxOf(state));
+        if (ac.length) addLog('scene', ac);
+      }
+    }
     // 第 13 轮：行动之后的余波（让"做完了"有下文，剧情更完整）
     if (N && N.aftermath && !state.over) {
       const af = N.aftermath(state, 3);
-      if (af.length) addLog('scene', af[0]);
+      if (af.length) addLog('scene', wasEncounter ? af.slice(0, 2) : af.slice(0, 3));
+    }
+    // 死亡：先写一段墓志铭式的叙事，再给结局判定
+    if (N && N.prose && state.over) {
+      const dp = N.prose(state, 'deathProse', 1, ctxOf(state));
+      if (dp.length) addLog('over', dp);
     }
     if (state.integrity.length) { addLog('warn', '【完整性告警】' + state.integrity.slice(-3).join(' / ')); }
     renderPanel();
@@ -6151,7 +6394,10 @@ body.story-mode #stage{gap:14px}
     autoSave();
   }
 
-  /** 「继续」：清掉结果卡片，正式进入下一步（新的一天 / 一场遭遇） */
+  /** 「继续」：清掉结果卡片，正式进入下一步（新的一天 / 一场遭遇）
+   *  第 20 轮：新一天的剧情也要先单独读一遍（一天 700~800 字，直接跟选项一起给
+   *  就会变成"点完选项上面还有一大段没看到"）。所以：先给剧情 + 继续，再给选项。
+   */
   function continueNext() {
     hideNow();
     lastLines = [];
@@ -6160,26 +6406,49 @@ body.story-mode #stage{gap:14px}
     if (state.over) { renderOver(); renderChoices([]); return; }
     if (state.pending) {
       // 遭遇正文已经在「刚刚发生」里展示过，这里不再重复写进日志
+      dayStoryShown = false;
       renderSceneArt(state);
       renderChoices(E.availableActions(state));
       return;
     }
-    renderScene(true);
+    if (!dayStoryShown) {
+      // ① 新一天的剧情：单独一屏，只有剧情和「开始今天的行动」
+      dayStoryShown = true;
+      renderScene(true);
+      renderSceneArt(state);
+      renderNow();
+      renderChoices(E.availableActions(state), 'continue',
+        '开始第 ' + state.turn + ' 天的行动 ▶');
+      return;
+    }
+    // ② 剧情读完了：收起卡片，露出今天的选项
+    dayStoryShown = false;
     renderSceneArt(state);
     renderChoices(E.availableActions(state));
   }
 
-  /** 遭遇正文（放进日志，供"继续"之后回看） */
+  /** 遭遇正文（放进日志，供「继续」之后回看） */
   function renderEncounterPreview() {
     if (!state.pending) return;
     lastSceneCtx = { lastAction: null };
     addLog('enc', '【遭遇】' + state.pending.name + '（' + state.pending.level + ' 级）', { noNow: true });
     addLog('', state.pending.text, { noNow: true });
-    if (N) { const mood = N.encounterMood(state); if (mood) addLog('scene', mood, { noNow: true }); }
+    if (N) {
+      if (N.prose) {
+        const ps = N.prose(state, 'encProse', 2, ctxOf(state));
+        if (ps.length) addLog('scene', ps, { noNow: true });
+      }
+      const mood = N.encounterMood(state);
+      if (mood) addLog('scene', mood, { noNow: true });
+    }
     if (state.pending.revealedClues.length) {
       addLog('clue', state.pending.revealedClues.map((c) => '· 你掌握的线索：' + c), { noNow: true });
     } else {
       addLog('warn', '· 你对它一无所知——现在只能靠判断和运气。', { noNow: true });
+    }
+    if (N && N.prose) {
+      const cs = N.prose(state, 'encClose', 1, ctxOf(state));
+      if (cs.length) addLog('scene', cs, { noNow: true });
     }
     renderSceneArt(state);
   }
@@ -6569,6 +6838,186 @@ body.story-mode #stage{gap:14px}
     box.appendChild(el('div', 'hint', '① 选难度 → ② 选开局 → ③ 选落地城市与时期（也可以都选"随机"）→ ④ 开始游戏。'));
     box.appendChild(el('div', 'hint', '每天只能做一个主动作；选完会先给你看结果，点「继续」才进入下一天。写不出选项里的话时，直接在底部输入框里写你想做什么，我会尽量把它认成真实行动。'));
     const close = el('button', 'btn small', '知道了，开始玩');
+    close.onclick = () => { box.style.display = 'none'; };
+    box.appendChild(close);
+  }
+
+  /* ------------------------------------------------------------ 图鉴（第 20 轮）
+   * 用户反馈：「成就那些怎么没有图鉴可以点开看呢」。
+   * 五个分页：成就 / 结局 / 厉鬼 / 线索 / 战绩。
+   * 解锁规则：成就与结局看跨局档案；厉鬼与规律线索看「是否真的遭遇/掌握过」——
+   * 没遭遇过的鬼只给名字等级属地与遭遇文本，规律一律打码，避免图鉴变成通关攻略。
+   */
+  const LEVEL_TONE = { S: 'danger', A: 'warn', B: 'accent', C: 'success' };
+
+  /** 线索 id → { text, ghost, ghostName } 全库索引（用于"这条线索属于谁"） */
+  function clueIndex() {
+    const idx = {};
+    const gs = (C && C.ghosts) || {};
+    for (const gid of Object.keys(gs)) {
+      const g = gs[gid];
+      (g.clues || []).forEach((c) => { idx[c.id] = { text: c.text, ghost: gid, ghostName: g.name, level: g.level }; });
+    }
+    return idx;
+  }
+
+  function tabBar(tabs, active, onPick) {
+    const bar = el('div', 'tabbar');
+    tabs.forEach((t) => {
+      const b = el('button', 'tab' + (t.id === active ? ' on' : ''), t.label + (t.count === undefined ? '' : ' ' + t.count));
+      b.onclick = () => onPick(t.id);
+      bar.appendChild(b);
+    });
+    return bar;
+  }
+
+  function openCodex(tab) {
+    const box = $('toolbox');
+    box.style.display = '';
+    clear(box);
+    let active = tab || 'ach';
+    const faced = Object.assign({}, (profile && profile.faced) || {});
+    // 本局刚刚遭遇过的鬼：引擎在开遭遇时就写了 enc:<id>，图鉴要立刻反映，
+    // 不能等到这局结算（否则"刚打完却还显示未遭遇"）。
+    if (state && state.events && state.events.done) {
+      state.events.done.forEach((d) => { if (typeof d === 'string' && d.indexOf('enc:') === 0) faced[d.slice(4)] = true; });
+    }
+    if (state && state.pending && state.pending.ghost) faced[state.pending.ghost] = true;
+    const knownClues = Object.assign({}, (profile && profile.knownClues) || {});
+    const idx = clueIndex();
+
+    // 每页的角标数量：成就已解锁数 / 结局已收集数 / 厉鬼已遭遇数 / 本局线索数 / —
+    const prog = P ? P.achievementProgress(profile) : { list: [], unlocked: 0, total: 0 };
+    const endTotal = Object.keys(C.endings).length;
+    const endHave = Object.keys((profile && profile.endings) || {}).length;
+    const ghostTotal = Object.keys(C.ghosts).length;
+    const ghostHave = Object.keys(faced).length;
+    const clueHave = (state && state.clues ? state.clues.length : 0);
+
+    box.appendChild(el('div', 'sectionTitle', '图鉴 · 收集进度'));
+    box.appendChild(el('div', 'hint', '成就与结局跨局累积；厉鬼的杀人规律只有在你真正遭遇过之后才会写进图鉴。'));
+    box.appendChild(tabBar([
+      { id: 'ach', label: '成就', count: prog.unlocked + '/' + prog.total },
+      { id: 'end', label: '结局', count: endHave + '/' + endTotal },
+      { id: 'ghost', label: '厉鬼', count: ghostHave + '/' + ghostTotal },
+      { id: 'clue', label: '线索', count: String(clueHave) },
+      { id: 'stat', label: '战绩' },
+    ], active, openCodex));
+
+    if (active === 'ach') {
+      box.appendChild(el('div', 'hint', '已解锁 ' + prog.unlocked + ' / ' + prog.total +
+        '　（成就只影响档案，不影响本局数值）'));
+      const grid = el('div', 'codexGrid');
+      prog.list.forEach((a) => {
+        const cell = el('div', 'codexCell' + (a.unlocked ? ' got' : ' locked'));
+        cell.appendChild(el('div', 'codexName', (a.unlocked ? '★ ' : '☆ ') + a.name));
+        cell.appendChild(el('div', 'codexDesc', a.desc));
+        cell.appendChild(el('div', 'codexMeta', a.unlocked
+          ? ('已解锁' + (a.at ? '　' + new Date(a.at).toLocaleDateString() : ''))
+          : '未解锁'));
+        grid.appendChild(cell);
+      });
+      box.appendChild(grid);
+    }
+
+    if (active === 'end') {
+      box.appendChild(el('div', 'hint', '共 ' + endTotal + ' 种结局（个人 ' +
+        Object.keys(C.endings).filter((k) => C.endings[k].kind === 'personal').length + '　世界 ' +
+        Object.keys(C.endings).filter((k) => C.endings[k].kind === 'world').length +
+        '）。未解锁的结局只显示类型，不剧透条件。'));
+      const list = el('div', 'codexList');
+      Object.keys(C.endings).forEach((eid) => {
+        const e = C.endings[eid];
+        const got = (profile && profile.endings && profile.endings[eid]) || 0;
+        const row = el('div', 'codexRow' + (got ? ' got' : ' locked'));
+        row.appendChild(el('div', 'codexName', (got ? '★ ' : '☆ ') + (got ? e.name : '？？？')));
+        row.appendChild(el('div', 'codexDesc', got ? e.text : '（尚未达成）'));
+        row.appendChild(el('div', 'codexMeta', (e.kind === 'world' ? '世界结局' : '个人结局') +
+          '　' + (e.bad === true ? '悲剧' : e.bad === false ? '善终' : '开放') +
+          (got ? '　已达成 ×' + got : '')));
+        list.appendChild(row);
+      });
+      box.appendChild(list);
+    }
+
+    if (active === 'ghost') {
+      box.appendChild(el('div', 'hint', '遭遇过 ' + ghostHave + ' / ' + ghostTotal +
+        ' 只。规律（线索）在你真的遭遇过它之后才会解锁，共 ' +
+        Object.keys(idx).length + ' 条。'));
+      const list = el('div', 'codexList');
+      Object.keys(C.ghosts).forEach((gid) => {
+        const g = C.ghosts[gid];
+        const met = !!faced[gid];
+        const row = el('div', 'codexRow' + (met ? ' got' : ''));
+        const head = el('div', 'codexHead');
+        head.appendChild(el('span', 'lvl badgetone-' + (LEVEL_TONE[g.level] || 'accent'), g.level + ' 级'));
+        head.appendChild(el('span', 'codexName', (met ? '★ ' : '☆ ') + g.name));
+        head.appendChild(el('span', 'codexMeta', met ? '已遭遇' : '未遭遇'));
+        row.appendChild(head);
+        row.appendChild(el('div', 'codexDesc', '属地：' + (g.tie || '不明')));
+        row.appendChild(el('div', 'codexQuote', g.encounter || ''));
+        const known = (g.clues || []).filter((c) => knownClues[c.id] ||
+          (state && state.clues && state.clues.indexOf(c.id) >= 0));
+        if (known.length) {
+          known.forEach((c) => row.appendChild(el('div', 'codexClue', '· ' + c.text)));
+        } else {
+          (g.clues || []).forEach(() => row.appendChild(el('div', 'codexClue locked', '· ？？？（规律未掌握）')));
+        }
+        list.appendChild(row);
+      });
+      box.appendChild(list);
+    }
+
+    if (active === 'clue') {
+      const cur = (state && state.clues) || [];
+      box.appendChild(el('div', 'hint', '本局已掌握 ' + cur.length + ' 条；跨局累计 ' +
+        Object.keys(knownClues).length + ' 条。线索是生路唯一的来源——没有线索，遭遇里只有陷阱和中性项。'));
+      const list = el('div', 'codexList');
+      if (!cur.length) {
+        list.appendChild(el('div', 'codexRow locked', '本局还没有掌握任何线索。去调查、搜档、问人，把鬼的规矩拼出来。'));
+      }
+      cur.forEach((cid) => {
+        const c = idx[cid];
+        const row = el('div', 'codexRow got');
+        row.appendChild(el('div', 'codexName', c ? c.ghostName + '（' + c.level + ' 级）' : cid));
+        row.appendChild(el('div', 'codexClue', c ? c.text : '（旧版本线索：' + cid + '）'));
+        list.appendChild(row);
+      });
+      const missing = Object.keys(idx).filter((cid) => cur.indexOf(cid) < 0);
+      if (missing.length) {
+        list.appendChild(el('div', 'hint', '还有 ' + missing.length + ' 条线索没有掌握（分布在你还没遭遇或还没调查的厉鬼身上）。'));
+      }
+      box.appendChild(list);
+    }
+
+    if (active === 'stat') {
+      const r = (profile && profile.runs) || { total: 0, died: 0, won: 0, byDiff: {} };
+      const best = (profile && profile.best) || { turn: 0, byDiff: {} };
+      box.appendChild(el('div', 'hint', '本机档案（带校验和，手改无效）。这一档只统计，不参与判定。'));
+      const kv = el('div', 'codexList');
+      const rowOf = (k, v) => {
+        const row = el('div', 'codexRow');
+        row.appendChild(el('div', 'codexName', k));
+        row.appendChild(el('div', 'codexDesc', String(v)));
+        return row;
+      };
+      kv.appendChild(rowOf('总局数', r.total));
+      kv.appendChild(rowOf('死亡次数', r.died));
+      kv.appendChild(rowOf('非死亡结局', r.won));
+      kv.appendChild(rowOf('最佳存活', best.turn + ' 天'));
+      kv.appendChild(rowOf('周目点数', (profile ? profile.points : 0) + '（累计获得 ' + (profile ? profile.earned : 0) + '）'));
+      const diffs = Object.keys(r.byDiff || {}).map((d) => d + '×' + r.byDiff[d]).join('　') || '—';
+      kv.appendChild(rowOf('难度分布', diffs));
+      const byBest = Object.keys(best.byDiff || {}).map((d) => d + ' ' + best.byDiff[d] + '天').join('　') || '—';
+      kv.appendChild(rowOf('各难度最佳', byBest));
+      if (state) {
+        kv.appendChild(rowOf('当前局', '第 ' + state.turn + ' 天　' + (state.over ? '已结束' : '进行中') +
+          '　' + (state.pending ? '遭遇中' : '自由行动')));
+      }
+      box.appendChild(kv);
+    }
+
+    const close = el('button', 'btn small', '关闭');
     close.onclick = () => { box.style.display = 'none'; };
     box.appendChild(close);
   }
@@ -7012,7 +7461,7 @@ body.story-mode #stage{gap:14px}
   }
 
   // 供截图/测试核对：列出全部母题与生成 SVG
-  window.RSUI = { motifList: motifList, sceneSvg: sceneSvg, motifOf: motifOf, MOTIFS: MOTIFS, openGallery: openGallery };
+  window.RSUI = { motifList: motifList, sceneSvg: sceneSvg, motifOf: motifOf, MOTIFS: MOTIFS, openGallery: openGallery, openCodex: openCodex, clueIndex: clueIndex };
 
   /* ------------------------------------------------------------ 初始化 */
   window.addEventListener('DOMContentLoaded', function () {
@@ -7025,6 +7474,7 @@ body.story-mode #stage{gap:14px}
     $('btnAI').onclick = function () { openToolbox('ai'); };
     if ($('btnGuide')) $('btnGuide').onclick = openGuide;
     if ($('btnGallery')) $('btnGallery').onclick = openGallery;
+    if ($('btnCodex')) $('btnCodex').onclick = function () { openCodex('ach'); };
     if ($('btnPanel')) $('btnPanel').onclick = function () { document.body.classList.toggle('panelOpen'); };
     if ($('jumpNew')) $('jumpNew').onclick = scrollLog;
     // 手动往上翻时给出「回到最新」提示
