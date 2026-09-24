@@ -85,6 +85,75 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
 .toolbox{background:var(--panel2); border:1px solid var(--accent); border-radius:10px; padding:12px}
 .toolbox textarea{width:100%; resize:vertical; font-family:ui-monospace,Consolas,monospace; font-size:12.5px}
 .toolbox .row{align-items:center}
+
+/* ============ 第 30 轮：日志分界 / 日记 / 笔记 / 设置抽屉 ============ */
+.dayband{display:flex; align-items:center; gap:10px; margin:18px 0 10px}
+.dayband .bandLine{flex:1; height:1px; background:linear-gradient(90deg, transparent, #2b3a4a, transparent)}
+.dayband .bandText{
+  color:#ffd7a8; font-size:13.5px; font-weight:600; letter-spacing:.6px; white-space:nowrap;
+  padding:2px 10px; border:1px solid #3a2f22; border-radius:999px; background:#1a1410;
+}
+.actiondiv{
+  display:flex; align-items:center; gap:8px; margin:12px 0 6px; color:#9fb3c8; font-size:13px;
+  border-left:2px solid #2b3a4a; padding-left:8px;
+}
+.actiondiv .divMark{color:#ffb59a}
+.actiondiv .divText{letter-spacing:.3px}
+
+.sheetHead{border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:10px}
+.sheetHead .row{align-items:center; gap:8px}
+.sheetTitle{color:#ffd7a8; font-size:16px; font-weight:600; flex:1}
+.sheetSub{color:var(--dim); font-size:12.5px; margin-top:6px; line-height:1.6}
+.sheetBody{display:flex; flex-direction:column; gap:10px}
+.setGroup{border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:#0d141c}
+.setTitle{color:#ffd7a8; font-size:14px; font-weight:600; margin-bottom:4px}
+.setDesc{color:var(--dim); font-size:12.5px; line-height:1.6; margin-bottom:8px}
+.setGrid{display:flex; flex-wrap:wrap; gap:8px}
+.setGrid .btn{min-height:38px}
+.setKV{display:flex; flex-direction:column; gap:4px}
+.kvRow{display:flex; gap:8px; font-size:13px; line-height:1.7}
+.kvK{color:var(--dim); flex:0 0 96px}
+.kvV{color:var(--fg); flex:1; word-break:break-word}
+
+.journalNav{display:flex; align-items:center; gap:8px; justify-content:space-between; margin-bottom:8px}
+.journalNav .pager{color:#ffd7a8; font-size:13.5px}
+.journalPage{border:1px solid var(--line); border-radius:12px; padding:12px; background:#0d141c}
+.jTitle{color:#ffd7a8; font-size:15.5px; font-weight:600; margin-bottom:6px}
+.jHead{color:var(--story); font-size:14px; line-height:1.75; margin-bottom:8px}
+.jActs{font-size:12.5px; color:#9fb3c8; margin-bottom:8px}
+.jLabel{color:var(--dim); font-size:12.5px; margin:8px 0 4px; letter-spacing:.3px}
+.jLines{display:flex; flex-direction:column; gap:6px}
+.jLine{display:flex; gap:6px; align-items:flex-start; font-size:13.5px; line-height:1.7}
+.jLine .jText{flex:1; word-break:break-word}
+.jLine.auto .jText{color:#c9d6e2}
+.jLine .star{
+  background:none; border:none; color:#3d4c5c; font-size:15px; line-height:1.2;
+  cursor:pointer; padding:0 2px; min-width:22px;
+}
+.jLine .star.on{color:#ffd166; text-shadow:0 0 6px rgba(255,209,102,.45)}
+.jFoot{color:var(--dim); font-size:12px; margin-top:10px}
+
+.notecard{border:1px solid var(--line); border-radius:10px; padding:8px 10px; background:#0d141c}
+.noteTitle{color:#ffd7a8; font-size:13.5px; font-weight:600; margin-bottom:4px}
+.noteList{display:flex; flex-direction:column; gap:2px}
+.noteLine{color:#c9d6e2; font-size:13px; line-height:1.7}
+.markRow{display:flex; gap:8px; align-items:flex-start; border-bottom:1px dashed #1d2530; padding:6px 0}
+.markWhen{color:#ffd166; font-size:12.5px; flex:0 0 62px}
+.markText{color:#e6edf3; font-size:13.5px; flex:1; line-height:1.7; word-break:break-word}
+
+/* 字号（设置里可切，手机端更友好） */
+body.fontS #log, body.fontS .nowcard, body.fontS #choices{font-size:14px}
+body.fontL #log, body.fontL .nowcard, body.fontL #choices{font-size:19px}
+body.fontL .line{line-height:1.85}
+@media (max-width:900px){
+  .dayband .bandText{font-size:12.5px; padding:2px 8px}
+  .journalNav{gap:4px}
+  .journalNav .btn{flex:1}
+  .journalNav .pager{flex:0 0 auto; font-size:12.5px}
+  .setGrid .btn{flex:1 1 46%}
+  .kvK{flex:0 0 76px}
+  .jLine .star{min-width:28px; font-size:17px}
+}
 .toolbox .pk{min-width:72px; color:var(--dim); font-size:13px}
 
 /* ==== 第 12 轮：剧情类界面（场景图 + 刚刚发生 + 手机优先） ==== */
@@ -303,23 +372,33 @@ body.story-mode .logwrap{max-height:22vh !important}
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
   <span class="tag" id="diffLabel">—</span>
+  <span class="tag" id="quickState"></span>
   <span class="spacer"></span>
   <div class="tools">
-    <button class="btn small" id="btnPanel">属性</button>
-    <button class="btn small" id="btnArt">插画：开</button>
-    <button class="btn small" id="btnCodex">图鉴</button>
-    <button class="btn small" id="btnGallery">画册</button>
-    <button class="btn small" id="btnGuide">世界观</button>
-    <span class="tag" id="aiState">AI 叙事：关</span>
-    <button class="btn small" id="btnAI">AI 叙事设置</button>
-    <button class="btn small" id="btnSaveQuick">存档</button>
-    <button class="btn small" id="btnLoadQuick">读档</button>
-    <button class="btn small" id="btnShare">分享存档</button>
-    <button class="btn small" id="btnCard">存档卡</button>
-    <button class="btn small" id="btnSave">导出存档</button>
-    <button class="btn small" id="btnLoad">导入存档</button>
+    <button class="btn small" id="btnJournal">日记</button>
+    <button class="btn small" id="btnNotes">笔记</button>
+    <button class="btn small" id="btnSettings">设置</button>
   </div>
 </header>
+
+<!-- 第 30 轮：原来顶栏那一排按钮（属性/插画/图鉴/画册/世界观/AI/存档…）全部收进「设置」抽屉。
+     这里保留原节点（隐藏）以兼容既有绑定、快捷键与自动化测试；设置抽屉里的按钮就是它们的代理。 -->
+<div id="legacyTools" style="display:none">
+  <button class="btn small" id="btnPanel">属性</button>
+  <button class="btn small" id="btnArt">插画：开</button>
+  <button class="btn small" id="btnCodex">图鉴</button>
+  <button class="btn small" id="btnGallery">画册</button>
+  <button class="btn small" id="btnGuide">世界观</button>
+  <span class="tag" id="aiState">AI 叙事：关</span>
+  <button class="btn small" id="btnAI">AI 叙事设置</button>
+  <button class="btn small" id="btnSaveQuick">存档</button>
+  <button class="btn small" id="btnLoadQuick">读档</button>
+  <button class="btn small" id="btnShare">分享存档</button>
+  <button class="btn small" id="btnCard">存档卡</button>
+  <button class="btn small" id="btnSave">导出存档</button>
+  <button class="btn small" id="btnLoad">导入存档</button>
+  <button class="btn small" id="btnNewbie">新手提示：开</button>
+</div>
 
 <main>
   <aside id="side">
@@ -624,6 +703,175 @@ body.story-mode .logwrap{max-height:22vh !important}
             effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
           lose: { lines: ['帖子沉了。第二天你收到一条匿名回复，只有你家的楼号——那是你没写在帖子里的东西。'],
             effects: [{ k: 'stat', key: 'pollution', v: 5 }, { k: 'stat', key: 'stealth', v: -4 }] },
+        },
+      ],
+
+      /* ------------------------------------------------------------ 城市/时期差异做法（variants）
+       * 引擎按顺序扫 when，命中第一个为真的就把 title/story 覆盖掉；给了 options 就整组替换掉上面那四条做法。
+       * 这里只覆盖"最不一样的四段"：古代没有档案室，民国只有报馆，末日按区设防，药香街的柜台摆着七只瓶子。 */
+      variants: [
+        {
+          when: (s) => s.era === 'ancient',
+          title: '县志、更夫还是祠堂？',
+          story: (s) => [
+            '这个地方没有档案室，也没有论坛。街面上能问的人不多：管着卷册的书吏、打更的更夫、守着祠堂的老人。',
+            '能留下字的东西少，能留下话的人多。三条路都通，代价各不相同。',
+          ],
+          options: [
+            {
+              id: 'iv_an_annals', label: '去县衙翻县志', hint: '纸面旧，抄得慢',
+              story: ['你备了一份薄礼，在书吏那儿借到半天工夫，把几本县志摊在长桌上。'],
+              check: { base: 64 }, cost: [{ k: 'stat', key: 'stamina', v: -5 }],
+              gain: { clue: 1 },
+              win: { lines: ['其中一页的边角被人用指甲掐过，掐痕底下压着一处地名，那地方现在只剩一片荒地。'],
+                effects: [{ k: 'stat', key: 'pollution', v: 3 }, { k: 'stat', key: 'sanity', v: -2 }] },
+              lose: { lines: ['册子受了潮，粘在一起的正好是那几年。书吏说别硬揭，揭坏了要赔。'],
+                effects: [{ k: 'stat', key: 'sanity', v: -3 }, { k: 'flag', key: 'intel', v: 1 }] },
+            },
+            {
+              id: 'iv_an_watch', label: '跟着更夫走一夜', hint: '听得多，夜里不安全',
+              story: ['你跟打更的老头说好，替他提一路灯笼，只跟着走，不多问。'],
+              check: { base: 58 }, risk: 12,
+              cost: [{ k: 'stat', key: 'stamina', v: -10 }, { k: 'stat', key: 'sanity', v: -4 }],
+              gain: { clue: 1 },
+              win: { lines: ['走到第三更他忽然停下来，竹梆子举着没敲下去，等前面巷子里的脚步声过去了才接着敲。'],
+                effects: [{ k: 'stat', key: 'pollution', v: 6 }] },
+              lose: { lines: ['后半夜你跟丢了。回身找路的时候，梆子声从背后绕到了前面。'],
+                effects: [{ k: 'stat', key: 'pollution', v: 8 }, { k: 'stat', key: 'stamina', v: -6 }] },
+            },
+            {
+              id: 'iv_an_shrine', label: '夜宿祠堂，听老人说', hint: '不冒风险，换回一点话',
+              story: ['你买了香烛，在祠堂侧屋借住一晚。守祠的老人把一壶热茶放在你手边。'],
+              check: { base: 68 }, cost: [{ k: 'stat', key: 'stamina', v: -3 }],
+              gain: { intel: 1 },
+              win: { lines: ['他讲的事没有年份，只有一个接一个的名字。讲到其中一个人时，他把茶碗扣在了桌上。'],
+                effects: [{ k: 'money', key: 'cash', v: -1 }] },
+              lose: { lines: ['他翻来覆去只讲同一段。你问到第三遍，他起身去添灯油了。'],
+                effects: [{ k: 'stat', key: 'sanity', v: -2 }] },
+            },
+          ],
+        },
+        {
+          when: (s) => s.era === 'minguo',
+          title: '报馆、巡捕房还是戏班？',
+          story: (s) => [
+            '这年头报馆比衙门还勤快，电报局一夜能收到几条说不清来路的报；租界这边，巡捕房只管看得见的事。',
+            '几条路各有各的门槛，今天你只走得进其中一条。',
+          ],
+          options: [
+            {
+              id: 'iv_mg_paper', label: '去报馆翻旧报', hint: '铅字里夹着旧闻',
+              story: ['你托了排字房的熟人，在资料间里翻合订本，一页一页往下看。'],
+              check: { base: 64 }, cost: [{ k: 'stat', key: 'stamina', v: -5 }],
+              gain: { clue: 1 },
+              win: { lines: ['社会版上有一条三行的短讯，说的正是那条街，只是门牌号写成了隔壁。'],
+                effects: [{ k: 'stat', key: 'pollution', v: 3 }, { k: 'stat', key: 'sanity', v: -2 }] },
+              lose: { lines: ['合订本缺了两期，正好是那两个月。管资料的人说被别的报馆借走了，什么时候还说不准。'],
+                effects: [{ k: 'stat', key: 'sanity', v: -3 }, { k: 'flag', key: 'intel', v: 1 }] },
+            },
+            {
+              id: 'iv_mg_police', label: '找巡捕房的朋友', hint: '能翻档，也被人记名',
+              story: ['你提了两包点心去巡捕房后门。朋友把案卷推过来，只说一句“看完就还”。'],
+              check: { base: 58 }, risk: 10,
+              cost: [{ k: 'stat', key: 'stamina', v: -6 }, { k: 'stat', key: 'sanity', v: -3 }],
+              gain: { clue: 1 },
+              win: { lines: ['卷宗里夹着一张验尸单，死者指缝里夹着的东西没写进结论，只画了一个圈。'],
+                effects: [{ k: 'stat', key: 'pollution', v: 5 }] },
+              lose: { lines: ['他翻了两眼就把卷子合上，说这案子不归他们管。你走的时候，门房把你的名字记进了本子。'],
+                effects: [{ k: 'stat', key: 'stealth', v: -4 }, { k: 'stat', key: 'sanity', v: -3 }] },
+            },
+            {
+              id: 'iv_mg_opera', label: '听戏班的人怎么说', hint: '台前台后，话都多',
+              story: ['你在戏园子里坐了一整场，散场后到后台帮着收箱子，顺便听他们说话。'],
+              check: { base: 68 }, cost: [{ k: 'stat', key: 'stamina', v: -3 }],
+              gain: { intel: 1 },
+              win: { lines: ['他们唱的一折是外头听不到的，词里点了一处地名，点得比唱词还准。'],
+                effects: [{ k: 'money', key: 'cash', v: -1 }] },
+              lose: { lines: ['后台的人只顾卸妆，问什么都笑着摆手。你只记住了一句胡琴的调子。'],
+                effects: [{ k: 'stat', key: 'sanity', v: -2 }] },
+            },
+          ],
+        },
+        {
+          when: (s) => s.era === 'doomsday',
+          title: '防区、难民点还是封锁线？',
+          story: (s) => [
+            '城市按区设了防，每过一道口子都要登记；码头上停着一艘没有靠岸许可的船，听说它到哪儿，哪儿就少一批人。',
+            '名单、流言和封锁线，是现在查得动的三样东西。',
+          ],
+          options: [
+            {
+              id: 'iv_dm_register', label: '去防区登记处查名单', hint: '字迹全，翻得心里发沉',
+              story: ['你在登记处的窗口排了一个多小时，把调动名册借出来看。'],
+              check: { base: 62 }, cost: [{ k: 'stat', key: 'sanity', v: -5 }],
+              gain: { clue: 1 },
+              win: { lines: ['名册上有一栏空着，那格纸被人来来回回描过，描到纸都快破了。'],
+                effects: [{ k: 'stat', key: 'pollution', v: 3 }] },
+              lose: { lines: ['名册每天重抄一遍，昨天那份已经送去封存。窗口后面的人让你明天再来。'],
+                effects: [{ k: 'stat', key: 'sanity', v: -3 }, { k: 'flag', key: 'intel', v: 1 }] },
+            },
+            {
+              id: 'iv_dm_camp', label: '在难民点打听', hint: '话多，真假掺着',
+              story: ['你在发放口粮的棚子边上蹲了一下午，谁的话都听，谁的都不全信。'],
+              check: { base: 68 }, cost: [{ k: 'stat', key: 'stamina', v: -4 }],
+              gain: { intel: 1 },
+              win: { lines: ['灶边有个人不肯报名字，只说船靠岸那晚他在码头上值夜，数过下船的人有多少双鞋。'],
+                effects: [{ k: 'money', key: 'cash', v: -1 }] },
+              lose: { lines: ['问了一圈下来三个版本，连方向都不一样。你把话都记了，没有一条能对上。'],
+                effects: [{ k: 'stat', key: 'sanity', v: -2 }] },
+            },
+            {
+              id: 'iv_dm_line', label: '沿着封锁线走一遍', hint: '看得多，容易越界',
+              story: ['你没有靠近，只沿着铁丝网从东头走到西头，数每一段上还亮着的灯。'],
+              check: { base: 54 }, risk: 14,
+              cost: [{ k: 'stat', key: 'stamina', v: -12 }, { k: 'stat', key: 'sanity', v: -4 }],
+              gain: { clue: 1 },
+              win: { lines: ['有一段是新换的灯，网下压着一小片没干的水渍，从里侧往外面淌。'],
+                effects: [{ k: 'stat', key: 'pollution', v: 6 }] },
+              lose: { lines: ['走到中段，巡逻车的灯扫过你。你贴着网一动不动，直到它拐过去。'],
+                effects: [{ k: 'stat', key: 'pollution', v: 8 }, { k: 'stat', key: 'stamina', v: -6 }] },
+            },
+          ],
+        },
+        {
+          when: (s) => s.city === 'yaoxiang',
+          title: '瓶子、柜后人还是客人？',
+          story: (s) => [
+            '药香街的铺子门一直开着。柜台上摆着七只瓶子，喝一口就往上一个序列，代价写在瓶子背面。',
+            '进店的人都低着头，谁也不想被人看清自己站在哪一只瓶子前面。',
+          ],
+          options: [
+            {
+              id: 'iv_yx_faceless', label: '问柜台上那个没脸的人', hint: '答得少，眼神没处落',
+              story: ['你隔着柜台问他传闻里那条街的事。他的脸一直在灯影里，你始终没看清是哪一面朝着你。'],
+              check: { base: 56 }, risk: 8, cost: [{ k: 'stat', key: 'sanity', v: -5 }],
+              gain: { clue: 1 },
+              win: { lines: ['他伸手把第三只瓶子转了个方向，瓶底压着的纸条露出一角，上面写着半个地名。'],
+                effects: [{ k: 'stat', key: 'pollution', v: 4 }] },
+              lose: { lines: ['他把一只手摊在柜台上，掌心朝下，一直摊着。你问第二句时，柜台后面的帘子响了一下。'],
+                effects: [{ k: 'stat', key: 'sanity', v: -5 }, { k: 'stat', key: 'pollution', v: 4 }] },
+            },
+            {
+              id: 'iv_yx_back', label: '翻瓶子背面的字', hint: '字小，得凑近看',
+              story: ['你装作挑瓶子，把每一只都翻过来看背面：代价各写着不同的东西，有的只有四个字。'],
+              check: { base: 62 }, cost: [{ k: 'stat', key: 'sanity', v: -3 }],
+              gain: { intel: 1 },
+              win: { lines: ['其中一只的背面写着“上一任”，墨迹比别的都新，像是刚写上去的。'],
+                effects: [{ k: 'stat', key: 'pollution', v: 3 }] },
+              lose: { lines: ['字小得发白，看久了眼睛发酸。你把瓶子放回原处，位置比原来偏了一指。'],
+                effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+            },
+            {
+              id: 'iv_yx_watch', label: '盯住进店的人', hint: '不显眼，看的是习惯',
+              story: ['你要了碗糖水，坐在最里面那张小桌，看着门开开关关。'],
+              check: { base: 66 }, risk: -4, cost: [{ k: 'stat', key: 'stamina', v: -5 }],
+              gain: { intel: 1 },
+              win: { lines: ['有个人进来只站在第二只瓶子前面，站了很久，什么也没买；第二天同一个时辰他又来了一次。'],
+                effects: [{ k: 'stat', key: 'stealth', v: 2 }] },
+              lose: { lines: ['坐到糖水凉透，进出的都是买药的普通人。你把碗推回去，起身出门。'],
+                effects: [{ k: 'stat', key: 'sanity', v: -3 }] },
+            },
+          ],
         },
       ],
     },
@@ -1112,6 +1360,7 @@ body.story-mode .logwrap{max-height:22vh !important}
  *   mission（接总部任务）、gamble（鬼事赌局）、domain_probe（深入鬼域边缘）、domain_seal（封印鬼域节点）、
  *   meet_driver（会见其他驭鬼者）、
  *   stance_report / stance_browse / stance_oddjob / stance_plan（立场四线）、
+ *   ghostbus（灵异公交车——侵蚀过高时才会出现的动作）、
  *   power（其余力量类——tag）、person（人物遭遇类——tag）、org / forum / outlaw / endgame（立场 tag 兜底）
  * 契约与样板见 src/scenes.js 顶部注释（务必先读，尤其 'action' / 'custom' 两种模式的区别）。
  */
@@ -2166,6 +2415,68 @@ body.story-mode .logwrap{max-height:22vh !important}
           mod: 10, risk: -6, cost: [{ k: 'stat', key: 'stamina', v: -6 }],
           win: { lines: ['一天下来本子上多了两个记号，身边没有一个人问过你今天在忙什么。'],
             effects: [{ k: 'stat', key: 'stealth', v: 5 }] },
+        },
+      ],
+    },
+    /* ------------------------------------------------------------------ 灵异公交车
+     * 引擎侧的 ghostbus 动作只在"侵蚀太高"时出现（车上的东西能把厉鬼复苏压下去），
+     * 所以这里一律 mode 缺省 = 'action'：不动原动作的机制，只决定"上车之后怎么待着"。
+     * 原著依据：车里的鬼不超过 35 个时能压住车上鬼的杀人规律；行驶途中会熄火；
+     * 最后一排座位底下那具折叠男尸是车本体，压得住复苏；驾驶座下藏着关联司机鬼，
+     * 被它咬上一口才算"车上的一部分"（此后能感应到这辆车）。 */
+    ghostbus: {
+      title: '车上这趟怎么坐？',
+      story: [
+        '车是在一段没有站牌的路上等到的：车身很旧，玻璃上的灰擦不掉，报站的声音比车本身慢半拍。你上车的时候，车里的人一个也没有抬头。',
+        '有人掰着手指替你数过车上的“人”：加上你，还差一截才到三十五个。不到这个数，车里那些东西的规矩就还压得住；过了，谁也说不准。',
+        '最后一排靠窗的座位底下塞着一个人，膝头顶着下巴，折成一团，灰落在上面像落了几年。老乘客管它叫“折叠男尸”，说这趟车能压住人身上的东西，靠的就是它。',
+        '上车前还有人叮嘱过一句：这车跑起来会熄火。熄火的时候，车上的人和车上别的东西，会一起往下走。',
+      ],
+      options: [
+        {
+          id: 'gb_back', label: '在最后排闭眼坐着', hint: '最稳，让体内的东西静',
+          story: [
+            '你挑了最后排靠里的位置，背对着那团折起来的东西，闭上眼。',
+            '车一晃一晃，你数自己的呼吸，数到第七十下的时候，胸口里那点翻腾慢了下来。',
+          ],
+          mod: 10, risk: -6, cost: [{ k: 'stat', key: 'stamina', v: -5 }],
+          win: { lines: ['到站时你没有睁眼。有人从你旁边过去，脚步在你面前停了一下，又走了。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 4 }, { k: 'stat', key: 'stamina', v: 4 }] },
+        },
+        {
+          id: 'gb_driver', label: '摸清驾驶座下那只鬼', hint: '风险高，看清它咬人的规矩',
+          story: [
+            '你借着到前门投币的机会，往驾驶座底下看了一眼：那底下是黑的，黑得有厚度，像另一个人蹲在那儿。',
+            '司机的手一直没离开方向盘。他脚下偶尔动一下，那团黑就跟着动一下——被它咬上一口的人，才算这车上的一部分。',
+          ],
+          check: { base: 52 }, risk: 12,
+          cost: [{ k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'stamina', v: -6 }],
+          gain: { intel: 1 },
+          win: { lines: ['你数了它三次动的时间，每一次都落在车速慢下来的那半秒里。'],
+            effects: [{ k: 'stat', key: 'pollution', v: 3 }] },
+          lose: { lines: ['你低头的时候，那团黑往上抬了一寸。你直起身，手扶着立杆，指节压得发白。'],
+            effects: [{ k: 'stat', key: 'sanity', v: -4 }] },
+        },
+        {
+          id: 'gb_tally', label: '数人头，记上下车规律', hint: '情报向，人要熬得住',
+          story: [
+            '你从前门走到后门，一趟一趟地数：上车的、下车的、一直没动过的，各记一行。',
+            '数到第四趟时你发现，报站的名字和车窗外闪过去的牌子对不上，差一个。',
+          ],
+          cost: [{ k: 'stat', key: 'stamina', v: -8 }, { k: 'stat', key: 'sanity', v: -4 }],
+          gain: { intel: 1 },
+          win: { lines: ['你把三页纸折起来塞进内袋，其中一页上写着那三十五个数，还有熄火时往后门挪的每一个人。'],
+            effects: [{ k: 'stat', key: 'stealth', v: 3 }] },
+        },
+        {
+          id: 'gb_getoff', label: '下一站就下车', hint: '几乎不冒险，拿得最少',
+          story: [
+            '车靠站的时候你站起来往门口走。司机从后视镜里看了你一眼，没有停车的意思——门是自己开的。',
+            '下车的人只有你一个。站牌上写的地名，你没听过。',
+          ],
+          mod: -6, risk: -8, cost: [{ k: 'stat', key: 'stamina', v: -4 }],
+          win: { lines: ['你站在站牌底下看着车走远，车尾的灯一直亮着，直到拐弯。'],
+            effects: [{ k: 'stat', key: 'sanity', v: 3 }, { k: 'stat', key: 'stealth', v: 2 }] },
         },
       ],
     },
@@ -3283,6 +3594,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     lvjun: {
       id: 'lvjun', name: '李军（鬼火）', level: 'A', penalty: 40, person: true,
       tie: '总部·队长（原著·鬼火）',
+      faction: 'org', rank: '成员', meetBase: 0.45, valueNeed: 2,
+      introduces: ['shenlin'],
+      introLine: '沈林在大京。你要找他，先把条件想清楚——他不听废话。',
       encounter: '他蹲在烧塌的半边楼里抽烟，烟火不是橘色，是发青的。' +
         '"别靠太近，"他头也不抬，"这火不挑燃料。"',
       clues: [
@@ -3320,6 +3634,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     ahong: {
       id: 'ahong', name: '阿红（鬼妆）', level: 'A', penalty: 38, person: true,
       tie: '总部·队长（原著·鬼妆）',
+      faction: 'org', rank: '成员', meetBase: 0.58, valueNeed: 2,
+      introduces: ['guofan'],
+      introLine: '郭凡在后院描牌位。你去的时候，别报自己的真名。',
       encounter: '她背对着你坐在镜子前化妆。镜子里那张脸先转过来看了你一眼，' +
         '然后她才慢慢跟着转过来——顺序不对。',
       clues: [
@@ -3357,6 +3674,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     xiongwenwen: {
       id: 'xiongwenwen', name: '熊文文（预知）', level: 'A', penalty: 42, person: true,
       tie: '总部（原著·熊文文）',
+      faction: 'org', rank: '成员', meetBase: 0.40, valueNeed: 3,
+      introduces: [],
+      introLine: '',
       encounter: '她坐在台阶上写东西，写完抬头："你三分钟后会问我一句话。"' +
         '你还没开口，她把本子合上："问了也没用，我看到的是没问的那个版本。"',
       clues: [
@@ -3395,6 +3715,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     shenlin: {
       id: 'shenlin', name: '沈林（鬼相）', level: 'A', penalty: 46, person: true,
       tie: '总部·队长（原著·鬼相）',
+      faction: 'org', rank: '队长', meetBase: 0.35, valueNeed: 3,
+      introduces: ['lvjun'],
+      introLine: '李军在城西。他认同行，不认人情——你把价先摆在桌上。',
       encounter: '他站在楼道里，你看着他的脸——像是隔着一层水。' +
         '"别盯着看，"他说，"我这张脸现在不只属于我。"',
       clues: [
@@ -3433,6 +3756,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     guofan: {
       id: 'guofan', name: '郭凡（灵位）', level: 'A', penalty: 44, person: true,
       tie: '总部（原著·灵位）',
+      faction: 'org', rank: '成员', meetBase: 0.60, valueNeed: 2,
+      introduces: ['heyiner'],
+      introLine: '何银儿手里那七盏灯还亮着。你报个名字过去，她认。',
       encounter: '他面前摆着一块小小的木牌，上面有名字。他正在用朱砂描那行字。' +
         '"名字写上去，就得有人应。"他说，"你要不要也留一个？"',
       clues: [
@@ -3470,6 +3796,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     heyiner: {
       id: 'heyiner', name: '何银儿（招魂）', level: 'A', penalty: 45, person: true,
       tie: '总部（原著·何银儿）',
+      faction: 'org', rank: '成员', meetBase: 0.55, valueNeed: 2,
+      introduces: [],
+      introLine: '',
       encounter: '她在屋里摆了七盏灯，灯芯都短。你进门的时候，七盏灯同时朝你这边偏了一下。' +
         '"别出声，"她说，"我招的东西还没坐稳。"',
       clues: [
@@ -3507,6 +3836,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     king: {
       id: 'king', name: '国王组织·一位国王', level: 'S', penalty: 62, person: true,
       tie: '国王组织（境外·原著）',
+      faction: 'king', rank: '成员', meetBase: 0.35, valueNeed: 3,
+      introduces: [],
+      introLine: '',
       encounter: '他穿得很讲究，站在码头边看海，身后没有人。' +
         '"总部的规矩，我读过。"他用很标准的中文说，"我更好奇你会不会讲价。"',
       clues: [
@@ -3540,6 +3872,126 @@ body.story-mode .logwrap{max-height:22vh !important}
       },
       abilities: ['名单改写', '跨境调度', '契约交易', '拒绝收费'],
       talk: ['报个价。', '拒绝也可以，先付钱。'],
+    },
+
+    /* ============ 第 30 轮：原著·叶真（灵异论坛的老大）
+     * 用户要求：「灵异论坛的老大是叶真，队长级战力」。他是这一版里唯一一位 S+ 的"人"：
+     * 能见到他的路只有两条——玩家立场是灵异论坛，或者被楚校引荐过（见 engine.js 的 meetableIds）。
+     * 原著依据：驾驭替死鬼；总部默认他是大海市负责人；《鬼邮局》里被鬼童咬伤、被杨间用柴刀捅穿心脏，
+     *          靠替死鬼活了下来；论坛顶楼个人空间里摆满手办，部分手办是他替死鬼能力的媒介。 */
+    yezhen: {
+      id: 'yezhen', name: '叶真', level: 'S+', penalty: 60, person: true,
+      tie: '灵异论坛（异社）·老大（原著·叶真）',
+      faction: 'forum', rank: '队长', meetBase: 0.35, valueNeed: 3,
+      introduces: ['chuxiao'],
+      introLine: '楚校在二层管名册。你要上顶楼，先让他把你的名字记上。',
+      desc: '灵异论坛的老大，契约厉鬼是替死鬼，总部默认的大海市负责人。顶楼屋里摆满手办，有几件是他的替死媒介。',
+      encounter: '顶楼只有一间屋子亮着灯。他穿着一身古装坐在沙发上，茶几上摊着几个没拆封的手办盒，' +
+        '身后整面柜子都是玻璃格，格子里的东西隔着玻璃朝这边排成一列。' +
+        '他没有起身，先把你从头看到脚，又看了看你手里拿着的东西。' +
+        '他这才开口，第一句是："兄弟，你来得比我想的晚。"',
+      text: '顶楼只有一间屋子亮着灯。他穿着一身古装坐在沙发上，茶几上摊着几个没拆封的手办盒，' +
+        '身后整面柜子都是玻璃格，格子里的东西隔着玻璃朝这边排成一列。' +
+        '他没有起身，先把你从头看到脚，又看了看你手里拿着的东西。' +
+        '他这才开口，第一句是："兄弟，你来得比我想的晚。"',
+      clues: [
+        { id: 'yz1', text: '他的契约厉鬼是替死鬼：替他死一次，事后再结一次账——所以"他"不一定每次都死透。' },
+        { id: 'yz2', text: '灵异论坛在总部有备案，总部默认他是大海市负责人：名义上在编，实际上管不到他。' },
+        { id: 'yz3', text: '顶楼那些手办不只是收藏：有几件是他替死鬼能力的媒介，动过的人他顺着能找回来。' },
+      ],
+      traps: [
+        { id: 'yz_t1', label: '伸手去碰柜子里那件手办', tags: ['触碰'] },
+      ],
+      neutral: [
+        { id: 'yz_n1', label: '在他对面坐下，等他把话说完', tags: ['等待'] },
+      ],
+      exits: [
+        { id: 'yz_e1', label: '先报上自己的名字和来意（生路·报名）', tags: ['报名'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stealth', v: -5 }] },
+        { id: 'yz_e2', label: '拿一件他看得上眼的东西换一次出手（生路·交易）', tags: ['交易'], needClues: 2,
+          cost: [{ k: 'money', key: 'gold', v: -3 }] },
+        { id: 'yz_e3', label: '把鬼邮局那一次的事摊开说（生路·旧账）', tags: ['旧账'], needClues: 3,
+          cost: [{ k: 'stat', key: 'causality', v: 8 }, { k: 'stat', key: 'sanity', v: -5 }] },
+      ],
+      exitText: '他把盒子放回格子，关上柜门。"路是你自己走的。"他说，"名册上我先给你留一行，' +
+        '剩下看你自己。"',
+      rewards: [{ k: 'flag', key: 'favor', v: 3 }, { k: 'flag', key: 'intel', v: 2 }],
+      masteryClue: 'yz1',
+      persona: {
+        who: '灵异论坛（异社）的老大叶真，契约厉鬼是替死鬼；总部默认他是大海市负责人，' +
+          '他自己更愿意被叫"大哥"。',
+        think: '中二，但讲义气：把这个世界当成一部还在连载的番，把自己当主角，把认下的兄弟当成必须带到最后一集的人；' +
+          '不在乎名分，极在乎自己许出去的话。',
+        speak: '大哥口气混着动漫腔，管熟人叫"兄弟"，讲道理的时候先讲一段剧情；谈到正事会突然变短、变认真。',
+        power: '替死鬼：替他死一次，事后要还一次账；此外还有几只能用的鬼。顶楼的手办里有几件是他的媒介。',
+        taboo: '别碰他的收藏，别拿手办开玩笑；更别在"兄弟"这两个字上骗他。',
+        deal: '他不谈钱，谈"换"：你拿什么换、换到什么时候为止，得当面说清楚。',
+      },
+      abilities: ['替死鬼·替他死一次', '队长级战力', '论坛的人手与情报网', '总部备案的名分', '手办作媒介'],
+      talk: [
+        '古装？——大哥就得有个大哥的样子。',
+        '柜子里的东西别乱碰。碰坏了，我这条命要重来一次，很麻烦的。',
+        '兄弟，你要是走投无路，先记着这句话：主角从来不是靠赢下来的，是靠不肯认输撑到最后一集的。',
+        '总部名册上有我的名字。有名字不要紧，怕的是有人替你签了名。',
+        '我这条命是借来的。借来的东西，用一次就得还一次。',
+        '你要真想干一件大事——行。先说清楚，你打算拿什么去换。',
+      ],
+    },
+
+    /* ============ 第 30 轮：原著·楚校（灵异论坛管理员）
+     * 用户要求：「论坛设有管理员，已知一位叫楚校，曾带队探查元山陵园」。
+     * 他是论坛这一边的门：不认得他的人，先在二层把来意写成字。 */
+    chuxiao: {
+      id: 'chuxiao', name: '楚校（论坛管理员）', level: 'A', penalty: 38, person: true,
+      tie: '灵异论坛（异社）·管理员（原著·楚校）',
+      faction: 'forum', rank: '管理员', meetBase: 0.6, valueNeed: 2,
+      introduces: ['yezhen'],
+      introLine: '老大在顶楼。你先把来意写在纸上——他见生人先看那两行。',
+      desc: '灵异论坛的管理员，奉叶真的命办事。元山陵园那次是他带队探的；论坛要查一个人、要拦一件事，通常先经过他的手。',
+      encounter: '论坛的会客室在二层：一张长桌，桌上摊着一本名册和一个没扣上的笔帽，窗外就是大海市的海。' +
+        '他坐在名册后面，先看你，再看你递过去的那张纸。' +
+        '"来意写清楚。"他说，"我能查的，只有名册上有的东西。"' +
+        '他翻到某一页停住了，手指按着一个名字，没有念出来。',
+      text: '论坛的会客室在二层：一张长桌，桌上摊着一本名册和一个没扣上的笔帽，窗外就是大海市的海。' +
+        '他坐在名册后面，先看你，再看你递过去的那张纸。' +
+        '"来意写清楚。"他说，"我能查的，只有名册上有的东西。"' +
+        '他翻到某一页停住了，手指按着一个名字，没有念出来。',
+      clues: [
+        { id: 'cx1', text: '他管名册：谁能进论坛、谁能查谁的底，都从二层这一页开始。' },
+        { id: 'cx2', text: '他奉命办事——答应与不答应都不由他，他只负责把话带上去、把名字记上。' },
+        { id: 'cx3', text: '元山陵园那次是他带队去探的。回来之后他把那一页翻过去不再看，那一页上的人他一个都不提。' },
+      ],
+      traps: [
+        { id: 'cx_t1', label: '趁他离开，把那本名册翻开', tags: ['偷看'] },
+      ],
+      neutral: [
+        { id: 'cx_n1', label: '把来意写在纸上，推过去', tags: ['写字'] },
+      ],
+      exits: [
+        { id: 'cx_e1', label: '按他的规矩写清来意，等他把话带上去（生路）', tags: ['请示'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -5 }] },
+        { id: 'cx_e2', label: '用一条他没听过的线索，换他翻一次名册（生路·交易）', tags: ['换查'], needClues: 2,
+          cost: [{ k: 'flag', key: 'intel', v: -1 }] },
+      ],
+      exitText: '他把名册合上，笔帽扣回原处。"话我带上去。"他说，"你下次来，还是写来意。"',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'flag', key: 'forum', v: 1 }],
+      masteryClue: 'cx2',
+      persona: {
+        who: '灵异论坛（异社）的管理员楚校，叶真的下属，管名册与备案。',
+        think: '办事的人：边界、流程、这件事是谁批的，比谁都清楚；不替自己拿主意，也不替别人背账。',
+        speak: '公事公办，句子短，爱用"来意""名册""备案""我带上去"这类词；不解释上级的决定。',
+        power: '论坛的名册与备案、人手调度、实地探查的经验；灵异能力没有对外公开过。',
+        taboo: '别翻那本名册，也别打听元山陵园那一页。',
+        deal: '他收线索与来意，不收钱；答不答应，要等他把话带上去之后才知道。',
+      },
+      abilities: ['名册与备案', '论坛的人手调度', '元山陵园的探查经验', '奉命传话'],
+      talk: [
+        '来意写清楚。',
+        '叶先生那边的事，我一律不解释。',
+        '论坛在总部有备案。备案的意思是：能做的事有边界，越界的我不接。',
+        '元山陵园那次是我带的队。你要打听它，就问别的。',
+        '我奉命办事。命令是谁下的，你不必知道。',
+      ],
     },
   };
 
@@ -3773,9 +4225,14 @@ body.story-mode .logwrap{max-height:22vh !important}
    * 说明：同人作品的主角我不替他们编名字，用"作品 + 能力"称呼，来源标在 tie 里。
    */
   const moreDrivers = {
+    /* 第 30 轮：同人主角没有组织，一律算民间散人（solo）；其中"写鬼录的人"靠情报活着，
+     * 跟灵异论坛有往来，是唯一能把你引荐到论坛那边的一位。 */
     ganshiren_p: {
       id: 'ganshiren_p', name: '赶尸人（赶尸一脉）', level: 'A', penalty: 42, person: true,
       tie: '同人·《神秘复苏：赶尸人》',
+      faction: 'solo', rank: '散人', meetBase: 0.72, valueNeed: 2,
+      introduces: [],
+      introLine: '',
       encounter: '他把最后一具尸体扶正，回头看你："顺路吗？顺路就一起走，别说话。"' +
         '他身后那一排东西都低着头，像在等谁点名。',
       clues: [
@@ -3813,6 +4270,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     xiegui_p: {
       id: 'xiegui_p', name: '写鬼录的人', level: 'A', penalty: 44, person: true,
       tie: '同人·《我在神秘复苏写鬼录》',
+      faction: 'solo', rank: '散人', meetBase: 0.78, valueNeed: 1,
+      introduces: ['chuxiao'],
+      introLine: '论坛二层的楚校管名册。你报上这桩事，比报给我有用。',
       encounter: '他蹲在楼道口写字，本子摊在膝盖上。你问他写什么，他说："写你。"' +
         '然后他抬头补了一句，"别怕，写的是你刚才没做的那件事。"',
       clues: [
@@ -3850,6 +4310,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     moyao_p: {
       id: 'moyao_p', name: '喝魔药的人', level: 'A', penalty: 45, person: true,
       tie: '同人·《我在神秘复苏里喝魔药》',
+      faction: 'solo', rank: '散人', meetBase: 0.70, valueNeed: 2,
+      introduces: [],
+      introLine: '',
       encounter: '他手里拿着一小瓶颜色不对的液体，瓶身上贴着一行编号。' +
         '"第三瓶，"他说，"喝下去我就不是刚才那个我了。你要不要看？"',
       clues: [
@@ -3887,6 +4350,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     lianqi_p: {
       id: 'lianqi_p', name: '炼气士', level: 'A', penalty: 43, person: true,
       tie: '同人·《我在神秘复苏炼气修仙》',
+      faction: 'solo', rank: '散人', meetBase: 0.68, valueNeed: 2,
+      introduces: [],
+      introLine: '',
       encounter: '他在楼顶打坐，身边摆着几块石头。你上楼的时候，' +
         '那几块石头轻轻震了一下——像在报信。',
       clues: [
@@ -3924,6 +4390,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     yinqi_p: {
       id: 'yinqi_p', name: '修阴气法的传人', level: 'A', penalty: 46, person: true,
       tie: '同人·《我在神秘复苏修炼阴气法》',
+      faction: 'solo', rank: '散人', meetBase: 0.66, valueNeed: 3,
+      introduces: [],
+      introLine: '',
       encounter: '她站在背光的墙边，身上比其他地方凉一截。' +
         '"别站太近，"她说，"我身上这口气，会把你的热气吸走。"',
       clues: [
@@ -3961,6 +4430,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     yiwang_p: {
       id: 'yiwang_p', name: '遗忘世间的人', level: 'A', penalty: 45, person: true,
       tie: '同人·《神秘复苏之遗忘世间》',
+      faction: 'solo', rank: '散人', meetBase: 0.78, valueNeed: 1,
+      introduces: [],
+      introLine: '',
       encounter: '他坐在长椅上，认真地看一张报纸。你走过去问他在看什么，' +
         '他抬头很礼貌地笑了一下——你忽然想不起自己刚才要问什么了。',
       clues: [
@@ -4573,6 +5045,39 @@ body.story-mode .logwrap{max-height:22vh !important}
   Object.assign(ghosts, moreGhosts2);
 
 
+  /* ============================================ 阵营（第 30 轮）
+   * 用户要求：「驭鬼者不是铁板一块——总部的、论坛的、朋友圈的，还有谁都不认的」。
+   * 引擎只在两处读它：① 决定"你现在找得到谁"（同阵营的人 + 被人引荐过的人）；
+   * ② 在遭遇与面板上显示一行"他属于哪一边"。它不参与任何判定公式，也不改数值平衡。
+   * 字段：id / name / place（活动地）/ note（一句话定位这个阵营在世界里的位置）/ kind（阵营性质）
+   */
+  const factions = {
+    org: {
+      id: 'org', name: '驭鬼者总部', place: '大京市', kind: '官方机构',
+      note: '华国官方的驭鬼者管理机构，城市负责人制，配发玉符与黄金装备；内部也有派系和渎职。',
+    },
+    forum: {
+      id: 'forum', name: '灵异论坛（异社）', place: '大海市', kind: '民间团体',
+      note: '最先接触灵异的民间驭鬼者结成的团体，亚洲顶尖，在总部有备案；老大是叶真。',
+    },
+    circle: {
+      id: 'circle', name: '朋友圈', place: '各地', kind: '民间势力',
+      note: '和灵异论坛并列、也常竞争的另一支民间势力；成员各有生意，出手前先看自己忙不忙。',
+    },
+    king: {
+      id: 'king', name: '国王组织', place: '境外', kind: '境外势力',
+      note: '末日篇才浮出水面的境外势力，行事讲契约与价钱，连一个人的"拒绝"他们也要记一笔。',
+    },
+    solo: {
+      id: 'solo', name: '民间散人', place: '没有固定地方', kind: '散人',
+      note: '没有组织、没有备案，也没有人替你收尸；消息靠论坛，退路只有自己留的那一条。',
+    },
+  };
+
+  /* 玩家立场 → 你在哪一边：队长在总部编制里、论坛成员在论坛；
+   * 民间驭鬼者与自立路线都没有组织，两边都算民间散人。 */
+  const stanceFaction = { captain: 'org', forum: 'forum', civilian: 'solo', own: 'solo' };
+
   /* ============================================== 立场（第 23 轮）
    * 用户要求：「玩家可以选择完全按原著来，自己只是一个队长罢了，不能干预杨间的成神之路；
    * 或者是灵异论坛的人；或者都不加入，选择民间驭鬼者；当然也可以选择自己终结灵异时代」。
@@ -5181,6 +5686,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     yuzhumen: { threat: 74, rule: 80, sense: 66, pollution: 58, sanity: 70, counter: 72, note: '鬼域扩张长出来的门：门后不是你想去的地方。' },
     tunshizhe: { threat: 84, rule: 82, sense: 74, pollution: 76, sanity: 72, counter: 78, note: '鬼域之间互相吞噬：交界处是唯一能动手的地方。' },
     king: { threat: 90, rule: 88, sense: 78, pollution: 55, sanity: 60, counter: 82, note: '国王组织的逻辑是交易：连"拒绝"都要付钱。' },
+    // —— 第 30 轮：原著·叶真与楚校（灵异论坛） ——
+    yezhen: { threat: 92, rule: 70, sense: 78, pollution: 60, sanity: 62, counter: 86, note: '替死鬼：倒下的那个"他"不一定是他，这笔账要到下一次才结。' },
+    chuxiao: { threat: 58, rule: 60, sense: 70, pollution: 45, sanity: 48, counter: 54, note: '管理员：论坛里他能查到多数人的底，也能把多数人的名字划掉。' },
     // —— 第 24 轮：原著/同人补充厉鬼 ——
     guibus: { threat: 68, rule: 82, sense: 74, pollution: 55, sanity: 62, counter: 70, note: '它按站停、按名字收人：报了名字的人才有座位，也才有下不去的资格。' },
     ghostship: { threat: 92, rule: 90, sense: 82, pollution: 78, sanity: 74, counter: 86, note: '整条船是一个阴谋：船、船员、航线都是它写好的规矩。' },
@@ -5393,6 +5901,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     moreGhosts2: moreGhosts2,
     moreGhostIds2: Object.keys(moreGhosts2),
     stances: stances,
+    factions: factions,
+    stanceFaction: stanceFaction,
     packs: packs,
     npcs: npcs,
     difficulties: difficulties,
@@ -7179,6 +7689,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     // （改存档仍需重签，属于已知边界；但绕过唯一写入点的直接篡改必须被发现）。
     'apMax': [1, 6],
     'apUsed': [0, 6],
+    // 第 30 轮：灵异公交车的压制窗口 / 当天的额外遭遇风险（都走账本，改 state 会被守恒校验抓到）
+    'busTurn': [0, 1e6],
+    'encRiskToday': [0, 100],
     'meta.deaths': [0, 1e6],
     'meta.bestTurn': [0, 1e6],
   };
@@ -7278,6 +7791,10 @@ body.story-mode .logwrap{max-height:22vh !important}
       scene: null,           // 当前子场景：{ actionId, actionLabel, title, story, options }
       clueGainsToday: 0,     // 今天已获得的线索条数（防一天把所有线索挖空）
       encRiskToday: 0,       // 今天累计的行动风险加成（百分点，逐次行动用掉后清）
+      // 第 30 轮：阵营 / 引荐 / 灵异公交车
+      contacts: [],          // 已经被引荐、可以约见的驭鬼者 id
+      introducedBy: {},      // 谁把你引荐给谁的（{ 目标id: 引荐人id }）
+      busTurn: 0,            // 最近一次在灵异公交车上待着的天数（压制窗口 3 天）
       worldAdvance: 0,
       calamityEscapes: 0,
       // 第 26 轮：鬼域扩张
@@ -7479,7 +7996,18 @@ body.story-mode .logwrap{max-height:22vh !important}
       state.integrity.push('写入未登记字段: ' + path + ' (' + reason + ')');
       return false;
     }
-    return setPath(state, path, before + int(delta), reason, opts);
+    let d = int(delta);
+    /* 第 30 轮：灵异公交车的压制窗口——原著里车能"压住"厉鬼复苏（不是把已发生的倒回去）。
+     * 所以这里只对**侵蚀的正向增长**减半，持续 3 天；降侵蚀的手段仍然只有死机法那一类。 */
+    if (path === 'stats.erosion' && d > 0 && state.busTurn && (state.turn - state.busTurn) <= 2) {
+      const halved = Math.ceil(d / 2);
+      if (halved !== d) {
+        state.notes = state.notes || [];
+        state.notes.push('（灵异公交车的压制还在：这一次侵蚀增长 ' + d + ' → ' + halved + '。）');
+        d = halved;
+      }
+    }
+    return setPath(state, path, before + d, reason, opts);
   }
 
   /* -------------------------------------------------------------- 效果表 */
@@ -7754,6 +8282,15 @@ body.story-mode .logwrap{max-height:22vh !important}
         if (table[t]) { def = table[t]; break; }
       }
     }
+    // 第 30 轮：场景定义可以是函数（按城市/时期现场生成），也可以带 variants
+    //（按 when 命中第一个：title/story 覆盖，options 给了就整组替换 —— 让"同一件事在不同时期/城市有不同做法"）
+    if (typeof def === 'function') def = def(state, act);
+    if (def && def.variants && def.variants.length) {
+      const hit = def.variants.filter((v) => {
+        try { return !!v.when(state); } catch (e) { return false; }
+      })[0];
+      if (hit) def = Object.assign({}, def, hit);
+    }
     if (!def) def = genericScene(state, act);
     const opts = (def.options || []).map((o) => ({
       id: String(o.id),
@@ -7793,6 +8330,13 @@ body.story-mode .logwrap{max-height:22vh !important}
     const table = (CONTENT.scenes || {});
     let def = table[act.id];
     if (!def) for (const t of (act.tags || [])) if (table[t]) { def = table[t]; break; }
+    if (typeof def === 'function') def = def(state, act);
+    if (def && def.variants && def.variants.length) {
+      const hit = def.variants.filter((v) => {
+        try { return !!v.when(state); } catch (e) { return false; }
+      })[0];
+      if (hit) def = Object.assign({}, def, hit);
+    }
     if (!def) def = genericScene(state, act);
     const list = def.options || [];
     const opt = list.filter((o) => String(o.id) === String(optId))[0];
@@ -7843,7 +8387,14 @@ body.story-mode .logwrap{max-height:22vh !important}
     if ((state.clueGainsToday || 0) >= cap) {
       return { ok: false, why: '今天的线索已经挖到 ' + cap + ' 条了——脑子需要时间把东西记住。', text: null };
     }
+    const chain = state.clueChain || {};
     let g = CONTENT.ghosts[activeGhost(state)];
+    // 第 30 轮：线索链——昨天在追哪只鬼，今天接着追它就更容易出东西（用户要的"深挖一条线"）
+    const chainGid = (chain.lastTurn === state.turn - 1 || chain.lastTurn === state.turn) ? chain.gid : null;
+    if (chainGid && CONTENT.ghosts[chainGid] &&
+        CONTENT.ghosts[chainGid].clues.some((c) => !state.clues.includes(c.id))) {
+      g = CONTENT.ghosts[chainGid];
+    }
     if (!g || !g.clues.some((c) => !state.clues.includes(c.id))) {
       const alt = Object.keys(state.bestiary).filter((gid) => CONTENT.ghosts[gid] &&
         CONTENT.ghosts[gid].clues.some((c) => !state.clues.includes(c.id)));
@@ -7856,7 +8407,25 @@ body.story-mode .logwrap{max-height:22vh !important}
     applyEffects(state, [{ k: 'clue', id: c.id }, { k: 'bestiary', id: g.id, clues: 1 }], '获得线索（' + reason + '）');
     state.clueGainsToday = (state.clueGainsToday || 0) + 1;
     state.lastClueTurn = state.turn;
-    return { ok: true, text: c.text, ghost: g, clue: c };
+    // 链条推进：同一天继续追同一只鬼也算（一天里可以连追），隔天就断
+    const sameG = chainGid === g.id;
+    const days = sameG ? (int(chain.days) || 1) + (chain.lastTurn === state.turn ? 0 : 1) : 1;
+    state.clueChain = { gid: g.id, days: days, lastTurn: state.turn };
+    const chainLine = days >= 2
+      ? '（同一只鬼你已经追到第 ' + days + ' 天：它的规矩开始互相咬合，你能看出它怕什么了。）'
+      : null;
+    // 追到第 2 天以上：额外给 1 条（仍受当天上限约束），这是"深挖一条线"的回报
+    let extraText = null;
+    if (days >= 2 && (state.clueGainsToday || 0) < cap) {
+      const pool2 = g.clues.filter((x) => !state.clues.includes(x.id));
+      if (pool2.length) {
+        const c2 = pool2[hashStr(state.seed + ':' + state.turn + ':chain:' + reason) % pool2.length];
+        applyEffects(state, [{ k: 'clue', id: c2.id }, { k: 'bestiary', id: g.id, clues: 1 }], '线索链（第 ' + days + ' 天）');
+        state.clueGainsToday += 1;
+        extraText = c2.text;
+      }
+    }
+    return { ok: true, text: c.text, text2: extraText, ghost: g, clue: c, days: days, chainLine: chainLine };
   }
 
   /** 把"给一点方向"的情报也走统一入口，避免各处直接改字段 */
@@ -7923,8 +8492,11 @@ body.story-mode .logwrap{max-height:22vh !important}
     const g = opt.gain || {};
     if (success && g.clue) {
       const c = grantClue(state, act.id + ':' + opt.id);
-      if (c.ok) lines.push('你把它记了下来：' + c.text);
-      else lines.push(c.why);
+      if (c.ok) {
+        lines.push('你把它记了下来：' + c.text);
+        if (c.text2) lines.push('顺着这一条又摸到一段：' + c.text2);
+        if (c.chainLine) lines.push(c.chainLine);
+      } else lines.push(c.why);
     }
     if (success && g.intel) {
       const n = int(g.intel) || 1;
@@ -7935,7 +8507,7 @@ body.story-mode .logwrap{max-height:22vh !important}
       const r2 = gainCash(state, 'cash', int(g.cash) || 0, '子场景收入');
       if (r2.applied) lines.push('顺带进账 ' + r2.applied + ' 万。');
     }
-    if (opt.risk) state.encRiskToday = (state.encRiskToday || 0) + int(opt.risk);
+    if (opt.risk) addPath(state, 'encRiskToday', int(opt.risk), '场景风险（' + act.id + '）');
     return { lines: lines, check: check, fatal: fatal, success: success, mode: mode };
   }
 
@@ -7945,7 +8517,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     const ap = state.apMax || apMaxOf(state) || 3;
     const extra = state.encRiskToday || 0;
     const chance = clamp(int(base * actionRiskWeight(act) / ap + extra), 0, 90);
-    state.encRiskToday = 0;             // 场景叠加的风险只作用于这一次行动
+    // 清掉本场景叠加的风险（走唯一写入点：encRiskToday 在账本里）
+    if (extra) addPath(state, 'encRiskToday', -extra, '结算本次行动的风险');
     const v = roll100(state, 'encounter', hashStr('act:' + act.id) % 97);
     return { chance: chance, value: v, hit: v <= chance };
   }
@@ -8467,6 +9040,15 @@ body.story-mode .logwrap{max-height:22vh !important}
     };
   }
 
+  /** 未过滤的行动池（供"这个行动为什么不可用"的解释用） */
+  function actionPoolRaw(state) {
+    const saved = state.__noFilter;
+    state.__noFilter = true;
+    const pool = actionPool(state);
+    state.__noFilter = saved;
+    return pool;
+  }
+
   function actionPool(state) {
     const pool = [];
     const add = (a) => pool.push(a);
@@ -8718,11 +9300,14 @@ body.story-mode .logwrap{max-height:22vh !important}
     });
     const ca = cityAction(state);
     if (ca) add(ca);
+    // 第 30 轮：灵异公交车（复苏度过高时的喘息；原著里车能压住厉鬼的杀人规律）
+    add(busAction(state));
     // 第 23 轮：立场专属行动（每天一个）
     const stanceAct = stanceAction(state);
     if (stanceAct) add(stanceAct);
     // 第 23 轮：会见其他驭鬼者（每 3 天一次机会；人和鬼不同，他们是能谈的）
-    if (state.turn - (state.lastDriverTurn || -99) >= 3) add(driverAction(state));
+    // 第 30 轮：只能见同阵营的人，或别人引荐过的人（见不到 => 这个选项直接不出现）
+    if (state.turn - (state.lastDriverTurn || -99) >= 3 && meetableIds(state).length) add(driverAction(state));
     // 第 26 轮：鬼域相关行动（深入域边缘 / 封印节点）
     const dv = domainAction(state);
     if (dv) add(dv);
@@ -8730,6 +9315,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (ds) add(ds);
     // 自由探索：每天 3 个"去哪里看看"（让选项不再只有那几个功能按钮）
     for (const p of placeProbeOptions(state)) add(probeAction(state, p.name));
+    if (state.__noFilter) return pool;
     return pool.filter((a) => !a.if || a.if(state));
   }
 
@@ -8876,18 +9462,168 @@ body.story-mode .logwrap{max-height:22vh !important}
   }
 
   function driverAction(state) {
+    const ids = meetableIds(state);
+    const mine = factionOfPlayer(state);
     return {
-      id: 'meet_driver', label: '会见其他驭鬼者（同行：能谈、能换、也能翻脸）', tags: ['person'],
+      id: 'meet_driver',
+      label: '会见其他驭鬼者（' + factionName(mine) + '：能见 ' + ids.length + ' 人，也可能被拒）',
+      tags: ['person'],
       run: () => ({ lines: [] }),      // 真正的遭遇在 resolve 里挂 pending
     };
   }
 
-  function startDriverEncounter(state) {
-    const gid = pickDriver(state);
+  /* ------------------------- 第 30 轮：阵营、引荐与"见不见得到人"
+   * 原著里驭鬼者各属不同势力、彼此提防：不认识的人根本约不到。
+   * 规则（用户点名要的）：
+   *   ① 平时只能会见**同一阵营**的人；
+   *   ② 其他阵营的人你不认识——除非同阵营的人**引荐**（也就是"有关联"才引荐）；
+   *   ③ 就算约到了，对方也可能因为**在忙**、或者**觉得你没价值**而不见。
+   * 全部只影响"能不能见到"，见到之后的判定仍归引擎原有遭遇逻辑。
+   */
+  function factionOfNpc(g) {
+    return (g && g.faction) || 'solo';
+  }
+  function factionOfPlayer(state) {
+    const map = CONTENT.stanceFaction || {};
+    return map[state.stance] || 'solo';
+  }
+  function factionName(id) {
+    const f = (CONTENT.factions || {})[id];
+    return f ? f.name : '民间散人';
+  }
+  /** 你现在能去找的人：同阵营的人 + 别人引荐过的人 */
+  function meetableIds(state) {
+    const mine = factionOfPlayer(state);
+    const known = state.contacts || [];
+    const ids = (CONTENT.driverGhostIds || []).filter((id) => {
+      const g = CONTENT.ghosts[id];
+      if (!g) return false;
+      if (id === 'yezhen') return mine === 'forum' || known.indexOf(id) >= 0;   // 叶真只在大海市的那条线上
+      if (factionOfNpc(g) === mine) return true;
+      return known.indexOf(id) >= 0;
+    });
+    return ids;
+  }
+  /** 你的"分量"：对方愿不愿意见你，看你能拿出什么 */
+  function meetValue(state) {
+    return (state.clues || []).length + (state.contracts || []).length * 3 +
+      Math.floor((state.stats.ghostEye || 0)) * 2 + Math.floor((state.money.contribution || 0) / 100);
+  }
+  /** 约见判定：返回 {ok, why, by} */
+  function meetCheck(state, gid) {
+    const g = CONTENT.ghosts[gid];
+    if (!g) return { ok: false, why: '没有这个人' };
+    const by = (state.introducedBy || {})[gid] || null;
+    const base = (typeof g.meetBase === 'number') ? g.meetBase : 0.5;
+    const sameFaction = factionOfNpc(g) === factionOfPlayer(state);
+    const need = int(g.valueNeed) || 1;
+    const favor = (state.flags.favor || 0);
+    let chance = base;
+    if (sameFaction) chance += 0.12;
+    if (by) chance += 0.22;                                  // 有人引荐 = 门槛大降
+    chance += Math.min(0.18, favor / 400);                   // 你的人情
+    if (meetValue(state) < need * 2) chance -= 0.25;          // 你还没什么能拿得出手的
+    if ((state.stats.erosion || 0) >= 70) chance -= 0.15;     // 快变成鬼的人，同行也不敢见
+    chance = Math.max(0.05, Math.min(0.92, chance));
+    const roll = roll01(state, 'meet:' + gid, 0);
+    if (roll <= chance) return { ok: true, chance: chance, by: by, sameFaction: sameFaction };
+    // 拒绝的理由要具体：忙 / 你不够分量 / 阵营不同
+    let why;
+    const r = roll100(state, 'meetWhy:' + gid, 0);
+    if (!sameFaction && !by) why = '他不认识你——跨阵营的人不会随便见一个生面孔。';
+    else if (meetValue(state) < need * 2) why = '他听完了你的来意，只回了一句："你现在能拿出来的东西，还不够让我挪时间。"';
+    else if (r <= 45) why = '他最近在忙自己的事，托人带话：过几天再说。';
+    else if (r <= 75) why = '他答应了，又临时改了主意——这种时候，谁都不想离开自己的安全屋。';
+    else why = '你等了半宿，来的是他手下一个不说话的年轻人："有事你说，我记下来。"';
+    return { ok: false, why: why, chance: chance, by: by, sameFaction: sameFaction };
+  }
+  /** 一次见面之后：对方可能把你引荐给别人（有交集的人才引荐——用户要求的"有关联"） */
+  function tryIntroduce(state, gid) {
+    const g = CONTENT.ghosts[gid];
+    if (!g || !g.introduces || !g.introduces.length) return null;
+    state.contacts = state.contacts || [];
+    state.introducedBy = state.introducedBy || {};
+    const cand = g.introduces.filter((id) => CONTENT.ghosts[id] && state.contacts.indexOf(id) < 0 &&
+      id !== gid && (state.introducedBy[id] === undefined));
+    if (!cand.length) return null;
+    const favor = (state.flags.favor || 0);
+    if (roll01(state, 'intro:' + gid, 0) > 0.45 + Math.min(0.3, favor / 300)) return null;
+    const to = cand[hashStr(state.seed + ':' + state.turn + ':intro') % cand.length];
+    const other = CONTENT.ghosts[to];
+    state.contacts.push(to);
+    state.introducedBy[to] = gid;
+    return {
+      id: to, name: other.name, faction: factionName(factionOfNpc(other)),
+      line: g.introLine || ('「' + other.name + '那边我替你说一句，别说是我让你去的。」'),
+    };
+  }
+
+  /* --------------------- 第 30 轮：灵异公交车（复苏度过高时的避难所）
+   * 原著设定：车内鬼不超过 35 只时可以压制车上鬼的杀人规律；能撞到厉鬼死机；
+   * 座位里的折叠男尸是车本体、具备压制厉鬼复苏的作用；行驶中会熄火，引发集体下车的大危机；
+   * 待久了，被长时间压制的鬼似乎会逐渐陷入沉睡。
+   * 做成：侵蚀 ≥ 35 或劫难 ≥ 65 时可用的一段"喘息"——压侵蚀、压遭遇率，
+   * 但有熄火危机，而且占用行动点（时间不会因为你躲起来就停下）。
+   */
+  function busAction(state) {
+    return {
+      id: 'ghostbus', label: '去灵异公交车上待着（压制体内复苏，车会熄火）', tags: ['probe'],
+      if: (s) => (s.stats.erosion >= 35 || s.stats.calamity >= 65),
+      run: (s) => {
+        const lines = [
+          '末班车不看站牌：它停在路口的时候，灯是灭的，车门却开着。你上去，投币口里已经有几枚旧硬币。',
+          '车厢里有二十来个人，都低着头。你能感觉到车本身在压着什么东西——像一只手按在你胸口，把要往外爬的东西按回去。',
+          '（原著里这辆车：车内鬼不超过 35 只时能压住它们的杀人规律；座位里那具折叠男尸是车本体。）',
+        ];
+        applyEffects(s, [{ k: 'stat', key: 'sanity', v: -4 }, { k: 'stat', key: 'stamina', v: -6 }], '在车上熬着');
+        // 压制窗口：接下来 3 天，体内复苏被压住（侵蚀增长减半）+ 遭遇率下降（calmFromBus）。
+        // 不给"直接降侵蚀"——原著里是**压制**，不是把已经发生的事倒回去；
+        // 而且那样会变成一个每三天来一次就永远不死的刷子。
+        addPath(s, 'busTurn', s.turn, '在灵异公交车上待过（压制体内复苏）');
+        lines.push('车开起来之后，你胸口那点动静慢了下来——不是消失，是被按住了。');
+        lines.push('（接下来三天：体内复苏被压住、外面的东西找上你的概率更低；但被一起压住的，还有你体内的契约。）');
+        // 熄火危机：原著里这车会熄火，人和鬼一起下车
+        if (roll100(s, 'busStall', 0) <= 18) {
+          applyEffects(s, [{ k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'pollution', v: 6 }], '熄火');
+          addPath(s, 'encRiskToday', 25, '熄火（人和鬼一起下了车）');
+          lines.push('【熄火】车在桥上停住了。灯灭的那几秒，车厢里所有人都抬起了头——包括那些一直低着头的。');
+          lines.push('（车门开着，人和鬼都下去了；这一趟等于把你自己亮在了外面。）');
+        } else {
+          lines.push('车一路没停，报站声是坏的。到站时你下车，身后那扇门关上得很轻。');
+        }
+        return { lines: lines };
+      },
+    };
+  }
+
+  /**
+   * 会见一位驭鬼者（第 30 轮：先过"约不约得到"这一关）。
+   * 返回：{ refused:true, why } 或 { gid, intro }（intro 是见面之后可能的引荐）。
+   */
+  function meetDriverAttempt(state) {
+    const ids = meetableIds(state);
+    if (!ids.length) return { refused: true, why: '你现在这条线上一个同行都联系不上。' };
+    const avoid = state.lastDriver || null;
+    let i = hashStr(state.seed + ':' + state.turn + ':driver') % ids.length;
+    if (ids.length > 1 && ids[i] === avoid) i = (i + 1) % ids.length;
+    const gid = ids[i];
+    const chk = meetCheck(state, gid);
+    if (!chk.ok) return { refused: true, why: chk.why, gid: gid };
+    return { gid: gid, by: chk.by, chance: chk.chance };
+  }
+
+  function startDriverEncounter(state, forceId) {
+    const gid = forceId || pickDriver(state);
     if (!gid) return false;
     state.lastDriver = gid;
     state.pending = buildEncounter(state, gid);
     state.pending.person = true;
+    // 面板/界面要知道他属于哪个阵营
+    state.pending.faction = factionOfNpc(CONTENT.ghosts[gid]);
+    state.pending.factionName = factionName(state.pending.faction);
+    if (state.introducedBy && state.introducedBy[gid]) {
+      state.pending.introducedBy = state.introducedBy[gid];
+    }
     state.phase = 'encounter';
     if (state.events.done.indexOf('driver:' + gid) < 0) state.events.done.push('driver:' + gid);
     return true;
@@ -8964,7 +9700,22 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (tuningOf(state).wander) c += 15;
     // 第 26 轮：身处鬼域时遭遇更密
     if (inDomain(state)) c += 8;
+    // 第 30 轮：在灵异公交车上待过（原著：车上能压制厉鬼的杀人规律，久待还会让它们沉睡）
+    // —— 效果按"剩余天数"递减：刚下车那天最明显，然后逐天回弹。
+    const calm = calmFromBus(state);
+    if (calm) c -= calm;
     return clamp(c, 3, tu.encounterCap);
+  }
+
+  /** 灵异公交车带来的压制还剩多少（0~30 个百分点） */
+  function calmFromBus(state) {
+    const last = int(state && state.busTurn);
+    if (!last) return 0;
+    const ago = state.turn - last;
+    if (ago <= 0) return 30;
+    if (ago === 1) return 18;
+    if (ago === 2) return 8;
+    return 0;
   }
 
   /* ------------------------------------ 第 26 轮：鬼域扩张（世界机制）
@@ -9142,6 +9893,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     const g = CONTENT.ghosts[enc.ghost];
     const opt = enc.options.find((o) => o.id === optionId);
     if (!opt) return { error: '无效选项' };
+    // 第 30 轮：记下"这一次你是怎么走的"——界面靠它给出"你上次走的是这条 / 他记得你这么说"的痕迹
+    const pickKey = 'pick:' + enc.ghost + ':' + optionId;
+    if (state.events.done.indexOf(pickKey) < 0) state.events.done.push(pickKey);
 
     const lines = [];
     const settlement = [];
@@ -9241,6 +9995,18 @@ body.story-mode .logwrap{max-height:22vh !important}
 
     state.pending = null;
     state.phase = 'day';
+    /* 第 30 轮：人是会互相介绍的。
+     * 一次好好谈完（不是翻脸）之后，他可能把你引荐给一个"有关联"的人——
+     * 这是你能见到其他阵营的唯一途径（用户点名要的规则）。 */
+    if (g && g.person && !dead) {
+      const intro = tryIntroduce(state, g.id);
+      if (intro) {
+        lines.push(intro.line);
+        lines.push('（引荐：' + intro.name + '（' + intro.faction + '）现在也可以约了——顶栏「笔记 · 当前状态」里能看到你已经认识谁。）');
+        state.notes = state.notes || [];
+        state.notes.push('【引荐】' + g.name + '把你引荐给了「' + intro.name + '」（' + intro.faction + '）。');
+      }
+    }
     return { lines: lines, settlement: settlement, dead: dead, deadCause: deadCause, ghost: g };
   }
 
@@ -9287,6 +10053,68 @@ body.story-mode .logwrap{max-height:22vh !important}
       return out;
     }
     return [];
+  }
+
+  /* ------------------------------------ 第 30 轮：日记（一天一页）与划重点 */
+  const JOURNAL_MAX_DAYS = 40;    // 日记最多保留多少天（更早的自动挤出）
+  const JOURNAL_KEY_MAX = 6;      // 每天自动留几条"关键行"
+  const JOURNAL_MARK_MAX = 8;     // 每天允许划几条重点
+  const JOURNAL_LINE_MAX = 200;   // 单行最长
+
+  /** 记一天：同一天多次调用会合并（关键行去重） */
+  function journalAdd(state, entry) {
+    if (!state.journal) state.journal = [];
+    const t = int(entry && entry.t) || state.turn;
+    let e = state.journal.filter((x) => x.t === t)[0];
+    if (!e) {
+      e = { t: t, slot: '', head: '', acts: [], key: [], marks: [] };
+      state.journal.push(e);
+    }
+    if (entry.slot) e.slot = String(entry.slot).slice(0, 10);
+    if (entry.head && !e.head) e.head = String(entry.head).slice(0, 90);
+    for (const a of (entry.acts || [])) {
+      const s = String(a).slice(0, 32);
+      if (s && e.acts.indexOf(s) < 0 && e.acts.length < 8) e.acts.push(s);
+    }
+    for (const k of (entry.key || [])) {
+      const s = String(k).slice(0, JOURNAL_LINE_MAX);
+      if (s && e.key.indexOf(s) < 0 && e.key.length < JOURNAL_KEY_MAX) e.key.push(s);
+    }
+    state.journal.sort((a, b) => a.t - b.t);
+    while (state.journal.length > JOURNAL_MAX_DAYS) state.journal.shift();
+    return e;
+  }
+
+  /** 划重点：同一句话再点一次 = 取消。返回 true 表示这次是"划上" */
+  function journalMark(state, t, text) {
+    const e = journalAdd(state, { t: int(t) || state.turn });
+    const s = String(text || '').trim().slice(0, JOURNAL_LINE_MAX);
+    if (!s) return false;
+    if (e.marks.indexOf(s) >= 0) {
+      e.marks = e.marks.filter((x) => x !== s);
+      return false;
+    }
+    if (e.marks.length >= JOURNAL_MARK_MAX) e.marks.shift();
+    e.marks.push(s);
+    return true;
+  }
+  function journalIsMarked(state, t, text) {
+    const e = ((state && state.journal) || []).filter((x) => x.t === int(t))[0];
+    return !!(e && e.marks.indexOf(String(text || '').trim().slice(0, JOURNAL_LINE_MAX)) >= 0);
+  }
+  /** 日记（最新的一天在前） */
+  function journalOf(state) {
+    return ((state && state.journal) || []).slice().sort((a, b) => b.t - a.t);
+  }
+  /** 跨天汇总的重点（笔记 · 重点页，按时间正序） */
+  function journalMarks(state) {
+    const out = [];
+    for (const e of journalOf(state)) for (const m of (e.marks || [])) out.push({ t: e.t, text: m });
+    return out.reverse();
+  }
+  /** 某一天在日记里的记录（没有则返回 null） */
+  function journalDay(state, t) {
+    return ((state && state.journal) || []).filter((x) => x.t === int(t))[0] || null;
   }
 
   /** 结局/流程用的保留 id：只在对应用途的阶段里有效，别处一律拒绝 */
@@ -9379,10 +10207,24 @@ body.story-mode .logwrap{max-height:22vh !important}
         state.events.done.push('scene:' + act.id + ':' + opt.id);
         if (r.fatal) { dead = true; fatalEnding = 'p_fuxi'; }
         // 会见驭鬼者：这套流程走完直接进入人物遭遇（人是能谈的）
+        // 第 30 轮：先过"约不约得到"这一关——同阵营才认识、跨阵营要引荐、对方可能拒绝
         if (act.id === 'meet_driver' && !dead && !state.pending) {
-          if (startDriverEncounter(state)) {
+          const att = meetDriverAttempt(state);
+          if (att.refused) {
+            narrative.push('你托人带了话、在约好的地方等了两个晚上——' + (att.why || '没等到人。'));
+            settlement.push('会见判定：没约到（' + (att.gid ? CONTENT.ghosts[att.gid].name : '无人可约') + '）');
+            if (att.gid && CONTENT.ghosts[att.gid]) {
+              state.notes = state.notes || [];
+              state.notes.push('（你找的是「' + CONTENT.ghosts[att.gid].name + '」，' +
+                factionName(factionOfNpc(CONTENT.ghosts[att.gid])) + '。换个人、或者先攒点能拿得出手的东西再试。）');
+            }
+          } else if (startDriverEncounter(state, att.gid)) {
             state.lastDriverTurn = state.turn;
-            settlement.push('会见判定：今天约到的是「' + state.pending.name + '」');
+            settlement.push('会见判定：约到的是「' + state.pending.name + '」——' + state.pending.factionName +
+              (att.by ? '（' + (CONTENT.ghosts[att.by] || {}).name + ' 引荐的）' : ''));
+            if (att.by) {
+              narrative.push('（' + (CONTENT.ghosts[att.by] || {}).name + ' 替你说了话，所以他才肯挪出时间。）');
+            }
           }
         }
         // 遭遇判定：这一次行动有没有撞上东西（按动作危险权重摊到单次）
@@ -9423,6 +10265,16 @@ body.story-mode .logwrap{max-height:22vh !important}
         return { error: '「' + choiceId + '」只在' + RESERVED_IDS[choiceId] + '里有效', choices: availableActions(state) };
       }
       if (!act) {
+        // 第 30 轮：如果这是一个"现在做不了"的真行动（次数用完 / 还没认识人 / 时机未到），
+        // 必须如实拒绝，而不能当成"自定义行动"白耗一个行动点（sim 抓到的真问题）。
+        const gated = actionPoolRaw(state).filter((a) => a.id === choiceId)[0];
+        if (gated) {
+          let why = '现在做不了';
+          if (choiceId === 'meet_driver') why = '现在约不到人（同阵营的人不在，或者还没有人引荐给你）';
+          else if (/^mastery:/.test(choiceId)) why = '这个目标现在不能试（次数用尽或缺少条件）';
+          else if (choiceId === 'ghostbus') why = '你现在还不需要躲到车上（体内复苏还没到那个程度）';
+          return { error: '「' + String(gated.label).replace(/（.*?）/g, '') + '」' + why, choices: availableActions(state) };
+        }
         // 第 27 轮：自由输入只许写过程——写了结果就作废，不消耗当天行动
         const badHit2 = assertsOutcome(customText);
         if (badHit2) {
@@ -9475,6 +10327,12 @@ body.story-mode .logwrap{max-height:22vh !important}
         }
         state.scene = sceneFor(state, act);
         state.phase = 'scene';
+        // 第 30 轮：当天第一件事之前先接一句过渡，把"今天开场的剧情"和"这件事的小故事"连起来
+        // （用户反馈：两段文本各说各的，读起来接不上）
+        if ((state.apUsed || 0) === 0 && state.scene.story && state.scene.story.length) {
+          state.scene.story = ['——' + apSlot(state) + '。你决定把今天这段时间用在「' +
+            String(act.label).replace(/（.*?）/g, '') + '」上。'].concat(state.scene.story);
+        }
         narrative.push.apply(narrative, state.scene.story);
         return {
           narrative: narrative.concat(state.notes ? state.notes.splice(0) : []),
@@ -9544,6 +10402,11 @@ body.story-mode .logwrap{max-height:22vh !important}
         : (apSlot(state) + '　今天还能行动 ' + apLeft(state) + '/' + (state.apMax || apMaxOf(state)) + ' 次' +
            (state.phase === 'scene' && state.scene ? '　（正在：' + state.scene.actionLabel.replace(/（.*?）/g, '') + '）' : '')),
       立场: st ? st.name : '民间驭鬼者',
+      阵营: factionName(factionOfPlayer(state)) + (function () {
+        const known = (state.contacts || []).length;
+        const can = meetableIds(state).length;
+        return '　能约见 ' + can + ' 人' + (known ? '（含引荐 ' + known + ' 人）' : '');
+      })(),
       落地: city.name + (state.cityRandom ? '（随机）' : ''),
       时期: era.short + (state.eraRandom ? '（随机）' : ''),
       本地规矩: (city.rule && city.rule.text) || '无',
@@ -9620,6 +10483,11 @@ body.story-mode .logwrap{max-height:22vh !important}
       apMax: state.apMax || apMaxOf(state), apUsed: state.apUsed || 0,
       scene: state.scene, clueGainsToday: state.clueGainsToday || 0,
       encRiskToday: state.encRiskToday || 0,
+      // 第 30 轮：日记（一天一页，关键行 + 玩家划的重点）。分享链接会自动瘦身（见 share 逻辑）
+      journal: state.journal || [],
+      // 第 30 轮：阵营与引荐（谁认识谁会影响"能不能约到人"）
+      contacts: state.contacts || [], introducedBy: state.introducedBy || {},
+      busTurn: state.busTurn || 0,
       domain: state.domain,                       // 第 26 轮：鬼域扩张进度（必须进存档）
       domainSealUsed: state.domainSealUsed || 0,
       relationships: state.relationships,
@@ -9657,6 +10525,23 @@ body.story-mode .logwrap{max-height:22vh !important}
     s.apMax = int(obj.p.apMax) > 0 ? clamp(int(obj.p.apMax), 1, 6) : apMaxOf(s);
     s.apUsed = clamp(int(obj.p.apUsed), 0, s.apMax);
     s.clueGainsToday = Math.max(0, int(obj.p.clueGainsToday));
+    // 第 30 轮：日记要能读回来，但必须做体积与结构消毒（存档可能被改过）
+    s.journal = (Array.isArray(obj.p.journal) ? obj.p.journal : []).slice(-JOURNAL_MAX_DAYS).map((e) => ({
+      t: Math.max(0, int(e && e.t)),
+      slot: String((e && e.slot) || '').slice(0, 10),
+      head: String((e && e.head) || '').slice(0, 90),
+      acts: (Array.isArray(e && e.acts) ? e.acts : []).slice(0, 8).map((x) => String(x).slice(0, 32)),
+      key: (Array.isArray(e && e.key) ? e.key : []).slice(0, JOURNAL_KEY_MAX).map((x) => String(x).slice(0, JOURNAL_LINE_MAX)),
+      marks: (Array.isArray(e && e.marks) ? e.marks : []).slice(0, JOURNAL_MARK_MAX).map((x) => String(x).slice(0, JOURNAL_LINE_MAX)),
+    }));
+    // 第 30 轮：阵营与引荐（读档要保住"认识谁"）
+    s.contacts = (Array.isArray(obj.p.contacts) ? obj.p.contacts : []).filter((id) => CONTENT.ghosts[id]).slice(0, 40);
+    s.introducedBy = {};
+    const ib = obj.p.introducedBy || {};
+    for (const k of Object.keys(ib)) {
+      if (CONTENT.ghosts[k] && CONTENT.ghosts[ib[k]]) s.introducedBy[k] = ib[k];
+    }
+    s.busTurn = Math.max(0, int(obj.p.busTurn));
     s.scene = null;
     if (obj.p.scene && obj.p.scene.actionId) {
       const act = actionPool(s).find((a) => a.id === obj.p.scene.actionId);
@@ -9684,7 +10569,25 @@ body.story-mode .logwrap{max-height:22vh !important}
     apLeft: apLeft,                    // 第 29 轮：今天还剩几次行动
     apMaxOf: apMaxOf,                  // 第 29 轮：今天一共几次行动（难度派生）
     apSlot: apSlot,                    // 第 29 轮：当前时段名（清晨/白天/傍晚…）
+    // 第 30 轮：阵营、引荐、灵异公交车
+    factionOfPlayer: factionOfPlayer,
+    factionOfNpc: factionOfNpc,
+    factionName: factionName,
+    meetableIds: meetableIds,
+    meetDriverAttempt: meetDriverAttempt,
+    meetValue: meetValue,
+    calmFromBus: calmFromBus,
+    tryIntroduce: tryIntroduce,        // 供测试/界面验证"引荐"这条线
+    encounterChance: encounterChance,
     clueDailyCap: clueDailyCap,        // 第 29 轮：今天最多挖几条线索
+    // 第 30 轮：日记与划重点（界面用）
+    journalAdd: journalAdd,
+    journalMark: journalMark,
+    journalIsMarked: journalIsMarked,
+    journalOf: journalOf,
+    journalMarks: journalMarks,
+    journalDay: journalDay,
+    JOURNAL_MAX_DAYS: JOURNAL_MAX_DAYS,
     sceneFor: sceneFor,                // 第 29 轮：取某个动作的子场景（测试/界面用）
     sceneOptionDef: sceneOptionDef,
     DOMAIN_MAX: DOMAIN_MAX,
@@ -11293,6 +12196,7 @@ body.story-mode .logwrap{max-height:22vh !important}
   // （第一次结算结束当天、下一毫秒的第二次点击就落到新的一天）。
   // 这里只拦选项按钮的重复点击（400ms 内的第二次直接丢掉），「继续」不受影响。
   let lastChoiceClick = 0;
+  let lastPickLabel = '';     // 第 30 轮：玩家刚点的那个选项的文字（写进日记）
 
   function scrollLog() {
     const box = $('logWrap');
@@ -11300,6 +12204,30 @@ body.story-mode .logwrap{max-height:22vh !important}
     box.scrollTop = box.scrollHeight;
     const j = $('jumpNew');
     if (j) j.style.display = 'none';
+  }
+
+  /** 第 30 轮：一天之间的明显分界条（用户："找不到去哪看今天的事情"） */
+  function dayBand(turn, slot, chapter) {
+    const box = $('log');
+    const b = el('div', 'dayband');
+    b.appendChild(el('span', 'bandLine', ''));
+    b.appendChild(el('span', 'bandText', '第 ' + turn + ' 天' + (slot ? ' · ' + slot : '') +
+      (chapter ? '　·　第 ' + chapter + ' 章' : '')));
+    b.appendChild(el('span', 'bandLine', ''));
+    box.appendChild(b);
+    // 分界条也进「刚刚发生」卡片，手机上滑到一半也能看到"这是哪一天"
+    lastLines.push({ kind: 'band', text: '—— 第 ' + turn + ' 天' + (slot ? ' · ' + slot : '') + ' ——' });
+    scrollLog();
+  }
+  /** 第 30 轮：一天之内每件事之间的轻分隔（第 N 件事：做了什么） */
+  function actionDivider(label, nth) {
+    const box = $('log');
+    const d = el('div', 'actiondiv');
+    d.appendChild(el('span', 'divMark', '◆'));
+    d.appendChild(el('span', 'divText', '第 ' + nth + ' 件事：' + label));
+    box.appendChild(d);
+    lastLines.push({ kind: 'div', text: '◆ 第 ' + nth + ' 件事：' + label });
+    scrollLog();
   }
 
   function addLog(kind, lines, opts) {
@@ -11392,15 +12320,20 @@ body.story-mode .logwrap{max-height:22vh !important}
                                : '你必须做出选择 —— 点下面任意一行（生路要线索支撑，陷阱会死人）'))
       : inScene ? ('你决定做「' + state.scene.actionLabel.replace(/（.*?）/g, '') + '」——' + state.scene.title)
       : ('第 ' + state.turn + ' 天·' + apSlotLabel() + '　今天还能行动 ' + apLeftNow() + ' 次 —— 选一件事做')));
-    if (inEnc) {
+    if (state.pending) {
       const opts = state.pending.options || [];
       const kinds = { exit: 0, neutral: 0, trap: 0 };
       opts.forEach((o) => { if (kinds[o.kind] !== undefined) kinds[o.kind]++; });
+      // 第 30 轮：用户要求"生路不要太明显"——默认不再标注哪条是生路、也不报条数。
+      // 只有设置里打开「新手提示」时才恢复旧提示（老玩家可以自己判断）。
+      const hint = newbieHintOn()
+        ? ('现在给出 ' + opts.length + ' 个选项：其中可走的路 ' + kinds.exit + ' 条（需你已掌握线索）、' +
+           '安全但会受伤的 ' + kinds.neutral + ' 条、直接触发规矩的 ' + kinds.trap + ' 条。' +
+           '看不出来就先去调查——线索越全，生路越明确。')
+        : ('现在给出 ' + opts.length + ' 个选项。哪一条走得通，取决于你手里掌握多少条规律——' +
+           '看不出来就先去调查，或者挑一条你已经试过的。');
       box.appendChild(el('div', 'choicesSub',
-        '现在给出 ' + opts.length + ' 个选项：其中可走的路 ' + kinds.exit + ' 条（需你已掌握线索）、' +
-        '安全但会受伤的 ' + kinds.neutral + ' 条、直接触发规矩的 ' + kinds.trap + ' 条。' +
-        '看不出来就先去调查——线索越全，生路越明确。' +
-        (smart ? '　它是智慧级厉鬼：下面输入框可以直接说话，AI 用它自己的思维回答你（判定仍算引擎的）。' : '')));
+        hint + (smart ? '　它是智慧级厉鬼：下面输入框可以直接说话，AI 用它自己的思维回答你（判定仍算引擎的）。' : '')));
     } else if (inScene) {
       // 第 29 轮：子场景要交代清楚"这是今天几件事里的第几件、做完还剩几次"
       box.appendChild(el('div', 'choicesSub',
@@ -11408,21 +12341,32 @@ body.story-mode .logwrap{max-height:22vh !important}
         '　（这一件做完，今天还剩 ' + apLeftNow() + ' 次行动；不想做也可以直接收手。）'));
     }
     choices.forEach((c, i) => {
-      // 选项文字里已经写了「（生路）」的，不再重复追加标注
-      const note = c.note && !c.label.includes('生路') ? c.note : '';
-      const b = el('button', 'btn opt' + (c.note ? ' exit' : ''),
+      /* 第 30 轮：默认**不标生路**（用户："生路不要太明显""有一个直接生路两个字在选项后面"）。
+       * · 只有设置里打开「新手提示」时才追加"（生路）"与绿色描边；
+       * · 但"选过"的痕迹要留：同一次遭遇里你上次怎么走的、或者对面的人记得你这么说过——
+       *   这是玩家自己攒出来的信息，不是引擎送答案。 */
+      let note = '';
+      if (newbieHintOn() && c.note && !c.label.includes('生路')) note = c.note;
+      const gid = state && state.pending ? state.pending.ghost : null;
+      if (gid && (state.events.done || []).indexOf('pick:' + gid + ':' + c.id) >= 0) {
+        const who = state.pending && state.pending.person ? '他记得你上次这么说过' : '你上一次走的是这条';
+        note += '（' + who + '）';
+      }
+      const b = el('button', 'btn opt' + (note && note.indexOf('生路') >= 0 ? ' exit' : ''),
         String(i + 1).padStart(2, '0') + '　' + c.label + note);
       b.onclick = () => {
         const now = Date.now();
         if (now - lastChoiceClick < 400) return;  // 双击/连点：只认第一次
         lastChoiceClick = now;
+        lastPickLabel = String(c.label || '');    // 第 30 轮：日记里要写"这件事是怎么做的"
         onChoice(c.id);
       };
       box.appendChild(b);
     });
     if (state.pending) {
       const hint = el('div', 'muted', '可观察线索：已掌握 ' + state.pending.revealedClues.length +
-        ' 条，另有 ' + state.pending.clueHints + ' 条尚未掌握。线索越全，生路越明确。');
+        ' 条，另有 ' + state.pending.clueHints + ' 条尚未掌握。' +
+        (newbieHintOn() ? '线索越全，生路越明确。' : '线索越多，你越能自己判断哪条走得通。'));
       box.appendChild(hint);
     }
   }
@@ -11435,6 +12379,11 @@ body.story-mode .logwrap{max-height:22vh !important}
       '（' + state.pending.level + ' 级）' + tag);
     addLog('', state.pending.text);
     if (state.pending.person) {
+      // 第 30 轮：把人属于哪个阵营、谁引荐的写清楚（用户要的"只能见同阵营 / 引荐 / 被拒"）
+      const fac = state.pending.factionName || (E.factionName ? E.factionName(state.pending.faction) : '');
+      if (fac) addLog('muted', '他属于「' + fac + '」' +
+        (state.pending.introducedBy && C.ghosts[state.pending.introducedBy]
+          ? '　（由 ' + C.ghosts[state.pending.introducedBy].name + ' 引荐，他才肯见你）' : ''));
       addLog('muted', '对方也是驭鬼者：可以直接和他谈。' +
         (enc0 && enc0.persona ? '（接了 AI 时，他会用自己的性格和语气回你；判定仍归引擎。）' : ''));
       const tl = (enc0 && enc0.talk) || [];
@@ -11593,8 +12542,14 @@ body.story-mode .logwrap{max-height:22vh !important}
     }
     // 第 20 轮：先判断这是不是"遭遇结算"（结算后的文字与日常行动完全不同）
     const wasEncounter = !!(state && state.pending);
+    const dayBefore = state ? state.turn : 1;      // 第 30 轮：这件事发生在哪一天（日记按天归档）
     const rep = E.resolve(state, realId, customText);
     if (rep.error) { addLog('warn', '【拒绝】' + rep.error); return; }
+    // 第 30 轮：开始做一件新事 → 打一条"第 N 件事"的轻分隔（读日志时一眼能看出今天做了几件）
+    const openedScene = !!(rep.scene && state.phase === 'scene');
+    if (openedScene) {
+      actionDivider(actionLabelOf(realId), (state.apUsed || 0) + 1);
+    }
     if (intent && realId !== '__custom__') {
       addLog('muted', '（从你的话里识别到行动：' + intent.label + '｜依据：“' + intent.via + '”）');
     } else if (id === '__custom__') {
@@ -11665,9 +12620,51 @@ body.story-mode .logwrap{max-height:22vh !important}
       contLabel = '继续 ▶　进入第 ' + (state.turn + 1) + ' 天';
     }
     renderChoices(rep.choices, 'continue', contLabel);   // 先读完结果，再让玩家点「继续」
+    recordJournal(dayBefore, realId, lastPickLabel);     // 第 30 轮：把这一天发生了什么写进日记
+    lastPickLabel = '';
     autoSave();
   }
 
+  /** 取动作的中文名（去掉括号里的说明），供分界条与日记使用 */
+  function actionLabelOf(id) {
+    if (!state || !id || id === '__custom__') return '自由行动';
+    const acts = (E.actionPool ? E.actionPool(state) : []) || [];
+    const a = acts.filter((x) => x.id === id)[0];
+    if (a) return String(a.label).replace(/（.*?）/g, '').slice(0, 20);
+    const opt = (state.scene && state.scene.options || []).filter((o) => o.id === id)[0];
+    if (opt) return String(opt.label).slice(0, 20);
+    // 子场景做法 id（如 rest_sleep）：场景已经关掉了，靠 lastPickLabel 兜底，别再显示英文 id
+    const last = String(lastPickLabel || '').replace(/（.*?）/g, '').trim();
+    if (last) return last.slice(0, 16);
+    return String(id).slice(0, 20);
+  }
+
+  /** 第 30 轮：把一次行动的关键行写进日记（一天一页；关键行 = 结算/收获，不抄全部正文） */
+  function recordJournal(day, actionId, optLabel) {
+    if (!state || !E.journalAdd) return;
+    const lines = lastLines.filter((x) => x.kind !== 'band' && x.kind !== 'div');
+    const story = lines.filter((x) => x.kind === '' || x.kind === 'story' || x.kind === 'scene');
+    const headLine = (story[0] || {}).text || '';
+    const keys = [];
+    for (const x of lines) {
+      const t = String(x.text || '');
+      if (x.kind === 'set' || t.indexOf('▸ ') === 0) keys.push(t.replace(/^▸\s*/, ''));
+    }
+    for (const x of lines) {
+      const t = String(x.text || '');
+      if (/线索|遭遇|【立场】|【鬼域|结局|获得|契约/.test(t) && keys.indexOf(t) < 0) keys.push(t);
+    }
+    // 兜底：就算这件事只有日常叙事（休整、上班这种没有结算行），也留最后一句当"可以划重点的一行"，
+    // 否则日记页会出现"这一天没有任何可划的行"——用户要的是能翻能划，不是只有结算才有。
+    if (!keys.length && story.length) keys.push(String(story[story.length - 1].text).slice(0, 130));
+    const label = actionLabelOf(actionId) + (optLabel ? '：' + String(optLabel).slice(0, 14) : '');    E.journalAdd(state, {
+      t: day,
+      slot: apSlotLabel(),
+      head: headLine.slice(0, 80),
+      acts: [label],
+      key: keys.slice(0, 4),
+    });
+  }
   /** 「继续」：清掉结果卡片，正式进入下一步（子场景 / 今天的行动菜单 / 新的一天）
    *  第 20 轮：新一天的剧情也要先单独读一遍（一天 700~800 字，直接跟选项一起给
    *  就会变成"点完选项上面还有一大段没看到"）。所以：先给剧情 + 继续，再给选项。
@@ -11702,11 +12699,17 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (!dayStoryShown) {
       // ① 新一天的剧情：单独一屏，只有剧情和「开始今天的行动」
       dayStoryShown = true;
+      dayBand(state.turn, '清晨', state.chapter);   // 第 30 轮：新的一天 → 明显分界条
       renderScene(true);
       renderSceneArt(state);
       renderNow();
       renderChoices(E.availableActions(state), 'continue',
         '开始第 ' + state.turn + ' 天的行动 ▶（今天 ' + (state.apMax || apLeftNow()) + ' 次行动）');
+      // 日记：这一天的开头
+      if (E.journalAdd) {
+        const first = (lastLines.filter((x) => x.kind === '' || x.kind === 'story' || x.kind === 'scene')[0] || {}).text || '';
+        E.journalAdd(state, { t: state.turn, slot: '清晨', head: String(first).slice(0, 80) });
+      }
       return;
     }
     // ② 剧情读完了：收起卡片，露出今天的选项
@@ -12627,7 +13630,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     });
     box.appendChild(el('div', 'sectionTitle', '怎么开始'));
     box.appendChild(el('div', 'hint', '① 选难度 → ② 选开局 → ③ 选落地城市与时期（也可以都选"随机"）→ ④ 开始游戏。'));
-    box.appendChild(el('div', 'hint', '每天只能做一个主动作；选完会先给你看结果，点「继续」才进入下一天。写不出选项里的话时，直接在底部输入框里写你想做什么，我会尽量把它认成真实行动。'));
+    box.appendChild(el('div', 'hint', '一天有 2~4 个行动点：每选一件事，先给你一段当天的小故事，再让你挑具体去哪、怎么做；随时可以收手进下一天。顶栏「日记」按天翻页看发生过什么，「笔记」放线索与重点，「设置」里是图鉴、画册与存档。'));
     const close = el('button', 'btn small', '知道了，开始玩');
     close.onclick = () => { box.style.display = 'none'; };
     box.appendChild(close);
@@ -13358,6 +14361,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     });
     $('panel').style.display = '';
     clear($('log'));
+    dayBand(1, '清晨', 1);        // 第 30 轮：第一天也打一条分界条，日志从一眼能认的地方开始
     addLog('', '【开局】' + C.packs[selected.pack].blurb);
     const stNow = (C.stances && C.stances[state.stance]) || null;
     if (stNow) {
@@ -13384,6 +14388,317 @@ body.story-mode .logwrap{max-height:22vh !important}
 
   /* ------------------------------------------------------- 内置工具面板 */
   /** 存档导入 / AI 设置都走页面内面板：不可用会锁死渲染线程的 prompt/alert */
+  /* ======================= 第 30 轮：设置抽屉 / 日记 / 笔记 =======================
+   * 用户要求：「弄个设置界面，界面里有这些成就图鉴之类的，不然太影响玩法了」+
+   *          「每天做的事件中弄个明显的分界…可以做成日记那种翻页的，一页是一天，可以划重点」+
+   *          「弄个专门存放线索和目前状态以及重点的地方」。
+   * 实现：顶栏只留「日记 / 笔记 / 设置」，所有资料/设置都进这三个抽屉（共用 #toolbox）。
+   */
+  const LS_KEY_NEWBIE = 'rs_newbie_hint';
+
+  /** 新手提示（标出生路）：默认【关】——用户明确说"生路不要太明显" */
+  function newbieHintOn() {
+    return String(LS.get(LS_KEY_NEWBIE, '0')) === '1';
+  }
+  function setNewbieHint(on) {
+    LS.set(LS_KEY_NEWBIE, on ? '1' : '0');
+    if ($('btnNewbie')) $('btnNewbie').textContent = '新手提示：' + (on ? '开' : '关');
+  }
+
+  function sheetHead(box, title, sub, backFn) {
+    const head = el('div', 'sheetHead');
+    const row = el('div', 'row');
+    if (backFn) {
+      const back = el('button', 'btn small', '‹ 返回');
+      back.onclick = backFn;
+      row.appendChild(back);
+    }
+    row.appendChild(el('div', 'sheetTitle', title));
+    const close = el('button', 'btn small', '关闭');
+    close.onclick = () => { box.style.display = 'none'; };
+    row.appendChild(close);
+    head.appendChild(row);
+    if (sub) head.appendChild(el('div', 'sheetSub', sub));
+    box.appendChild(head);
+  }
+
+  /** 设置抽屉：资料 / 界面 / AI / 存档 / 本局信息 */
+  function openSettings() {
+    const box = $('toolbox');
+    clear(box);
+    box.style.display = '';
+    sheetHead(box, '设置', '玩法界面只留「日记 / 笔记 / 设置」，其余的都在这里，不挡剧情。', null);
+    const wrap = el('div', 'sheetBody');
+
+    const group = (title, desc, items) => {
+      const card = el('div', 'setGroup');
+      card.appendChild(el('div', 'setTitle', title));
+      if (desc) card.appendChild(el('div', 'setDesc', desc));
+      const grid = el('div', 'setGrid');
+      for (const it of items) {
+        const b = el('button', 'btn small' + (it.primary ? ' primary' : ''), it.label);
+        if (it.id && $(it.id)) b.onclick = () => { box.style.display = 'none'; $(it.id).click(); };
+        else if (it.fn) b.onclick = () => it.fn();
+        else b.disabled = true;
+        grid.appendChild(b);
+      }
+      card.appendChild(grid);
+      wrap.appendChild(card);
+    };
+
+    group('资料与图鉴', '成就、结局、厉鬼规律、线索、插画都在这里翻',
+      [{ label: '图鉴（成就/结局/厉鬼/线索/战绩）', id: 'btnCodex', primary: true },
+        { label: '画册（厉鬼 103 张 + 场景 28 张）', id: 'btnGallery' },
+        { label: '世界观速览', id: 'btnGuide' }]);
+
+    group('阅读与界面', '影响玩的时候看到什么',
+      [{ label: '属性面板（展开/收起）', id: 'btnPanel' },
+        { label: '插画：' + (artEnabled() ? '开' : '关'), id: 'btnArt' },
+        { label: '新手提示：' + (newbieHintOn() ? '开（标出生路）' : '关（自己判断）'), fn: () => { setNewbieHint(!newbieHintOn()); openSettings(); } },
+        { label: '字号：' + (LS.get('rs_font', '中')), fn: () => cycleFontSize() }]);
+
+    group('AI 叙事（可选）', $('aiState') ? $('aiState').textContent : '',
+      [{ label: '账户与接口设置', id: 'btnAI', primary: true }]);
+
+    group('存档', '存档只在本机；跨设备用「分享存档」把存档压进链接',
+      [{ label: '快速存档', id: 'btnSaveQuick', primary: true },
+        { label: '快速读档', id: 'btnLoadQuick' },
+        { label: '分享存档（跨设备）', id: 'btnShare' },
+        { label: '查看存档卡', id: 'btnCard' },
+        { label: '导出到文件', id: 'btnSave' },
+        { label: '从文本导入', id: 'btnLoad' }]);
+
+    // 本局信息（种子/难度/立场/落地/时期/天数/日记天数）
+    if (state) {
+      const p = E.panelOf(state);
+      const card = el('div', 'setGroup');
+      card.appendChild(el('div', 'setTitle', '本局信息'));
+      const kv = el('div', 'setKV');
+      const rowOf = (k, v) => {
+        const r = el('div', 'kvRow');
+        r.appendChild(el('span', 'kvK', k));
+        r.appendChild(el('span', 'kvV', String(v)));
+        kv.appendChild(r);
+      };
+      rowOf('回合', p['回合']);
+      rowOf('今天', p['今天']);
+      rowOf('难度', p['难度']);
+      rowOf('立场', p['立场']);
+      rowOf('落地 / 时期', p['落地'] + ' / ' + p['时期']);
+      rowOf('种子', state.seed);
+      rowOf('日记', (E.journalOf ? E.journalOf(state).length : 0) + ' 天（最多留 ' + (E.JOURNAL_MAX_DAYS || 40) + ' 天）');
+      card.appendChild(kv);
+      wrap.appendChild(card);
+    }
+
+    box.appendChild(wrap);
+  }
+
+  /** 字号循环（手机端看得清）：小 → 中 → 大 */
+  function cycleFontSize() {
+    const order = ['小', '中', '大'];
+    const cur = LS.get('rs_font', '中');
+    const next = order[(order.indexOf(cur) + 1) % order.length];
+    LS.set('rs_font', next);
+    applyFontSize();
+    addLog('muted', '【字号】已切换为「' + next + '」。');
+    openSettings();
+  }
+  function applyFontSize() {
+    const cur = LS.get('rs_font', '中');
+    if (!document.body) return;
+    document.body.classList.remove('fontS', 'fontM', 'fontL');
+    document.body.classList.add(cur === '小' ? 'fontS' : (cur === '大' ? 'fontL' : 'fontM'));
+  }
+
+  /** 日记：一页一天，左右翻页，可划重点 */
+  let journalPage = 0;      // 0 = 最新的一天
+  function openJournal(keepPage) {
+    const box = $('toolbox');
+    clear(box);
+    box.style.display = '';
+    if (!state) { sheetHead(box, '日记', '还没开局。', null); return; }
+    const days = (E.journalOf ? E.journalOf(state) : []) || [];
+    sheetHead(box, '日记', days.length ? '一页一天，按天往回翻；★ 是划的重点（再点一次取消）。' :
+      '日记从你开始游戏的第二天起逐天记录。', null);
+    if (!days.length) {
+      const w = el('div', 'sheetBody');
+      w.appendChild(el('div', 'setDesc', '这一局还没有可翻的日记。做完一天的事，第二天早上这里就会出现一页。'));
+      box.appendChild(w);
+      return;
+    }
+    if (!keepPage || journalPage >= days.length) journalPage = 0;
+    const idx = Math.min(journalPage, days.length - 1);
+    const d = days[idx];
+
+    const nav = el('div', 'row journalNav');
+    const newer = el('button', 'btn small', '‹ 新一天');
+    newer.disabled = idx === 0;
+    newer.onclick = () => { journalPage = Math.max(0, idx - 1); openJournal(true); };
+    const older = el('button', 'btn small', '早一天 ›');
+    older.disabled = idx >= days.length - 1;
+    older.onclick = () => { journalPage = Math.min(days.length - 1, idx + 1); openJournal(true); };
+    nav.appendChild(newer);
+    nav.appendChild(el('span', 'pager', '第 ' + d.t + ' 天（' + (idx + 1) + '/' + days.length + '）'));
+    nav.appendChild(older);
+    box.appendChild(nav);
+
+    const page = el('div', 'journalPage');
+    page.appendChild(el('div', 'jTitle', '第 ' + d.t + ' 天' + (d.slot ? ' · ' + d.slot : '')));
+    if (d.head) page.appendChild(el('div', 'jHead', d.head));
+    if ((d.acts || []).length) {
+      const acts = el('div', 'jActs');
+      acts.appendChild(el('span', 'jLabel', '今天做了：'));
+      acts.appendChild(el('span', 'jActsVal', d.acts.join('　·　')));
+      page.appendChild(acts);
+    }
+    const lineList = el('div', 'jLines');
+    const addLine = (text, auto) => {
+      const row = el('div', 'jLine' + (auto ? ' auto' : ''));
+      const star = el('button', 'star' + ((E.journalIsMarked && E.journalIsMarked(state, d.t, text)) ? ' on' : ''), '★');
+      star.title = '划重点';
+      star.onclick = () => {
+        const on = E.journalMark(state, d.t, text);
+        star.classList.toggle('on', on);
+      };
+      const tx = el('span', 'jText', text);
+      row.appendChild(star);
+      row.appendChild(tx);
+      lineList.appendChild(row);
+    };
+    if ((d.key || []).length) {
+      page.appendChild(el('div', 'jLabel', '关键行（引擎结算与收获）'));
+      d.key.forEach((k) => addLine(k, true));
+    }
+    if ((d.marks || []).length) {
+      page.appendChild(el('div', 'jLabel', '你划的重点'));
+      d.marks.forEach((m) => addLine(m, false));
+    }
+    if (!(d.key || []).length && !(d.marks || []).length) {
+      page.appendChild(el('div', 'setDesc', '这一天没有结算级的记录（只有日常叙事）。'));
+    }
+    page.appendChild(lineList);      // 关键行/重点的容器（忘了这一步 = 日记里只有标题没有可划的行）
+    page.appendChild(el('div', 'jFoot', '完整正文仍在主界面滚动日志里（顶部有「第 N 天」分界条）。'));
+    box.appendChild(page);
+
+    const jump = el('div', 'row');
+    const b = el('button', 'btn small', '跳到最新一天');
+    b.onclick = () => { journalPage = 0; openJournal(true); };
+    jump.appendChild(b);
+    box.appendChild(jump);
+  }
+
+  /** 笔记：线索 / 当前状态 / 重点（跨天汇总） */
+  function openNotes(tab) {
+    const box = $('toolbox');
+    clear(box);
+    box.style.display = '';
+    sheetHead(box, '笔记', '线索、身上状态、你自己划的重点，都在这一页。', null);
+    if (!state) { box.appendChild(el('div', 'setDesc', '还没开局。')); return; }
+    const tabs = [['clue', '线索'], ['state', '当前状态'], ['mark', '重点'], ['enc', '遭遇过的鬼']];
+    const bar = el('div', 'tabs');
+    for (const [id, name] of tabs) {
+      const b = el('button', 'tab' + ((tab || 'clue') === id ? ' on' : ''), name);
+      b.onclick = () => openNotes(id);
+      bar.appendChild(b);
+    }
+    box.appendChild(bar);
+    const body = el('div', 'sheetBody');
+    if ((tab || 'clue') === 'clue') {
+      const byGhost = {};
+      for (const cid of (state.clues || [])) {
+        for (const gid of Object.keys(C.ghosts)) {
+          const g = C.ghosts[gid];
+          if ((g.clues || []).some((c) => c.id === cid)) {
+            byGhost[gid] = byGhost[gid] || [];
+            byGhost[gid].push((g.clues.filter((c) => c.id === cid)[0] || {}).text || cid);
+          }
+        }
+      }
+      const ids = Object.keys(byGhost);
+      if (!ids.length) body.appendChild(el('div', 'setDesc', '还没掌握任何规律。先去「调查传闻」，或到某个具体地点看看。'));
+      for (const gid of ids) {
+        const g = C.ghosts[gid];
+        const card = el('div', 'noteCard');
+        card.appendChild(el('div', 'noteTitle', g.name + '（' + g.level + ' 级）'));
+        const ul = el('div', 'noteList');
+        byGhost[gid].forEach((t) => ul.appendChild(el('div', 'noteLine', '· ' + t)));
+        card.appendChild(ul);
+        body.appendChild(card);
+      }
+      body.appendChild(el('div', 'sheetSub', '已掌握规律 ' + (state.clues || []).length + ' 条（全部线索 310 条，未遭遇的鬼在图鉴里打码）。'));
+    } else if ((tab || 'clue') === 'state') {
+      const p = E.panelOf(state);
+      const kv = el('div', 'setKV');
+      for (const k of Object.keys(p)) {
+        const r = el('div', 'kvRow');
+        r.appendChild(el('span', 'kvK', k));
+        r.appendChild(el('span', 'kvV', String(p[k])));
+        kv.appendChild(r);
+      }
+      body.appendChild(kv);
+      // 第 30 轮：认识谁 / 正在追哪只鬼（用户要的"专门放状态与重点的地方"）
+      const card = el('div', 'noteCard');
+      card.appendChild(el('div', 'noteTitle', '你认识的人（同阵营 + 引荐）'));
+      const known = (E.meetableIds ? E.meetableIds(state) : []) || [];
+      if (!known.length) card.appendChild(el('div', 'noteLine', '一个都联系不上——先把立场定下来，或者让人引荐。'));
+      for (const gid of known) {
+        const g = C.ghosts[gid];
+        if (!g) continue;
+        const by = (state.introducedBy || {})[gid];
+        card.appendChild(el('div', 'noteLine', '· ' + g.name + '（' +
+          (E.factionName ? E.factionName(E.factionOfNpc(g)) : '') + (g.rank ? '·' + g.rank : '') + '）' +
+          (by && C.ghosts[by] ? '　—　' + C.ghosts[by].name + ' 引荐' : '')));
+      }
+      body.appendChild(card);
+      const chain = state.clueChain;
+      if (chain && chain.gid && C.ghosts[chain.gid]) {
+        const cc = el('div', 'noteCard');
+        cc.appendChild(el('div', 'noteTitle', '正在追查：' + C.ghosts[chain.gid].name));
+        cc.appendChild(el('div', 'noteLine', '已经连着追了 ' + (chain.days || 1) + ' 天（最近一次：第 ' +
+          chain.lastTurn + ' 天）。隔天再追就会断，断了要从头开始。'));
+        body.appendChild(cc);
+      }
+      if (state.busTurn && (state.turn - state.busTurn) <= 2) {
+        const bc = el('div', 'noteCard');
+        bc.appendChild(el('div', 'noteTitle', '灵异公交车的压制还在'));
+        bc.appendChild(el('div', 'noteLine', '第 ' + state.busTurn + ' 天上的车，还剩 ' +
+          (3 - (state.turn - state.busTurn)) + ' 天：体内复苏被压住、外面找上你的概率更低。'));
+        body.appendChild(bc);
+      }
+    } else if ((tab || 'clue') === 'mark') {
+      const marks = (E.journalMarks ? E.journalMarks(state) : []) || [];
+      if (!marks.length) body.appendChild(el('div', 'setDesc', '还没划重点。打开「日记」，点一行前面的 ★ 就划上了。'));
+      for (const m of marks) {
+        const r = el('div', 'markRow');
+        r.appendChild(el('span', 'markWhen', '第 ' + m.t + ' 天'));
+        r.appendChild(el('span', 'markText', m.text));
+        const del = el('button', 'btn small', '取消');
+        del.onclick = () => { E.journalMark(state, m.t, m.text); openNotes('mark'); };
+        r.appendChild(del);
+        body.appendChild(r);
+      }
+    } else {
+      const seen = (state.events && state.events.done || []).filter((x) => x.indexOf('enc:') === 0).map((x) => x.slice(4));
+      if (!seen.length) body.appendChild(el('div', 'setDesc', '还没正面撞上过东西（这是好事）。'));
+      for (const gid of seen) {
+        const g = C.ghosts[gid];
+        if (!g) continue;
+        const card = el('div', 'noteCard');
+        card.appendChild(el('div', 'noteTitle', g.name + '（' + g.level + ' 级）'));
+        card.appendChild(el('div', 'noteLine', g.text || ''));
+        body.appendChild(card);
+      }
+    }
+    box.appendChild(body);
+  }
+
+  function openSettingsOrJournal(which) {
+    if (which === 'journal') openJournal(false);
+    else if (which === 'notes') openNotes('clue');
+    else openSettings();
+  }
+
   function openToolbox(mode) {
     const box = $('toolbox');
     clear(box);
@@ -13594,6 +14909,15 @@ body.story-mode .logwrap{max-height:22vh !important}
       };
     }
     if ($('btnCodex')) $('btnCodex').onclick = function () { openCodex('ach'); };
+    // 第 30 轮：顶栏只留「日记 / 笔记 / 设置」
+    if ($('btnJournal')) $('btnJournal').onclick = function () { openJournal(false); };
+    if ($('btnNotes')) $('btnNotes').onclick = function () { openNotes('clue'); };
+    if ($('btnSettings')) $('btnSettings').onclick = openSettings;
+    if ($('btnNewbie')) {
+      setNewbieHint(newbieHintOn());
+      $('btnNewbie').onclick = function () { setNewbieHint(!newbieHintOn()); openSettings(); };
+    }
+    applyFontSize();
     if ($('btnPanel')) $('btnPanel').onclick = function () { document.body.classList.toggle('panelOpen'); };
     if ($('jumpNew')) $('jumpNew').onclick = scrollLog;
     // 手动往上翻时给出「回到最新」提示
