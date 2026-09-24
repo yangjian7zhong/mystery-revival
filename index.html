@@ -1764,6 +1764,469 @@ body.story-mode .logwrap{max-height:22vh !important}
   Object.assign(ghosts, canonExtraGhosts);
   Object.assign(ghosts, driverGhosts);
 
+  /* ================================== 第 24 轮：原著 / 同人补充厉鬼（第二批）
+   * 用户要求：「多加一些厉鬼，还有鬼公交幽灵船，以及原著和同人文的厉鬼」。
+   * 说明：能以原著条目为准的照原著写（鬼公交有独立词条、幽灵船是末日篇核心事件）；
+   *       同人角色我不替他们编名字，一律用"作品名 + 能力"来称呼（例如「赶尸人」「写鬼录的作者」）。
+   */
+  const moreGhosts = {
+    guibus: {
+      id: 'guibus', name: '鬼公交', level: 'A', penalty: 46, tie: '原著·鬼公交（独立词条）',
+      encounter: '末班车在你面前停下，车头没有线路牌，车窗里坐满了人——所有人都面朝前方，' +
+        '谁也没有回头。车门开了，司机在等你上车。',
+      clues: [
+        { id: 'gb1', text: '它只在末班车的时间出现；错过就再也等不到，等到就非上不可。' },
+        { id: 'gb2', text: '车票是"名字"：报了名字的人才有座位，报了名字的人也下不了车。' },
+        { id: 'gb3', text: '它按站停：只要能在正确的站台下去，它不追。' },
+      ],
+      traps: [
+        { id: 'gb_t1', label: '上车，找一个空位坐下', tags: ['上车'] },
+        { id: 'gb_t2', label: '向司机报上自己的名字', tags: ['报名'] },
+      ],
+      neutral: [
+        { id: 'gb_n1', label: '站在站台上，等它自己开走', tags: ['等车'] },
+      ],
+      exits: [
+        { id: 'gb_e1', label: '不上车，但记住它停过的每一个站（生路）', tags: ['记站'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -10 }] },
+        { id: 'gb_e2', label: '报一个已经死了的人的名字，替他把车票用掉（生路）', tags: ['替票'], needClues: 3,
+          cost: [{ k: 'stat', key: 'causality', v: 10 }, { k: 'stat', key: 'pollution', v: 8 }] },
+      ],
+      exitText: '车门在你面前合上。车开走的时候，你看见最后一排有人回头看了你一眼——' +
+        '那一张脸，你在这个站台上见过。',
+      rewards: [{ k: 'flag', key: 'intel', v: 3 }, { k: 'stat', key: 'stealth', v: -6 }],
+      masteryClue: 'gb2',
+    },
+
+    ghostship: {
+      id: 'ghostship', name: '幽灵船', level: 'S', penalty: 64, tie: '原著·末日篇·幽灵船与诺亚方舟',
+      encounter: '海面上先出现的不是船，是一条航线。等雾散开，船就停在你面前：' +
+        '甲板上站满了人，全是背影，全都在等一个还没到的名字。',
+      clues: [
+        { id: 'gs2_1', text: '整条船是一个阴谋：船、船员、航线都是它写好的规矩。' },
+        { id: 'gs2_2', text: '它按名单收人：名单上没写你，你就只是"货"，不是"船员"。' },
+        { id: 'gs2_3', text: '船怕锚——能钉住航线的，才能跟它讲价。' },
+      ],
+      traps: [
+        { id: 'gs2_t1', label: '走上跳板，去看甲板上的那些人', tags: ['登船'] },
+        { id: 'gs2_t2', label: '对着船喊一声，问它要什么', tags: ['喊船'] },
+      ],
+      neutral: [
+        { id: 'gs2_n1', label: '站在岸上，看它要停多久', tags: ['观望'] },
+      ],
+      exits: [
+        { id: 'gs2_e1', label: '不下海、不上船，只在岸上把航线记下来（生路）', tags: ['记航线'], needClues: 2,
+          cost: [{ k: 'stat', key: 'sanity', v: -8 }] },
+        { id: 'gs2_e2', label: '把"锚"留在岸上，让它自己定住自己（生路）', tags: ['下锚'], needClues: 3,
+          cost: [{ k: 'itemUse', id: 'guancai' }, { k: 'stat', key: 'causality', v: 12 }] },
+      ],
+      exitText: '船在雾里停了一夜，天亮时还有半截船身露在水面。你记下的航线后来救过自己一次。',
+      rewards: [{ k: 'flag', key: 'intel', v: 3 }, { k: 'money', key: 'gold', v: 4 }],
+      masteryClue: 'gs2_2',
+    },
+
+    huangziya: {
+      id: 'huangziya', name: '黄子雅', level: 'A', penalty: 47, tie: '原著·六十年后·复苏者',
+      encounter: '她穿着六十年前的衣服，站在翻新过的小区里，抬头看那栋楼。' +
+        '"这里以前是我的房间。"她说，"现在住着别人。"',
+      clues: [
+        { id: 'hzy1', text: '她是被"挖出来"的：当年埋下去的东西被翻新工程惊动了。' },
+        { id: 'hzy2', text: '她不是恶鬼：她只是想把属于自己的东西要回去。' },
+        { id: 'hzy3', text: '她认房子不认人：只要屋子被她认下，谁住进去都算占位。' },
+      ],
+      traps: [
+        { id: 'hzy_t1', label: '告诉她那是别人家，让她别闹', tags: ['驱赶'] },
+      ],
+      neutral: [
+        { id: 'hzy_n1', label: '听她把话说完', tags: ['倾听'] },
+      ],
+      exits: [
+        { id: 'hzy_e1', label: '把她当年的东西找出来还给她（生路）', tags: ['还物'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -12 }] },
+        { id: 'hzy_e2', label: '替她把这栋楼的住户名字改回从前（生路）', tags: ['改名'], needClues: 3,
+          cost: [{ k: 'stat', key: 'pollution', v: 10 }, { k: 'flag', key: 'favor', v: 1 }] },
+      ],
+      exitText: '她把东西抱在怀里，站在门口没有进去。"够了，"她说，"你们住吧。"' +
+        '那天之后，那户人家的灯再没自己闪过。',
+      rewards: [{ k: 'flag', key: 'favor', v: 3 }, { k: 'stat', key: 'humanity', v: 4 }],
+      masteryClue: 'hzy2',
+    },
+
+    zhizharen: {
+      id: 'zhizharen', name: '纸扎人', level: 'B', penalty: 32, tie: '同人·扎纸铺一脉（《我在神秘复苏写鬼录》等）',
+      encounter: '寿衣店门口摆着一排纸人，脸都朝着街。你走过去的时候，' +
+        '最边上那个的纸脸跟着你转了一点点——很轻，像被风吹的。',
+      clues: [
+        { id: 'zz1', text: '纸人替人受事：扎给谁，谁就把一份"该来的"转出去。' },
+        { id: 'zz2', text: '它认名字不认人：纸人胸口写的名字才管用。' },
+        { id: 'zz3', text: '烧错了就换人：写错名字等于把别人的账接到自己身上。' },
+      ],
+      traps: [
+        { id: 'zz_t1', label: '把最像自己的那个买下来', tags: ['买纸人'] },
+      ],
+      neutral: [
+        { id: 'zz_n1', label: '绕开纸人，不动它', tags: ['绕开'] },
+      ],
+      exits: [
+        { id: 'zz_e1', label: '给自己扎一个替身，写对名字再烧（生路）', tags: ['扎替'], needClues: 2,
+          cost: [{ k: 'stat', key: 'causality', v: 8 }, { k: 'money', key: 'cash', v: -20 }] },
+        { id: 'zz_e2', label: '把纸人送回去，向店主问清规矩（生路）', tags: ['问规矩'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -8 }] },
+      ],
+      exitText: '纸人烧起来的时候没有声音，火苗是直的。你身上那份"该来的"轻了一点。',
+      rewards: [{ k: 'stat', key: 'stealth', v: 8 }, { k: 'flag', key: 'intel', v: 1 }],
+      masteryClue: 'zz2',
+    },
+
+    zangdui: {
+      id: 'zangdui', name: '送葬队', level: 'A', penalty: 43, tie: '同人·《神秘复苏：赶尸人》',
+      encounter: '夜里从山里下来一队人，穿着孝衣，抬着一口棺材，没有人打灯。' +
+        '他们走得很整齐，整齐得不像活人——却没有一个人回头看你。',
+      clues: [
+        { id: 'zd1', text: '他们只走老路：路线是几十年前定下的，改一次要多抬十年。' },
+        { id: 'zd2', text: '棺材里没有尸体，只有一件"该送到"的东西。' },
+        { id: 'zd3', text: '谁挡了路，谁就得替他们抬一段——抬过的人身上会留下味道。' },
+      ],
+      traps: [
+        { id: 'zd_t1', label: '站到路中间，拦住他们问话', tags: ['拦路'] },
+      ],
+      neutral: [
+        { id: 'zd_n1', label: '退到路边，背对着他们站好', tags: ['让路'] },
+      ],
+      exits: [
+        { id: 'zd_e1', label: '替他们抬最后一段路，送到地方就走（生路）', tags: ['抬棺'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -25 }, { k: 'stat', key: 'pollution', v: 8 }] },
+        { id: 'zd_e2', label: '把该送的东西送到，替他们改一次路线（生路）', tags: ['改路'], needClues: 3,
+          cost: [{ k: 'stat', key: 'erosion', v: 6 }] },
+      ],
+      exitText: '他们在岔路口停下，朝你点了点头——那一瞬间你看清了：他们每个人脸上都有同一道疤。',
+      rewards: [{ k: 'flag', key: 'favor', v: 2 }, { k: 'itemAdd', id: 'guizhu' }],
+      masteryClue: 'zd3',
+    },
+
+    shanshen: {
+      id: 'shanshen', name: '山神', level: 'S', penalty: 55, tie: '同人·青云山（《我在神秘复苏炼气修仙》）',
+      encounter: '你上山的时候，雾里有一双眼睛一直在看你。等你爬到半山，' +
+        '雾自己让开一条路，路的尽头坐着一个人——他身上长的不是皮肤，是树皮。',
+      clues: [
+        { id: 'ss1', text: '它管一座山：进山的人、山里的东西、山上的规矩，都归它。' },
+        { id: 'ss2', text: '它要"供奉"：不给东西的人，会被山留下。' },
+        { id: 'ss3', text: '它极重承诺：答应它的事做不到，山会记住你一辈子。' },
+      ],
+      traps: [
+        { id: 'ss_t1', label: '对它说"我不信你"', tags: ['不敬'] },
+      ],
+      neutral: [
+        { id: 'ss_n1', label: '在路边捡三块石头摆好，算作上山礼', tags: ['行礼'] },
+      ],
+      exits: [
+        { id: 'ss_e1', label: '按它的规矩供上一份东西，换它放行（生路）', tags: ['供奉'], needClues: 1,
+          cost: [{ k: 'money', key: 'gold', v: 1 }, { k: 'stat', key: 'stamina', v: -12 }] },
+        { id: 'ss_e2', label: '立一个它认的承诺，换山里一处安全的地方（生路）', tags: ['立约'], needClues: 3,
+          cost: [{ k: 'stat', key: 'causality', v: 12 }, { k: 'flag', key: 'favor', v: 2 }] },
+      ],
+      exitText: '它收下东西，起身让路。"山里的路会跟着你，"它说，"你别走错。"',
+      rewards: [{ k: 'flag', key: 'safehouse', v: 1 }, { k: 'flag', key: 'intel', v: 2 }],
+      masteryClue: 'ss3',
+    },
+
+    jingdizhi: {
+      id: 'jingdizhi', name: '井底尸', level: 'B', penalty: 36, tie: '同人·阴气谷（《我在神秘复苏修炼阴气法》）',
+      encounter: '老宅后院那口井是干的。你往下面看，看不见底——' +
+        '但你能看见井壁上有一圈手印，从下往上，一直印到你脚边。',
+      clues: [
+        { id: 'jdz1', text: '井壁上的手印是往上爬的：它在学怎么上来。' },
+        { id: 'jdz2', text: '阴气从井里出来：住在这院里的人会越来越"轻"。' },
+        { id: 'jdz3', text: '它怕光：把井口封住并让它见天日，它就爬不上来。' },
+      ],
+      traps: [
+        { id: 'jdz_t1', label: '伸手下去拉那只手', tags: ['下井'] },
+      ],
+      neutral: [
+        { id: 'jdz_n1', label: '盖上井盖，在上面压块石头', tags: ['盖井'] },
+      ],
+      exits: [
+        { id: 'jdz_e1', label: '白天开井，让阳光照进去，趁它缩回去把井填了（生路）', tags: ['白昼填井'], needClues: 2,
+          cost: [{ k: 'stat', key: 'stamina', v: -20 }] },
+        { id: 'jdz_e2', label: '在井口刻字镇住"要上来"这件事（生路）', tags: ['刻字'], needClues: 3,
+          cost: [{ k: 'stat', key: 'pollution', v: 10 }] },
+      ],
+      exitText: '填井那天太阳很好。最后一铲土下去的时候，你听见井底传来一声很轻的响——' +
+        '像是有人终于坐下了。',
+      rewards: [{ k: 'flag', key: 'favor', v: 1 }, { k: 'stat', key: 'sanity', v: 5 }],
+      masteryClue: 'jdz3',
+    },
+
+    baiduzhe: {
+      id: 'baiduzhe', name: '摆渡人', level: 'A', penalty: 42, tie: '同人·忘川渡（《神秘复苏之遗忘世间》）',
+      encounter: '渡口只有一条船和一个撑篙的人。他问你去哪，你张了张嘴——' +
+        '忽然想不起自己要去的地方叫什么了。',
+      clues: [
+        { id: 'bd1', text: '他摆渡的是"忘"：上船的人会丢掉一段记忆，换一次过河。' },
+        { id: 'bd2', text: '他不骗人：价钱会当场说清楚，丢的是哪一段也由你挑。' },
+        { id: 'bd3', text: '他挑不动"记得自己名字的人"——名字在，他就摆不动船。' },
+      ],
+      traps: [
+        { id: 'bd_t1', label: '上船，让他送过去', tags: ['上船'] },
+      ],
+      neutral: [
+        { id: 'bd_n1', label: '坐在渡口，看他把别人送过去', tags: ['看渡'] },
+      ],
+      exits: [
+        { id: 'bd_e1', label: '明确说出自己愿意丢掉的那一段（生路）', tags: ['定价'], needClues: 1,
+          cost: [{ k: 'stat', key: 'sanity', v: -10 }] },
+        { id: 'bd_e2', label: '报上自己的名字，让他摆不动（生路）', tags: ['报名'], needClues: 2,
+          cost: [{ k: 'stat', key: 'causality', v: 8 }, { k: 'stat', key: 'stealth', v: -8 }] },
+      ],
+      exitText: '他撑了一下篙，船没动。他笑了一下："记性好的，我送不了。"',
+      rewards: [{ k: 'flag', key: 'intel', v: 3 }],
+      masteryClue: 'bd3',
+    },
+  };
+
+  Object.assign(ghosts, moreGhosts);
+
+  /* ============================ 第 24 轮：同人主角级驭鬼者（六位）
+   * 用户要求「你自己翻原著和同人文那些厉鬼以及御鬼者」。
+   * 说明：同人作品的主角我不替他们编名字，用"作品 + 能力"称呼，来源标在 tie 里。
+   */
+  const moreDrivers = {
+    ganshiren_p: {
+      id: 'ganshiren_p', name: '赶尸人（赶尸一脉）', level: 'A', penalty: 42, person: true,
+      tie: '同人·《神秘复苏：赶尸人》',
+      encounter: '他把最后一具尸体扶正，回头看你："顺路吗？顺路就一起走，别说话。"' +
+        '他身后那一排东西都低着头，像在等谁点名。',
+      clues: [
+        { id: 'gsr1', text: '他赶的东西认得路，也认得跟着走的人——跟错队就得替他抬。' },
+        { id: 'gsr2', text: '他只在夜里赶：天亮之前必须到，迟了就得拿东西补。' },
+        { id: 'gsr3', text: '他不收钱，只收"顺路"：你替他办一件事，他替你挡一次。' },
+      ],
+      traps: [
+        { id: 'gsr_t1', label: '伸手去掀那口棺盖', tags: ['掀棺'] },
+      ],
+      neutral: [
+        { id: 'gsr_n1', label: '什么都不问，跟着队伍走一段', tags: ['随行'] },
+      ],
+      exits: [
+        { id: 'gsr_e1', label: '替他赶一段路，天亮前送到（生路）', tags: ['赶路'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -30 }] },
+        { id: 'gsr_e2', label: '用一条线索换他一次出手（生路）', tags: ['换出手'], needClues: 2,
+          cost: [{ k: 'flag', key: 'intel', v: -1 }] },
+      ],
+      exitText: '天亮前他们到了地方。他把手在衣服上擦了擦："你顺路。以后有事，喊我名字就行。"',
+      rewards: [{ k: 'flag', key: 'favor', v: 2 }, { k: 'itemAdd', id: 'guizhu' }],
+      masteryClue: 'gsr1',
+      persona: {
+        who: '赶尸一脉的驭鬼者（同人《赶尸人》）。',
+        think: '规矩比命重：天亮前送到、不多话、不欠人情。',
+        speak: '短促、直接，常用"顺路""别说话""跟上"这种词。',
+        power: '赶尸、夜行、让死人认路。',
+        taboo: '不能掀他的棺盖，也不能问尸体是谁。',
+        deal: '只换"顺路"：你替他跑一趟，他替你挡一次。',
+      },
+      abilities: ['赶尸夜行', '让死人认路', '一次挡死', '极准的时间感'],
+      talk: ['顺路吗。', '别说话，跟上。'],
+    },
+
+    xiegui_p: {
+      id: 'xiegui_p', name: '写鬼录的人', level: 'A', penalty: 44, person: true,
+      tie: '同人·《我在神秘复苏写鬼录》',
+      encounter: '他蹲在楼道口写字，本子摊在膝盖上。你问他写什么，他说："写你。"' +
+        '然后他抬头补了一句，"别怕，写的是你刚才没做的那件事。"',
+      clues: [
+        { id: 'xgl1', text: '他写下的东西会"轻微成真"：不改变结果，但会留下痕迹。' },
+        { id: 'xgl2', text: '他写得越具体，代价越落在他自己身上。' },
+        { id: 'xgl3', text: '他不改别人的事，只记录；但被人逼急了会写"结局"。' },
+      ],
+      traps: [
+        { id: 'xgl_t1', label: '抢过他的本子看里面写了什么', tags: ['抢本子'] },
+      ],
+      neutral: [
+        { id: 'xgl_n1', label: '站在旁边，看他写完这一页', tags: ['旁观'] },
+      ],
+      exits: [
+        { id: 'xgl_e1', label: '请他替你写一句"今天不会出事"（生路）', tags: ['请写'], needClues: 1,
+          cost: [{ k: 'stat', key: 'causality', v: 8 }] },
+        { id: 'xgl_e2', label: '用自己的经历换他一条能救命的记录（生路）', tags: ['换记录'], needClues: 3,
+          cost: [{ k: 'flag', key: 'intel', v: -1 }, { k: 'stat', key: 'sanity', v: -6 }] },
+      ],
+      exitText: '他把那一页撕下来折好塞给你："别打开看。到那天你会知道该给谁。"',
+      rewards: [{ k: 'flag', key: 'intel', v: 3 }],
+      masteryClue: 'xgl1',
+      persona: {
+        who: '写鬼录的人（同人《我在神秘复苏写鬼录》）。',
+        think: '记录者心态：他只写，不判；但知道"写下去"本身就是介入。',
+        speak: '语气平，爱用短句和复述；会把你说过的话念一遍再写下来。',
+        power: '记录成真（弱化版）、预写结局、以自身为代价。',
+        taboo: '不能抢他的本子；也不能让他替你写别人的死。',
+        deal: '他换"经历"和"线索"，不换钱。',
+      },
+      abilities: ['记录成真', '预写结局', '复述你的原话', '以自身为代价'],
+      talk: ['写你。', '刚才那句，你再说一遍。'],
+    },
+
+    moyao_p: {
+      id: 'moyao_p', name: '喝魔药的人', level: 'A', penalty: 45, person: true,
+      tie: '同人·《我在神秘复苏里喝魔药》',
+      encounter: '他手里拿着一小瓶颜色不对的液体，瓶身上贴着一行编号。' +
+        '"第三瓶，"他说，"喝下去我就不是刚才那个我了。你要不要看？"',
+      clues: [
+        { id: 'moy1', text: '他靠"序列"变强：每喝一瓶，能力更稳，人更不像人。' },
+        { id: 'moy2', text: '序列有严格顺序：跳着喝的人，最后会变成别的什么。' },
+        { id: 'moy3', text: '他的药可以给别人：给别人就等于把顺序转到别人身上。' },
+      ],
+      traps: [
+        { id: 'moy_t1', label: '接过瓶子，替他喝一格', tags: ['试药'] },
+      ],
+      neutral: [
+        { id: 'moy_n1', label: '问他下一瓶的编号是多少', tags: ['问编号'] },
+      ],
+      exits: [
+        { id: 'moy_e1', label: '问他要一瓶"能压住侵蚀"的（生路）', tags: ['要药'], needClues: 1,
+          cost: [{ k: 'money', key: 'gold', v: 2 }] },
+        { id: 'moy_e2', label: '用一条线索换他告诉你完整序列（生路）', tags: ['换序列'], needClues: 3,
+          cost: [{ k: 'flag', key: 'intel', v: -1 }, { k: 'stat', key: 'erosion', v: 4 }] },
+      ],
+      exitText: '他把瓶子收起来："序列这东西，不是喝下去就完了。"他晃了晃瓶子，"是喝下去才开始。"',
+      rewards: [{ k: 'stat', key: 'erosion', v: -5 }, { k: 'flag', key: 'intel', v: 1 }],
+      masteryClue: 'moy2',
+      persona: {
+        who: '喝魔药的人（同人《我在神秘复苏里喝魔药》）。',
+        think: '实验者心态：把自己当样本，冷静地记录变化。',
+        speak: '像念数据：编号、剂量、反应；偶尔突然说一句很人味的话。',
+        power: '序列魔药：能力升级、代价是人性；也能把"一格"转给别人。',
+        taboo: '别替他喝第二瓶；也别问他原来叫什么。',
+        deal: '只谈交换：药、序列、线索都明码标价。',
+      },
+      abilities: ['序列强化', '压制侵蚀的药', '把代价转给他人', '冷酷的自我记录'],
+      talk: ['第三瓶。', '你要看，就站远点看。'],
+    },
+
+    lianqi_p: {
+      id: 'lianqi_p', name: '炼气士', level: 'A', penalty: 43, person: true,
+      tie: '同人·《我在神秘复苏炼气修仙》',
+      encounter: '他在楼顶打坐，身边摆着几块石头。你上楼的时候，' +
+        '那几块石头轻轻震了一下——像在报信。',
+      clues: [
+        { id: 'lq1', text: '他修的是"气"：气在，鬼靠近他就会变慢。' },
+        { id: 'lq2', text: '他的东西都是自己炼的：能借，但要还，而且得还同一种。' },
+        { id: 'lq3', text: '他守规矩：不主动害人，也绝不欠鬼的账。' },
+      ],
+      traps: [
+        { id: 'lq_t1', label: '伸手去拿他身边那块石头', tags: ['拿石'] },
+      ],
+      neutral: [
+        { id: 'lq_n1', label: '站在门口，等他收功', tags: ['等功'] },
+      ],
+      exits: [
+        { id: 'lq_e1', label: '请他给你画一道护身的气（生路）', tags: ['求气'], needClues: 1,
+          cost: [{ k: 'stat', key: 'pollution', v: 6 }] },
+        { id: 'lq_e2', label: '借他一块炼过的石头，约定归还期（生路）', tags: ['借石'], needClues: 2,
+          cost: [{ k: 'stat', key: 'causality', v: 8 }] },
+      ],
+      exitText: '他站起来把石头收好："记着，借的东西要还。这个时代，欠账的人比死人还多。"',
+      rewards: [{ k: 'itemAdd', id: 'fu' }, { k: 'stat', key: 'sanity', v: 6 }],
+      masteryClue: 'lq3',
+      persona: {
+        who: '炼气士（同人《我在神秘复苏炼气修仙》）。',
+        think: '修行者逻辑：讲因果、讲还账、讲"该不该"，对世俗的事兴趣不大。',
+        speak: '寡言，偶尔蹦出古语；说"借""还""该"时格外重。',
+        power: '炼气、护身气、炼过的器物、让灵异靠近变慢。',
+        taboo: '不能动他没炼完的东西；也不能白拿。',
+        deal: '借还分明：借什么，什么时候还，当面说清。',
+      },
+      abilities: ['炼气护身', '炼器', '让灵异变慢', '因果极清'],
+      talk: ['等。', '你要借什么，几时还。'],
+    },
+
+    yinqi_p: {
+      id: 'yinqi_p', name: '修阴气法的传人', level: 'A', penalty: 46, person: true,
+      tie: '同人·《我在神秘复苏修炼阴气法》',
+      encounter: '她站在背光的墙边，身上比其他地方凉一截。' +
+        '"别站太近，"她说，"我身上这口气，会把你的热气吸走。"',
+      clues: [
+        { id: 'yq1', text: '她练的是阴气：越练越强，也越不像活人。' },
+        { id: 'yq2', text: '她可以替人"吸"掉一部分灵异——但吸进去的东西存在她身上。' },
+        { id: 'yq3', text: '她需要阳气：不是害人，是来换的——钱、食物、热闹都算。' },
+      ],
+      traps: [
+        { id: 'yq_t1', label: '握住她的手"传点热气"', tags: ['握手'] },
+      ],
+      neutral: [
+        { id: 'yq_n1', label: '和她并排站着，隔着一步', tags: ['并肩'] },
+      ],
+      exits: [
+        { id: 'yq_e1', label: '光明正大跟她谈"换阳"的价钱（生路）', tags: ['谈换'], needClues: 1,
+          cost: [{ k: 'money', key: 'cash', v: -50 }] },
+        { id: 'yq_e2', label: '请她替你把身上的污染吸走一部分（生路）', tags: ['吸污'], needClues: 2,
+          cost: [{ k: 'stat', key: 'causality', v: 8 }, { k: 'stat', key: 'stamina', v: -10 }] },
+      ],
+      exitText: '她把手拢在袖子里："我记着这笔。"她往阴影里退了半步，"下次你来，我就不凉了。"',
+      rewards: [{ k: 'stat', key: 'pollution', v: -8 }, { k: 'stat', key: 'erosion', v: -3 }],
+      masteryClue: 'yq2',
+      persona: {
+        who: '修阴气法的传人（同人《我在神秘复苏修炼阴气法》）。',
+        think: '知道自己正在"变得不像人"，所以格外守规矩——不占便宜、不欠人情。',
+        speak: '轻、慢、少；常用"别站太近""我记着"这种句子。',
+        power: '吸灵异、换阳气、阴气护身。',
+        taboo: '不能白拿她的东西；也不能碰她的后背。',
+        deal: '明码交换：阳气、钱、热闹，都算价钱。',
+      },
+      abilities: ['吸走灵异附着', '阴气护体', '以阳气为食', '极好的记性'],
+      talk: ['别站太近。', '我记着这笔。'],
+    },
+
+    yiwang_p: {
+      id: 'yiwang_p', name: '遗忘世间的人', level: 'A', penalty: 45, person: true,
+      tie: '同人·《神秘复苏之遗忘世间》',
+      encounter: '他坐在长椅上，认真地看一张报纸。你走过去问他在看什么，' +
+        '他抬头很礼貌地笑了一下——你忽然想不起自己刚才要问什么了。',
+      clues: [
+        { id: 'ywp1', text: '他身上有"忘"：靠近他的人会忘记一部分事情，包括为什么靠近。' },
+        { id: 'ywp2', text: '他不是故意的：他自己也在忘，忘得比谁都多。' },
+        { id: 'ywp3', text: '写下来的东西不会被忘掉：他靠笔记活着。' },
+      ],
+      traps: [
+        { id: 'ywp_t1', label: '盯着他的眼睛，努力记住他是谁', tags: ['对视'] },
+      ],
+      neutral: [
+        { id: 'ywp_n1', label: '什么也不问，坐下来陪他看一会儿报纸', tags: ['陪坐'] },
+      ],
+      exits: [
+        { id: 'ywp_e1', label: '把要说的话写在纸上，递过去（生路）', tags: ['写字'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -6 }] },
+        { id: 'ywp_e2', label: '用一件必须记住的事，换他帮你忘掉一件（生路）', tags: ['换忘'], needClues: 2,
+          cost: [{ k: 'stat', key: 'sanity', v: -12 }] },
+      ],
+      exitText: '他看完你写的纸，点点头，把纸折好放进兜里。临走前他说了一句话，' +
+        '你没听清——但你记得他说过。',
+      rewards: [{ k: 'stat', key: 'sanity', v: 8 }, { k: 'flag', key: 'intel', v: 1 }],
+      masteryClue: 'ywp3',
+      persona: {
+        who: '遗忘世间的人（同人《神秘复苏之遗忘世间》）。',
+        think: '温和、礼貌，但记不住人；靠笔记维持"我是谁"。',
+        speak: '客气、礼貌、句子短；会重复问同一件事。',
+        power: '让周围人遗忘、也让自己遗忘。',
+        taboo: '别骗他记编号——他信了会照做，后果不可逆。',
+        deal: '用"必须记住的事"换"想要忘掉的事"。',
+      },
+      abilities: ['范围遗忘', '读过即忘', '以笔记锚定自我', '让目击者失忆'],
+      talk: ['我们在哪见过吗？', '你刚才说什么？'],
+    },
+  };
+
+  /* ====================== 第 24 轮：队长专属结局（见证成神）
+   * 用户点头：「最后一个的话可以的」——队长线不能干预杨间，那就给他一个"看着那个人走完"的结局。
+   */
+  const witnessEnding = {
+    w_witness: { name: '见证者', kind: 'world', bad: null,
+      text: '你一次都没有插手。你只是把每一次灵异事件压住、把每一条线索交上去、把每一个该活的人从现场拖出来。' +
+        '等到那一天，杨间站在所有规矩的尽头，回头看了一眼——他看见了你，点了点头。' +
+        '新时代开始的时候，档案里没有你的名字，只有一行注记：该同志全程未干预，工作合格。' },
+  };
+
+  Object.assign(ghosts, moreDrivers);
+
 
   /* ============================================== 立场（第 23 轮）
    * 用户要求：「玩家可以选择完全按原著来，自己只是一个队长罢了，不能干预杨间的成神之路；
@@ -2023,7 +2486,7 @@ body.story-mode .logwrap{max-height:22vh !important}
         lines: ['门缝里透出的不是光，是"有人在里面走动"的动静。', '你在门口站了十分钟，里面的脚步声一直是同一段。'] } },
     zhongzhou: { id: 'zhongzhou', name: '中州市', src: '原著', place: 'town',
       desc: '鬼湖源头与太平古镇鬼街。纸钱、纸船、渡船，湖底还压着一口黑棺材。',
-      ghosts: ['yinqigui', 'zhenname'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 5, advance: 1 },
+      ghosts: ['yinqigui', 'zhenname', 'guibus'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 5, advance: 1 },
       rule: { text: '太平古镇鬼街：招魂人讲规矩（驾驭 +8%），物价也高（×1.2）', mastery: 8, price: 1.2 },
       act: { label: '去鬼街换一叠纸钱',
         cost: [{ k: 'money', key: 'cash', v: -20 }],
@@ -2111,7 +2574,7 @@ body.story-mode .logwrap{max-height:22vh !important}
         lines: ['你一张一张扣过去，最后一面试衣镜压得手心发凉。', '扣完的那一刻，你听见有人在厨房里叹了口气。'] } },
     shanshui: { id: 'shanshui', name: '山水村', src: '同人《神秘复苏：赶尸人》', place: 'village',
       desc: '民国赶尸客栈还在营业，收两样东西：一滴鬼血，一具驭鬼者的尸体。',
-      ghosts: ['ganshigui', 'guiguan'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 5, advance: 0 },
+      ghosts: ['ganshigui', 'guiguan', 'zangdui'], effects: [{ k: 'flag', key: 'favor', v: 1 }], mods: { encounter: 5, advance: 0 },
       rule: { text: '赶尸客栈规矩：血可以换路（驾驭 +5%），尸纹会往上爬', mastery: 5, price: 1.0 },
       act: { label: '在客栈门口留一滴血换路条',
         effects: [{ k: 'stat', key: 'pollution', v: 6 }, { k: 'flag', key: 'intel', v: 2 }],
@@ -2125,7 +2588,7 @@ body.story-mode .logwrap{max-height:22vh !important}
         lines: ['对面念了七条规律，声音一直很平。', '念到第八条时它停了：\"这条是给你的。\"'] } },
     yaoxiang: { id: 'yaoxiang', name: '药香街', src: '同人《我在神秘复苏里喝魔药》', place: 'shop',
       desc: '柜台上永远摆着七只瓶子。喝一口就能上一个序列，代价写在瓶子背面。',
-      ghosts: ['xulie'], effects: [{ k: 'itemAdd', id: 'fu' }], mods: { encounter: 4, advance: 0 },
+      ghosts: ['xulie', 'zhizharen'], effects: [{ k: 'itemAdd', id: 'fu' }], mods: { encounter: 4, advance: 0 },
       rule: { text: '药铺明码标价：物价 ×1.4，但序列真的能买', mastery: 4, price: 1.4 },
       act: { label: '买下最低序列的那半瓶药',
         cost: [{ k: 'money', key: 'gold', v: -1 }],
@@ -2133,21 +2596,21 @@ body.story-mode .logwrap{max-height:22vh !important}
         lines: ['你把半瓶喝下去，喉咙里像过了一遍电。', '柜台后面的人点点头：\"下一位已经在路上了。\"'] } },
     qingyun: { id: 'qingyun', name: '青云山', src: '同人《我在神秘复苏炼气修仙》', place: 'temple',
       desc: '灵气浓得发白的山。山门结界有一处破口，东南角，很多年没人来补。',
-      ghosts: ['lingqi'], effects: [{ k: 'stat', key: 'sanity', v: 5 }], mods: { encounter: 3, advance: 0 },
+      ghosts: ['lingqi', 'shanshen'], effects: [{ k: 'stat', key: 'sanity', v: 5 }], mods: { encounter: 3, advance: 0 },
       rule: { text: '灵气浓：驾驭 +10%，但一运功就被定位（遭遇 +3%）', mastery: 10, price: 1.0 },
       act: { label: '在山门东南角修半个时辰',
         effects: [{ k: 'stat', key: 'sanity', v: 8 }, { k: 'stat', key: 'pollution', v: 3 }, { k: 'flag', key: 'intel', v: 1 }],
         lines: ['你按住那块裂开的石阶，把气一丝丝往回引。', '裂口小了一点。松树下的那个人，今晚没有回头。'] } },
     yinqigu: { id: 'yinqigu', name: '阴气谷', src: '同人《我在神秘复苏修炼阴气法》', place: 'oldhouse',
       desc: '谷底老宅的地下室是天然阵眼。这里的人练功，练的是把自己练成另一种东西。',
-      ghosts: ['yinqigui'], effects: [{ k: 'stat', key: 'erosion', v: 5 }], mods: { encounter: 4, advance: 1 },
+      ghosts: ['yinqigui', 'jingdizhi'], effects: [{ k: 'stat', key: 'erosion', v: 5 }], mods: { encounter: 4, advance: 1 },
       rule: { text: '天然阵眼：驾驭 +8%，但侵蚀起手就高', mastery: 8, price: 1.0 },
       act: { label: '按功法吸一口谷底的阴气',
         effects: [{ k: 'stat', key: 'erosion', v: 6 }, { k: 'stat', key: 'sanity', v: 4 }, { k: 'stat', key: 'stamina', v: 8 }],
         lines: ['阴气顺着喉咙下去，像吞了一口井水。', '你身后那声呼吸，比你慢了半拍——但它确实在跟着你。'] } },
     wangchuan: { id: 'wangchuan', name: '忘川渡', src: '同人《神秘复苏之遗忘世间》', place: 'town',
       desc: '渡口没有船，只有一排写满名字的木牌。牌上的字正在一个一个变淡。',
-      ghosts: ['yiwang'], effects: [{ k: 'stat', key: 'humanity', v: 5 }], mods: { encounter: 3, advance: 0 },
+      ghosts: ['yiwang', 'baiduzhe'], effects: [{ k: 'stat', key: 'humanity', v: 5 }], mods: { encounter: 3, advance: 0 },
       rule: { text: '渡口无船：记忆容易丢，人性回升快', mastery: 3, price: 1.0 },
       act: { label: '在木牌上补写一个正在变淡的名字',
         effects: [{ k: 'stat', key: 'humanity', v: 5 }, { k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'sanity', v: -4 }],
@@ -2239,6 +2702,7 @@ body.story-mode .logwrap{max-height:22vh !important}
         { turn: 10, ghost: 'eshigui', label: '封锁区·饿死鬼脱困' },
         { turn: 20, ghost: 'ganshigui', label: '码头·幽灵船的乘客' },
         { turn: 30, ghost: 'qigui', label: '指挥部·一盘棋' },
+        { turn: 35, ghost: 'ghostship', label: '幽灵船靠岸' },
         { turn: 40, ghost: 'zhenname', label: '收容点·谁在叫你的名字' },
       ],
       effects: [{ k: 'stat', key: 'calamity', v: 15 }, { k: 'money', key: 'gold', v: 1 }],
@@ -2252,6 +2716,7 @@ body.story-mode .logwrap{max-height:22vh !important}
         { turn: 10, ghost: 'lingqi', label: '青云山·灵气发白' },
         { turn: 20, ghost: 'xulie', label: '药香街·重新开张' },
         { turn: 30, ghost: 'yiwang', label: '渡口·正在变淡的牌位' },
+        { turn: 36, ghost: 'huangziya', label: '观江小区·翻新挖出了不该挖的东西' },
         { turn: 40, ghost: 'qiaomen', label: '旧教学楼·又是三下' },
       ],
       effects: [{ k: 'stat', key: 'humanity', v: -10 }, { k: 'stat', key: 'ghostEye', v: 1 }],
@@ -2293,10 +2758,16 @@ body.story-mode .logwrap{max-height:22vh !important}
       text: '发现灵异时代本身是第 37 个源头鬼的杀人规律。留下人类与灵异共存还是对抗的开放命题。' },
   };
 
+  // 第 24 轮：队长专属结局「见证者」——全程不干预杨间，活到看着他把这条路走完
+  Object.assign(endings, witnessEnding);
+
   // 世界结局判据（在每回合结束时按顺序检查，先满足者胜出）
   // 说明：w_rules 对应原著结局「集齐鬼眼/鬼影/鬼童等关键拼图（= 三份契约）并保留人格（人性≥30）」。
   // 早先版本额外要求「鬼眼 9 重」，但按第 6 章公式训练到 9 重必然把侵蚀推过 100，条件自相矛盾，已移除。
   const worldEndingChecks = [
+    // 队长线专属：站得够久、线索够多、还像个人，才够格"见证"（放在最前面，先满足者胜出）
+    { id: 'w_witness', when: (s) => s.stance === 'captain' && s.turn >= 40 && s.clues.length >= 12 &&
+        s.stats.humanity >= 30 && s.stats.erosion < 60 && (s.flags.marks || 0) < 3 },
     { id: 'w_rules', when: (s) => s.contracts.length >= 3 && s.stats.humanity >= 30 },
     { id: 'w_gate', when: (s) => s.flags.safehouse >= 5 && s.money.gold >= 40 && s.clues.length >= 10 },
     { id: 'w_37', when: (s) => s.clues.length >= 16 },
@@ -2356,6 +2827,22 @@ body.story-mode .logwrap{max-height:22vh !important}
     guofan: { threat: 60, rule: 72, sense: 66, pollution: 40, sanity: 48, counter: 50, note: '灵位写名：名字在位，鬼找你得多绕一圈；写错名就挂同一根钉子。' },
     heyiner: { threat: 66, rule: 68, sense: 62, pollution: 55, sanity: 52, counter: 48, note: '招魂借力，但借来的东西会记住现场每个人的脸。' },
     king: { threat: 90, rule: 88, sense: 78, pollution: 55, sanity: 60, counter: 82, note: '国王组织的逻辑是交易：连"拒绝"都要付钱。' },
+    // —— 第 24 轮：原著/同人补充厉鬼 ——
+    guibus: { threat: 68, rule: 82, sense: 74, pollution: 55, sanity: 62, counter: 70, note: '它按站停、按名字收人：报了名字的人才有座位，也才有下不去的资格。' },
+    ghostship: { threat: 92, rule: 90, sense: 82, pollution: 78, sanity: 74, counter: 86, note: '整条船是一个阴谋：船、船员、航线都是它写好的规矩。' },
+    huangziya: { threat: 55, rule: 60, sense: 58, pollution: 45, sanity: 68, counter: 48, note: '她要的不是命，是"属于自己的东西"——认房子不认人。' },
+    zhizharen: { threat: 38, rule: 62, sense: 40, pollution: 45, sanity: 52, counter: 42, note: '纸人替人受事：写错名字，就把别人的账接到自己身上。' },
+    zangdui: { threat: 62, rule: 76, sense: 62, pollution: 68, sanity: 55, counter: 60, note: '只走老路：挡了路的人得替他们抬一段，抬过就留下味道。' },
+    shanshen: { threat: 82, rule: 88, sense: 74, pollution: 60, sanity: 66, counter: 78, note: '它管一座山，也管山上所有人的承诺。' },
+    jingdizhi: { threat: 45, rule: 66, sense: 48, pollution: 72, sanity: 50, counter: 52, note: '阴气从井里出来：住得越久的人越"轻"，手印一天比一天靠上。' },
+    baiduzhe: { threat: 58, rule: 80, sense: 55, pollution: 50, sanity: 82, counter: 62, note: '他摆渡的是"忘"：上船的人丢一段记忆，换一次过河。' },
+    // —— 第 24 轮：同人主角级驭鬼者 ——
+    ganshiren_p: { threat: 70, rule: 62, sense: 74, pollution: 60, sanity: 40, counter: 50, note: '赶尸夜行：天亮前必须到，迟了就得拿东西补。' },
+    xiegui_p: { threat: 64, rule: 70, sense: 60, pollution: 40, sanity: 58, counter: 66, note: '记录会轻微成真：他不改结果，但会留下痕迹。' },
+    moyao_p: { threat: 72, rule: 66, sense: 55, pollution: 62, sanity: 45, counter: 60, note: '序列魔药：能力升级，代价是人性，而且能把代价转给别人。' },
+    lianqi_p: { threat: 66, rule: 58, sense: 58, pollution: 45, sanity: 40, counter: 52, note: '炼气护身：灵异靠近他会变慢，代价是要还得清楚。' },
+    yinqi_p: { threat: 60, rule: 60, sense: 52, pollution: 78, sanity: 44, counter: 46, note: '吸灵异的阴气：替人挡事，但吸进去的东西存在她身上。' },
+    yiwang_p: { threat: 58, rule: 74, sense: 62, pollution: 40, sanity: 92, counter: 58, note: '范围遗忘：靠近他的人会忘记为什么靠近。' },
   };
   const DIM_LABEL = {
     threat: '威胁', rule: '规律严苛', sense: '感知追踪',
@@ -2514,7 +3001,11 @@ body.story-mode .logwrap{max-height:22vh !important}
     canonExtraGhosts: canonExtraGhosts,
     canonExtraIds: Object.keys(canonExtraGhosts),
     driverGhosts: driverGhosts,
-    driverGhostIds: Object.keys(driverGhosts),
+    driverGhostIds: Object.keys(driverGhosts).concat(Object.keys(moreDrivers)),
+    moreGhosts: moreGhosts,
+    moreGhostIds: Object.keys(moreGhosts),
+    moreDrivers: moreDrivers,
+    moreDriverIds: Object.keys(moreDrivers),
     stances: stances,
     packs: packs,
     npcs: npcs,
@@ -6268,6 +6759,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     { id: 'god', cat: 'collect', name: '规则之神', desc: '达成规则之神结局', cond: (c) => c.ending === 'w_rules' },
     { id: 'gate', cat: 'collect', name: '关门人', desc: '达成关门人结局', cond: (c) => c.ending === 'w_gate' },
     { id: 'survivor_end', cat: 'collect', name: '幸存者', desc: '达成幸存者结局（活着退场）', cond: (c) => c.ending === 'p_survivor' },
+    { id: 'witness_end', cat: 'collect', name: '见证者', desc: '队长线：全程不干预，看着他走完那条路', cond: (c) => c.ending === 'w_witness' },
     { id: 'world_all', cat: 'collect', name: '四种世界', desc: '四种世界结局全部达成', cond: (c) => ['w_ruyu', 'w_golden', 'w_gate', 'w_rules', 'w_37'].every((k) => c.profile.endings[k]) },
     { id: 'fac_18', cat: 'collect', name: '百鬼夜行', desc: '跨局遭遇过全部 18 只厉鬼', cond: (c) => Object.keys(c.profile.faced || {}).length >= 18 },
     { id: 'know_20', cat: 'collect', name: '规律考据', desc: '跨局掌握 ≥20 条规律线索', cond: (c) => Object.keys(c.profile.knownClues || {}).length >= 20 },
