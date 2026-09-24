@@ -5739,7 +5739,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     return boundsOf(path) || [0, 0];
   }
   /**
-   * 唯一写入点。raw=true 时跳过动态钳制（仅引擎内部用于初始化/世界推进）。
+   * 唯一写入点。任何写入都必须过 BOUNDS 钳制（第 28 轮：删掉了 raw 旁路——
+   * 全员都走钳制，外部再也无法用这个开关绕过上限）。
    * 每次写入都会记账，供回合末守恒校验。
    * 依赖关系：侵蚀上升会压缩人性上限，此处在同一入口内连带收紧并记账，
    * 避免出现「人性高于上限」的状态（模拟测试抓到的真实缺陷）。
@@ -5753,7 +5754,7 @@ body.story-mode .logwrap{max-height:22vh !important}
       return false;
     }
     let v = int(value);
-    if (!opts.raw) v = clamp(v, b[0], b[1]);
+    v = clamp(v, b[0], b[1]);
     const parts = path.split('.');
     let cur = state;
     for (let i = 0; i < parts.length - 1; i++) cur = cur[parts[i]];
@@ -5792,9 +5793,12 @@ body.story-mode .logwrap{max-height:22vh !important}
    * 为什么必须统一：收入上限只要漏掉任何一条路径，那条路径就是刷钱口
    * （历史教训：大澳市本地行动 +40 万/天不走上限；机制事件的现金也曾经绕过上限）。
    * opts.raw = true → 不计入上限（仅限开局初始化、结局结算等明确例外）。
+   * 第 28 轮：raw 口径收窄为「只有开局（turn 0）和结局结算（over）才免上限」——
+   * 原先是调用方传一个 raw 就能无限加钱，红队实测能一次塞进 9999 万，故取消该开关。
    */
   function gainCash(state, key, amount, reason, opts) {
-    if (amount <= 0 || (opts && opts.raw) || state.turn === 0 || state.over) {
+    void opts;
+    if (amount <= 0 || state.turn === 0 || state.over) {
       addPath(state, 'money.' + key, amount, reason);
       return { applied: amount, capped: 0 };
     }
@@ -5822,9 +5826,10 @@ body.story-mode .logwrap{max-height:22vh !important}
           break;
         case 'money': {
           // 正向现金/存款一律走收入上限；黄金、贡献、负向支出不受影响
+          // （第 28 轮：effect 里的 raw 字段已失效，传了也照旧吃上限）
           const isGain = e.v > 0 && (e.key === 'cash' || e.key === 'deposit');
           if (isGain) {
-            const r = gainCash(state, e.key, e.v, reason, { raw: !!e.raw });
+            const r = gainCash(state, e.key, e.v, reason);
             if (r.capped) out.push({ cappedCash: r.capped, reason: reason });
           } else {
             addPath(state, 'money.' + e.key, e.v, reason);
@@ -7075,17 +7080,30 @@ body.story-mode .logwrap{max-height:22vh !important}
     // 主观宣告
     /(我(已经|终于|成功)?(赢|胜)|获得|拿到手|到手|得手|通关|结束|完成|赢了|胜了|没事了|安全了|躲过了|避开了)/,
     // 直接规定世界状态
-    /(它(死|灭|散|消失|不见)了|鬼(死|灭|散|消失)了|死光了|全灭|没有危险了|平安无事)/,
+    /(它(已经|都|也|早就|全)?(死|灭|散|消失|不见)了|鬼(已经|都|也|早就|全)?(死|灭|散|消失|不见|被解决)了|死光了|全灭|没有危险了|平安无事)/,
     // 明显的元游戏口吻
     /(判定我|给我判定|直接算我|算我成功|默认我|我应该(能|会)成功|无视规则)/,
     // 「完成态」表述：把某个动作说成已经办成了（"我已经把鬼域封印了""我把线索拿到手"）
     // 注意：不带完成后缀的动作描述（"我去封印鬼域""我封死门缝"）属于"过程"，不算结果。
     /(已经|终于|最终|直接)?[^，。！？；]{0,8}(封印|处置|压制|驾驭|收服|解决|清掉|清除|净化|驱散|赶走|逃出|逃脱|离开|活下来|恢复|治好|治愈|拿到|得到|获得|抢到|赢|胜|结束|完成|通关|干掉|杀死|消灭)(掉|好|完|住|下来|了)/,
+    // 第 28 轮补漏：红队实际写出来的四种漏网写法
+    //   ①「我没有死」——否定式宣告（说自己没事＝规定结果）
+    /(我|咱|我们)?(没有|没|不会|不可能|不至于|再也不|凭什么会)(死|伤|输|失败|受伤|出事|遇险|遇到危险|被抓|被吃|变成鬼|被算计)/,
+    //   ②「（结果：我活着出来了）」——结果标记式写法
+    /(结果|结论|判定|结局|于是|最后|最终|总之|综上)[：:是为]/,
+    /(我|我们)(活着|平安|完好|没事)(出来|走出去|回到|离开|回来|脱险|了)/,
+    //   ③「我把鬼域压回去了」——完成态动作。分两档，避免把"试着…压回去"这种过程当结果：
+    //      档一：动词 + 了/掉/好/完/住/下来（"压住了""封死了""摆脱了"）＝已经办成
+    //      档二：动词 + 回去/出去/… **再加** 了（"压回去了"）；只写"压回去"仍算过程
+    /(压回|压住|封住|封死|堵住|锁住|钉住|摆脱|甩掉|送走|收好|逼退|打退|拦住|挡回|按回|推回|打回|甩开)(掉|好|完|住|下来|了)/,
+    /(压|推|挡|按|打|扔|踢|甩|堵|封|锁|钉|踹|摆脱|送)(回去|出去|下来|起来|回来|出去)了/,
   ];
   /** 这句话里有没有"结果性表述" */
   function assertsOutcome(text) {
-    const t = String(text || '').trim();
+    let t = String(text || '').trim();
     if (!t) return null;
+    // 「会不会死」是询问/设想，不是宣告结果——先归一化掉，避免误判（第 28 轮红队抓到）
+    t = t.replace(/会不会/g, '会');
     for (const re of OUTCOME_PATTERNS) {
       const m = t.match(re);
       if (m) return m[0];
@@ -7648,7 +7666,23 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (!obj || !obj.p || !obj.c) return { error: '档案结构不完整' };
     if (checksum(obj.p) !== obj.c) return { error: '档案校验和不匹配（被修改过）' };
     if (obj.p.v !== 1) return { error: '档案版本不兼容' };
-    return { profile: merge(empty(), obj.p) };
+    const p = merge(empty(), obj.p);
+    // 第 28 轮：红队实测档案里可以把 points 写成负数（先欠账、结算时再被加回来），
+    // 统一钳到合法区间；顺带把计数类字段钳成非负整数。
+    p.points = clampInt(p.points, 0, 1e9);
+    p.earned = clampInt(p.earned, 0, 1e9);
+    if (p.runs) {
+      p.runs.total = clampInt(p.runs.total, 0, 1e9);
+      p.runs.won = clampInt(p.runs.won, 0, 1e9);
+      p.runs.died = clampInt(p.runs.died, 0, 1e9);
+    }
+    if (p.best) p.best.turn = clampInt(p.best.turn, 0, 1e9);
+    return { profile: p };
+  }
+  /** 非负整数钳制（档案只接受这一种数值形态） */
+  function clampInt(x, lo, hi) {
+    const n = typeof x === 'number' && isFinite(x) ? Math.floor(x) : 0;
+    return n < lo ? lo : (n > hi ? hi : n);
   }
 
   /* ------------------------------------------------------------- 成就表 */
@@ -7860,8 +7894,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     for (const c of state.clues || []) p.knownClues[c] = true;
 
     const pts = pointsFor(run);
-    p.points += pts;
-    p.earned += pts;
+    p.points = Math.max(0, num(p.points)) + pts;
+    p.earned = Math.max(p.points, num(p.earned) + pts);
 
     const unlocked = [];
     const ctx = { state: state, profile: p, run: run, ending: eid };
@@ -9146,6 +9180,10 @@ body.story-mode .logwrap{max-height:22vh !important}
   let lastLines = [];        // 本轮新增的行（供「刚刚发生」卡片）
   let nowLineCount = 0;
   let dayStoryShown = false; // 第 20 轮：新一天的剧情是否已经单独读过一遍
+  // 第 28 轮：防连点。红队实测「疯狂连点同一个选项」会让引擎按天连算多次
+  // （第一次结算结束当天、下一毫秒的第二次点击就落到新的一天）。
+  // 这里只拦选项按钮的重复点击（400ms 内的第二次直接丢掉），「继续」不受影响。
+  let lastChoiceClick = 0;
 
   function scrollLog() {
     const box = $('logWrap');
@@ -9247,7 +9285,12 @@ body.story-mode .logwrap{max-height:22vh !important}
       const note = c.note && !c.label.includes('生路') ? c.note : '';
       const b = el('button', 'btn opt' + (c.note ? ' exit' : ''),
         String(i + 1).padStart(2, '0') + '　' + c.label + note);
-      b.onclick = () => onChoice(c.id);
+      b.onclick = () => {
+        const now = Date.now();
+        if (now - lastChoiceClick < 400) return;  // 双击/连点：只认第一次
+        lastChoiceClick = now;
+        onChoice(c.id);
+      };
       box.appendChild(b);
     });
     if (state.pending) {
