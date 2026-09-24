@@ -308,6 +308,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     <button class="btn small" id="btnGuide">世界观</button>
     <span class="tag" id="aiState">AI 叙事：关</span>
     <button class="btn small" id="btnAI">AI 叙事设置</button>
+    <button class="btn small" id="btnSaveQuick">存档</button>
+    <button class="btn small" id="btnLoadQuick">读档</button>
     <button class="btn small" id="btnCard">存档卡</button>
     <button class="btn small" id="btnSave">导出存档</button>
     <button class="btn small" id="btnLoad">导入存档</button>
@@ -1374,6 +1376,456 @@ body.story-mode .logwrap{max-height:22vh !important}
 
   Object.assign(ghosts, smartGhosts);
 
+  /* ================================================= 原著补充厉鬼（第 23 轮）
+   * 用户点名：「原著里好多厉鬼没加进去吧，比如鬼绳」。这里补的是原著里以「灵异物品 / 知名事件」
+   * 形式出现的存在——它们在玩家侧的体验与厉鬼一致（有规律、有陷阱/中性/生路），所以直接进 ghosts。
+   */
+  const canonExtraGhosts = {
+    shengzi: {
+      id: 'shengzi', name: '鬼绳', level: 'A', penalty: 42, tie: '原著·灵异物品「鬼绳」',
+      encounter: '你身上多了一圈东西。不重，但勒得刚好——你一动，它就紧一分。' +
+        '你低头看：那是一条旧麻绳，接口处的纤维已经发黑，像是从别人脖子上取下来的。',
+      clues: [
+        { id: 'sz1', text: '它靠"缠绕"留住人：挣扎越猛，收得越快。' },
+        { id: 'sz2', text: '它认的是"结"——结在谁身上，就记谁。' },
+        { id: 'sz3', text: '鬼绳会失效：绳结被人解开过、或带上它的人已经死了，它就松。' },
+      ],
+      traps: [
+        { id: 'sz_t1', label: '用力去扯它', tags: ['挣扎'] },
+        { id: 'sz_t2', label: '拿刀去割绳子', tags: ['割绳'] },
+      ],
+      neutral: [
+        { id: 'sz_n1', label: '全身放松，慢慢蹲下来', tags: ['放松'] },
+      ],
+      exits: [
+        { id: 'sz_e1', label: '顺着绳结一个个退回原样，把它解下来（生路）', tags: ['解结'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -12 }] },
+        { id: 'sz_e2', label: '把绳结转移给一个已经死了的东西（生路）', tags: ['转移'], needClues: 2,
+          cost: [{ k: 'stat', key: 'pollution', v: 10 }, { k: 'stat', key: 'causality', v: 8 }] },
+      ],
+      exitText: '绳结松开的时候，你听见很轻的一声——像是有人终于吐出一口气。地上只剩一圈灰。',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'itemAdd', id: 'guizhu' }],
+      masteryClue: 'sz3',
+    },
+
+    gangqin: {
+      id: 'gangqin', name: '诅咒钢琴', level: 'A', penalty: 48, tie: '原著·灵异物品「钢琴」',
+      encounter: '楼里的旧钢琴自己响了。曲子很慢，很好听——你忽然意识到，' +
+        '自己已经站在原地听了很久，而且并不想走。曲子弹完之前，没有人能离开这层楼。',
+      clues: [
+        { id: 'gq1', text: '曲终人亡：只要演奏完整，听到的人必死。' },
+        { id: 'gq2', text: '它必须"弹完"才算生效——中断就是唯一的机会。' },
+        { id: 'gq3', text: '钢琴认演奏者：谁坐在琴凳上，谁就得把曲子负责到底。' },
+      ],
+      traps: [
+        { id: 'gq_t1', label: '坐下来，替它把曲子接完', tags: ['接奏'] },
+        { id: 'gq_t2', label: '跟着旋律哼下去', tags: ['和声'] },
+      ],
+      neutral: [
+        { id: 'gq_n1', label: '捂住耳朵退出这一层', tags: ['退场'] },
+      ],
+      exits: [
+        { id: 'gq_e1', label: '在曲子的间隙里砸断琴弦（生路）', tags: ['断弦'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -14 }, { k: 'stat', key: 'sanity', v: -6 }] },
+        { id: 'gq_e2', label: '把琴凳挪走，让"演奏者"不存在（生路）', tags: ['挪凳'], needClues: 2,
+          cost: [{ k: 'stat', key: 'pollution', v: 8 }] },
+      ],
+      exitText: '琴声断在一个不该断的音上。整层楼像被人按住后脑勺，安静了很久，才慢慢松开。',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'money', key: 'contribution', v: 30 }],
+      masteryClue: 'gq2',
+    },
+
+    guihu: {
+      id: 'guihu', name: '诡湖', level: 'S', penalty: 58, tie: '原著·太平古镇·诡湖事件',
+      encounter: '镇子的一半沉在水下。你能从水面看到路灯、招牌、还有一扇没关的窗——' +
+        '灯还亮着，窗里有人在走动。水很静，静得不合理。',
+      clues: [
+        { id: 'gh1', text: '整片湖是一次"淹没"的结果：下面那半座镇子还按当时的规矩运转。' },
+        { id: 'gh2', text: '不能往水里看太久——看久了你会开始想"下去看看"。' },
+        { id: 'gh3', text: '当年沉下去的东西还在下面；能把它捞上来，湖就会退一点。' },
+      ],
+      traps: [
+        { id: 'gh_t1', label: '下水，去那扇亮着灯的窗看看', tags: ['下水'] },
+        { id: 'gh_t2', label: '对着水面喊一嗓子', tags: ['出声'] },
+      ],
+      neutral: [
+        { id: 'gh_n1', label: '沿着岸边的路标往高处走', tags: ['上岸'] },
+      ],
+      exits: [
+        { id: 'gh_e1', label: '用绳子把水下的旧牌子捞上来（生路）', tags: ['打捞'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stamina', v: -18 }, { k: 'stat', key: 'pollution', v: 8 }] },
+        { id: 'gh_e2', label: '把当年没来得及撤走的名字念一遍，让他们"上岸"（生路）', tags: ['念名'], needClues: 3,
+          cost: [{ k: 'stat', key: 'sanity', v: -12 }, { k: 'flag', key: 'favor', v: 2 }] },
+      ],
+      exitText: '水面降下去一尺，露出湿漉漉的石阶。你回头时，那扇窗里的灯灭了——像是终于睡了。',
+      rewards: [{ k: 'flag', key: 'intel', v: 3 }, { k: 'clue', id: 'gh3' }],
+      masteryClue: 'gh3',
+    },
+
+    hunping: {
+      id: 'hunping', name: '魂瓶', level: 'A', penalty: 44, tie: '原著·陵镇老宅·魂瓶',
+      encounter: '老宅地下室里摆着七个瓶子，瓶口都封着黄纸。其中一张封条翘起了半个角，' +
+        '纸下面有东西在轻轻地顶——它想出来，而且它知道你在看着。',
+      clues: [
+        { id: 'hp1', text: '这些瓶子是百年前驭鬼者留下的：一只瓶子关一只厉鬼。' },
+        { id: 'hp2', text: '封条一撕，瓶子里的东西立刻出来；不撕，它就只能一直顶。' },
+        { id: 'hp3', text: '补封比撕封难——但补上的封条比原来的结实。' },
+      ],
+      traps: [
+        { id: 'hp_t1', label: '把翘起的封条按回去，看看能不能压住', tags: ['按压'] },
+        { id: 'hp_t2', label: '撕开看看里面是什么', tags: ['撕封'] },
+      ],
+      neutral: [
+        { id: 'hp_n1', label: '退出去，先把门关上', tags: ['退场'] },
+      ],
+      exits: [
+        { id: 'hp_e1', label: '用黄纸和朱砂把瓶口重新封上（生路）', tags: ['补封'], needClues: 1,
+          cost: [{ k: 'stat', key: 'pollution', v: 8 }, { k: 'stat', key: 'stamina', v: -10 }] },
+        { id: 'hp_e2', label: '把七个瓶子的封条按年份重新排序再封（生路）', tags: ['排序'], needClues: 3,
+          cost: [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'itemAdd', id: 'fu' }] },
+      ],
+      exitText: '封条贴回去的时候，瓶子里的东西停了半秒，然后继续顶——但轻了很多。' +
+        '你退出去锁门，指尖上沾着一点朱砂，洗不掉。',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'itemAdd', id: 'fu' }],
+      masteryClue: 'hp2',
+    },
+  };
+
+  /* ==================================================== 驭鬼者（人）·第 23 轮
+   * 用户要求：「御鬼者是可以遇见的」——李军的鬼火、阿红的鬼妆、熊文文的预知、沈林的鬼相、
+   * 郭凡的灵位，以及其他总部队长与国外的国王。
+   * 实现：person: true 的"人"进同一张表（复用规律/选项/结算），但不进随机遭遇池，
+   *       只从「会见其他驭鬼者」这条每日行动里出现；接了 AI 时由 AI 扮他们说话（可选）。
+   */
+  const driverGhosts = {
+    lvjun: {
+      id: 'lvjun', name: '李军（鬼火）', level: 'A', penalty: 40, person: true,
+      tie: '总部·队长（原著·鬼火）',
+      encounter: '他蹲在烧塌的半边楼里抽烟，烟火不是橘色，是发青的。' +
+        '"别靠太近，"他头也不抬，"这火不挑燃料。"',
+      clues: [
+        { id: 'lj1', text: '鬼火能烧掉灵异附着，也会把附着物和使用者一起点着。' },
+        { id: 'lj2', text: '李军不爱说话，但从不骗人：他说危险就是真的危险。' },
+        { id: 'lj3', text: '他手上有总部的渠道——用得上，但要拿东西换。' },
+      ],
+      traps: [
+        { id: 'lj_t1', label: '伸手去碰那点青火', tags: ['触碰'] },
+      ],
+      neutral: [
+        { id: 'lj_n1', label: '站在三步外，等他先把烟抽完', tags: ['等待'] },
+      ],
+      exits: [
+        { id: 'lj_e1', label: '直接说你要什么，问他要什么价（生路·交易）', tags: ['交易'], needClues: 1,
+          cost: [{ k: 'money', key: 'cash', v: -60 }] },
+        { id: 'lj_e2', label: '提出用一条情报换他一次出手（生路）', tags: ['换情报'], needClues: 2,
+          cost: [{ k: 'flag', key: 'intel', v: -1 }] },
+      ],
+      exitText: '他把烟头在墙上按灭——墙皮无声地烧掉一小块。"东西给你。别死在我负责的片区。"',
+      rewards: [{ k: 'flag', key: 'favor', v: 2 }, { k: 'itemAdd', id: 'fu' }],
+      masteryClue: 'lj1',
+      persona: {
+        who: '总部队长李军，契约厉鬼是"鬼火"。',
+        think: '实用主义者，话少，把命看得比面子重；讨厌拖人和话多的人。',
+        speak: '短句，像刀切：先给结论，再给条件。偶尔用一句自嘲收尾。',
+        power: '鬼火：能烧灵异附着，也会反烧使用者。',
+        taboo: '别拿"救人"来道德绑架他；他会立刻走人。',
+        deal: '交易公平：要东西就拿钱、情报或人情换。',
+      },
+      abilities: ['鬼火焚烧', '总部渠道', '情报交易', '片区庇护'],
+      talk: ['说。', '要什么，拿什么换。'],
+    },
+
+    ahong: {
+      id: 'ahong', name: '阿红（鬼妆）', level: 'A', penalty: 38, person: true,
+      tie: '总部·队长（原著·鬼妆）',
+      encounter: '她背对着你坐在镜子前化妆。镜子里那张脸先转过来看了你一眼，' +
+        '然后她才慢慢跟着转过来——顺序不对。',
+      clues: [
+        { id: 'ah1', text: '鬼妆能把一张脸"改成鬼认不出的样子"，也能把活人画成鬼的样子。' },
+        { id: 'ah2', text: '她化过的妆不能自己卸：卸妆是她的手，别人动手就是撕脸。' },
+        { id: 'ah3', text: '阿红心软：只要你当真求她一次，她多半会答应。' },
+      ],
+      traps: [
+        { id: 'ah_t1', label: '伸手去摸镜子里的那张脸', tags: ['触碰'] },
+      ],
+      neutral: [
+        { id: 'ah_n1', label: '站着等她把这个妆化完', tags: ['等待'] },
+      ],
+      exits: [
+        { id: 'ah_e1', label: '请她给你化一次"让鬼认不出"的妆（生路）', tags: ['求妆'], needClues: 1,
+          cost: [{ k: 'stat', key: 'pollution', v: 8 }, { k: 'stat', key: 'erosion', v: 3 }] },
+        { id: 'ah_e2', label: '承诺替她做一件她做不了的事，换她替你顶一次（生路）', tags: ['人情'], needClues: 2,
+          cost: [{ k: 'stat', key: 'causality', v: 6 }] },
+      ],
+      exitText: '她把眉笔放下，看了你很久。"这张脸借你用到天亮。天亮之后你自己洗掉——别让别人碰。"',
+      rewards: [{ k: 'stat', key: 'stealth', v: 10 }, { k: 'flag', key: 'favor', v: 2 }],
+      masteryClue: 'ah3',
+      persona: {
+        who: '总部队长阿红，契约厉鬼是"鬼妆"。',
+        think: '看起来随和，其实把自己活成了一把工具；对人有旧伤，所以格外护着弱者。',
+        speak: '语气轻，常带一点调侃，但谈到"脸"和"卸妆"时会突然认真。',
+        power: '鬼妆：改容貌、让鬼认不出、把活人画成鬼的样子。',
+        taboo: '不许碰她的镜子，也不许替她卸妆。',
+        deal: '她只要人情，不要钱；人情会记很久。',
+      },
+      abilities: ['鬼妆改貌', '让厉鬼认不出', '伪装成鬼', '欠人情'],
+      talk: ['镜子别碰。', '你求我一次，我就答应你一次。'],
+    },
+
+    xiongwenwen: {
+      id: 'xiongwenwen', name: '熊文文（预知）', level: 'A', penalty: 42, person: true,
+      tie: '总部（原著·熊文文）',
+      encounter: '她坐在台阶上写东西，写完抬头："你三分钟后会问我一句话。"' +
+        '你还没开口，她把本子合上："问了也没用，我看到的是没问的那个版本。"',
+      clues: [
+        { id: 'xw1', text: '她的预知是"看到"而不是"改变"：看得越清楚，越不能改。' },
+        { id: 'xw2', text: '每用一次，她都要付出代价——代价记在她的身体上。' },
+        { id: 'xw3', text: '她写下来的东西比说出来的准：字是给自己的。' },
+      ],
+      traps: [
+        { id: 'xw_t1', label: '逼她再看一次你的结局', tags: ['逼迫'] },
+      ],
+      neutral: [
+        { id: 'xw_n1', label: '不问，只陪她坐一会儿', tags: ['陪坐'] },
+      ],
+      exits: [
+        { id: 'xw_e1', label: '请她只看"下一天"这一点（生路）', tags: ['看一天'], needClues: 1,
+          cost: [{ k: 'stat', key: 'causality', v: 8 }] },
+        { id: 'xw_e2', label: '把她写的那页纸要过来（生路）', tags: ['要纸'], needClues: 2,
+          cost: [{ k: 'stat', key: 'sanity', v: -6 }, { k: 'flag', key: 'favor', v: 1 }] },
+      ],
+      exitText: '她撕下一页递给你，上面只有一行字：明天别走那条巷子。你问她为什么，她摇头：' +
+        '"写下来的就是这样。别问。"',
+      rewards: [{ k: 'flag', key: 'intel', v: 3 }],
+      masteryClue: 'xw1',
+      persona: {
+        who: '总部的熊文文，能力是预知。',
+        think: '宿命论者：她相信看到的东西改变不了，所以对生死很淡，对人反而很温柔。',
+        speak: '平静、像在念别人的事；会把你的未来当成已经发生的事说出来。',
+        power: '预知片段；代价是身体的损耗。',
+        taboo: '不能逼她连续预知——她会当真，然后照做（不再提醒你）。',
+        deal: '她不要报酬，只要你答应她一件事：看到的东西不要拿去害人。',
+      },
+      abilities: ['预知片段', '写下未来', '判断凶吉', '身体作为代价'],
+      talk: ['你已经问过了。', '我看到了，但我不能说全。'],
+    },
+
+    shenlin: {
+      id: 'shenlin', name: '沈林（鬼相）', level: 'A', penalty: 46, person: true,
+      tie: '总部·队长（原著·鬼相）',
+      encounter: '他站在楼道里，你看着他的脸——像是隔着一层水。' +
+        '"别盯着看，"他说，"我这张脸现在不只属于我。"',
+      clues: [
+        { id: 'sl1', text: '他体内的鬼相能"替位"：短时间内替你死一次，但会换走你的某个特征。' },
+        { id: 'sl2', text: '鬼相不是护身符，是交易：用得越多，他自己的脸越不像自己。' },
+        { id: 'sl3', text: '沈林认规矩不认人，和他打交道要把条件写在明面上。' },
+      ],
+      traps: [
+        { id: 'sl_t1', label: '要求他替你去顶一次危险', tags: ['索求'] },
+      ],
+      neutral: [
+        { id: 'sl_n1', label: '和他并肩站一会儿，不说话', tags: ['并肩'] },
+      ],
+      exits: [
+        { id: 'sl_e1', label: '用一个明确的代价换他一次"替位"（生路）', tags: ['替位'], needClues: 2,
+          cost: [{ k: 'stat', key: 'erosion', v: 6 }, { k: 'stat', key: 'causality', v: 10 }] },
+        { id: 'sl_e2', label: '请他给你讲清楚鬼相的规矩（生路·只要情报）', tags: ['问规矩'], needClues: 1,
+          cost: [{ k: 'stat', key: 'stealth', v: -4 }] },
+      ],
+      exitText: '"记住了：替位只挡一次，挡完你会少一样东西——自己挑。"他说完就上楼了，' +
+        '楼道里的水声一直跟着他。',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'flag', key: 'favor', v: 1 }],
+      masteryClue: 'sl1',
+      persona: {
+        who: '总部队长沈林，契约厉鬼是"鬼相"。',
+        think: '规矩感极强：什么都讲条件、讲清楚。他把自己也当成条款的一部分。',
+        speak: '正式、克制，用"条款"式的句子；很少谈感受。',
+        power: '鬼相替位（挡死一次，代价是失去某个特征）。',
+        taboo: '别跟他打感情牌；也别在他面前说谎——鬼相看得出。',
+        deal: '条件必须写在明面上，代价要具体。',
+      },
+      abilities: ['鬼相替位', '一次挡死', '看穿谎言', '规矩审查'],
+      talk: ['条件先说清。', '替位一次。代价你自己挑。'],
+    },
+
+    guofan: {
+      id: 'guofan', name: '郭凡（灵位）', level: 'A', penalty: 44, person: true,
+      tie: '总部（原著·灵位）',
+      encounter: '他面前摆着一块小小的木牌，上面有名字。他正在用朱砂描那行字。' +
+        '"名字写上去，就得有人应。"他说，"你要不要也留一个？"',
+      clues: [
+        { id: 'gf1', text: '灵位能"招名"：写上名字的东西会被叫住，困在牌位附近。' },
+        { id: 'gf2', text: '灵位也保护人：名字在位，鬼找你就得多绕一圈。' },
+        { id: 'gf3', text: '牌位不能写两个名字——重名等于把两条命挂在一根钉子上。' },
+      ],
+      traps: [
+        { id: 'gf_t1', label: '报上真名，让他立刻写上', tags: ['署名'] },
+      ],
+      neutral: [
+        { id: 'gf_n1', label: '看着他把手上那块牌描完', tags: ['旁观'] },
+      ],
+      exits: [
+        { id: 'gf_e1', label: '用化名请他做一块"挡路"的牌位（生路）', tags: ['化名'], needClues: 2,
+          cost: [{ k: 'stat', key: 'pollution', v: 6 }, { k: 'itemAdd', id: 'fu' }] },
+        { id: 'gf_e2', label: '帮他把一个不该在位上的名字划掉（生路）', tags: ['划名'], needClues: 3,
+          cost: [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'flag', key: 'favor', v: 2 }] },
+      ],
+      exitText: '"牌子放好，别立着，躺下。"他把小木牌塞进你手里，"躺着的牌挡路，立着的牌招人。"',
+      rewards: [{ k: 'flag', key: 'favor', v: 2 }, { k: 'stat', key: 'stealth', v: 6 }],
+      masteryClue: 'gf2',
+      persona: {
+        who: '总部的郭凡，能力来自"灵位"。',
+        think: '民俗底子厚，信"名字就是地址"；做事讲因果，不喜欢无名的东西。',
+        speak: '带旧礼数：先说"劳驾"，再说条件；爱用"该""应""不该"这类词。',
+        power: '灵位招名、困名、挡路。',
+        taboo: '别在他面前乱报别人的名字——他会当真去写。',
+        deal: '他用牌位换人情：你替他办一件事，他给你一块挡路的牌。',
+      },
+      abilities: ['灵位招名', '名字挡路', '划名', '民俗知识'],
+      talk: ['名字给我。', '躺着的牌挡路，立着的牌招人。'],
+    },
+
+    heyiner: {
+      id: 'heyiner', name: '何银儿（招魂）', level: 'A', penalty: 45, person: true,
+      tie: '总部（原著·何银儿）',
+      encounter: '她在屋里摆了七盏灯，灯芯都短。你进门的时候，七盏灯同时朝你这边偏了一下。' +
+        '"别出声，"她说，"我招的东西还没坐稳。"',
+      clues: [
+        { id: 'hy1', text: '招魂能短时间把力量借给自己——但借来的东西未必听她的。' },
+        { id: 'hy2', text: '招魂被打断，反噬会落在打断的人身上。' },
+        { id: 'hy3', text: '她招来的东西记仇：下次见到你，它会先认人。' },
+      ],
+      traps: [
+        { id: 'hy_t1', label: '打断她——这屋里太不对劲了', tags: ['打断'] },
+      ],
+      neutral: [
+        { id: 'hy_n1', label: '退到门边，屏住呼吸等', tags: ['静候'] },
+      ],
+      exits: [
+        { id: 'hy_e1', label: '替她按住最晃的那盏灯（生路）', tags: ['护灯'], needClues: 1,
+          cost: [{ k: 'stat', key: 'pollution', v: 10 }, { k: 'stat', key: 'stamina', v: -12 }] },
+        { id: 'hy_e2', label: '报出一个自己知道的名字，帮她稳住场（生路）', tags: ['报名'], needClues: 2,
+          cost: [{ k: 'stat', key: 'causality', v: 8 }] },
+      ],
+      exitText: '七盏灯慢慢立正，屋子里的温度回来了一点。她冲你点了下头："你欠我一个名字。"',
+      rewards: [{ k: 'flag', key: 'favor', v: 2 }, { k: 'flag', key: 'intel', v: 1 }],
+      masteryClue: 'hy2',
+      persona: {
+        who: '总部的何银儿，能力是招魂。',
+        think: '把"借"和"还"分得很清：借来的力量必须还，欠的名字必须补。',
+        speak: '压着嗓子的短句，像怕吵醒谁；说数字和名字时格外清晰。',
+        power: '招魂借力；代价是招来的东西会记住现场所有人。',
+        taboo: '绝不能在仪式中间打断她；也不能替她受伤。',
+        deal: '她跟你换名字与情报，不换钱。',
+      },
+      abilities: ['招魂借力', '七灯定场', '反噬转移', '记名'],
+      talk: ['别出声。', '借你的，我会还。'],
+    },
+
+    king: {
+      id: 'king', name: '国王组织·一位国王', level: 'S', penalty: 62, person: true,
+      tie: '国王组织（境外·原著）',
+      encounter: '他穿得很讲究，站在码头边看海，身后没有人。' +
+        '"总部的规矩，我读过。"他用很标准的中文说，"我更好奇你会不会讲价。"',
+      clues: [
+        { id: 'kg1', text: '国王组织的行事逻辑是交易与契约，但他们从不接受"免费"的善意。' },
+        { id: 'kg2', text: '一位国王随身带的不是武器，是一份能改写的名单。' },
+        { id: 'kg3', text: '跟他们打交道，最贵的是"拒绝"——拒绝也要付钱。' },
+      ],
+      traps: [
+        { id: 'kg_t1', label: '接受他递过来的名片', tags: ['接名片'] },
+      ],
+      neutral: [
+        { id: 'kg_n1', label: '不看他的手，只看海', tags: ['看海'] },
+      ],
+      exits: [
+        { id: 'kg_e1', label: '报一个你能付得起的价，问他要什么（生路）', tags: ['报价'], needClues: 2,
+          cost: [{ k: 'money', key: 'gold', v: 5 }] },
+        { id: 'kg_e2', label: '明确拒绝他，并当场付"拒绝费"（生路）', tags: ['拒绝'], needClues: 3,
+          cost: [{ k: 'stat', key: 'causality', v: 12 }, { k: 'stat', key: 'stealth', v: -6 }] },
+      ],
+      exitText: '他把名片收回口袋："那我们就各记一笔。"他上船前回头补了一句，' +
+        '"下次见面，价格会翻倍。"',
+      rewards: [{ k: 'flag', key: 'intel', v: 3 }, { k: 'money', key: 'gold', v: 2 }],
+      masteryClue: 'kg1',
+      persona: {
+        who: '国王组织的一位国王（境外势力），等级相当于总部队长之上的存在。',
+        think: '商人逻辑：一切都可以定价，包括你的拒绝；他对"情绪"没兴趣。',
+        speak: '礼貌、慢、带商务腔调；喜欢反问和复述你的话。',
+        power: '改写名单、跨境调度、契约级交易。',
+        taboo: '不能替他要的东西许诺而不付钱——违约他会亲自来收。',
+        deal: '只谈交易：报价、条件、期限。',
+      },
+      abilities: ['名单改写', '跨境调度', '契约交易', '拒绝收费'],
+      talk: ['报个价。', '拒绝也可以，先付钱。'],
+    },
+  };
+
+  Object.assign(ghosts, canonExtraGhosts);
+  Object.assign(ghosts, driverGhosts);
+
+
+  /* ============================================== 立场（第 23 轮）
+   * 用户要求：「玩家可以选择完全按原著来，自己只是一个队长罢了，不能干预杨间的成神之路；
+   * 或者是灵异论坛的人；或者都不加入，选择民间驭鬼者；当然也可以选择自己终结灵异时代」。
+   * 立场只决定：① 开局初始值 ② 每天多出来的专属行动 ③ 面板上的一行提醒 ④ 与"杨间线"的关系。
+   * 它不改变任何判定公式。
+   */
+  const stances = {
+    captain: {
+      id: 'captain', name: '总部队长（原著线）', short: '队长',
+      blurb: '你是有编制的人：有渠道、有报酬、有纪律，也有上级。你的任务是把灵异事件压下去，' +
+        '而不是去改写时代——杨间那条路，谁也插不了手。',
+      stats: { } ,
+      money: { contribution: 60, cash: 100 },
+      items: ['fu'],
+      flags: { org: 1 },
+      daily: ['report'],
+      rules: [
+        '不能干预杨间的成神之路：任何"插手杨间"的选择都会被总部追责，也会被他本人记住。',
+        '总部的任务必须接：拒绝会扣贡献，三次之后被开除编制（失去任务线）。',
+      ],
+      panelLine: '立场：总部队长（不能干预杨间的成神之路）',
+    },
+    forum: {
+      id: 'forum', name: '灵异论坛成员', short: '论坛',
+      blurb: '你不是官方的，你是"知道得太多"的那批人：论坛上什么消息都有，真假掺半；' +
+        '你靠情报活着，也因此更容易被人找上门。',
+      stats: { stealth: -12, sanity: 5 },
+      money: { cash: 60 },
+      items: [],
+      flags: { forum: 1, intel: 1 },
+      daily: ['browse'],
+      rules: ['论坛上发帖会暴露位置：连续发帖会被厉鬼与总部同时盯上。'],
+      panelLine: '立场：灵异论坛（情报多、容易被盯）',
+    },
+    civilian: {
+      id: 'civilian', name: '民间驭鬼者', short: '民间',
+      blurb: '没编制、没后援、没人替你收尸。好处是：没人能命令你，你只对自己的命负责。',
+      stats: { stamina: 5, sanity: -5 },
+      money: { cash: 40, gold: 1 },
+      items: ['relic'],
+      flags: { outlaw: 1 },
+      daily: ['oddjob'],
+      rules: ['没有总部的救助：重伤时不会有人来接你。'],
+      panelLine: '立场：民间驭鬼者（无后援、自由）',
+    },
+    own: {
+      id: 'own', name: '自立·终结灵异时代', short: '自立',
+      blurb: '你不打算等谁来收场。你要自己把灵异时代结束掉——代价是总部和国王组织都会把你当成变量。',
+      stats: { calamity: 8, erosion: 6, humanity: -6 },
+      money: { cash: 80 },
+      items: ['huangjin'],
+      flags: { endgame: 1 },
+      daily: ['plan'],
+      rules: [
+        '终结路线：劫难值上涨更快，但每推进一次"终结计划"，最后的世界结局会更偏向你。',
+        '总部与国王组织都会关注你：遭遇率上升 5%。',
+      ],
+      panelLine: '立场：自立（目标：终结灵异时代）',
+    },
+  };
+
   /* ------------------------------------------------------------- 开局包 */
   const packs = {
     longaotian: {
@@ -1529,14 +1981,14 @@ body.story-mode .logwrap{max-height:22vh !important}
   const cities = {
     dachang: { id: 'dachang', name: '大昌市', src: '原著', place: 'school',
       desc: '敲门鬼事件与饿死鬼沦陷的主场。第七中学、富仁商场、尚通大厦都在这里。',
-      ghosts: ['qiaomen', 'guiying', 'wutou', 'eshigui'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 0, advance: 0 },
+      ghosts: ['qiaomen', 'guiying', 'wutou', 'eshigui', 'shengzi'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 0, advance: 0 },
       rule: { text: '本地灵异浓度最高：驾驭 +5%，但被盯上的概率也高', mastery: 5, price: 1.0 },
       act: { label: '去第七中学翻那份失踪名册',
         effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'sanity', v: -4 }],
         lines: ['你在教务处翻到一份被抽走几页的名册。', '留下的那一页上，有六个名字被红笔圈过——其中一个是你。'] } },
     dajing: { id: 'dajing', name: '大京市', src: '原著', place: 'hotel',
       desc: '总部与国际驭鬼者培训基地所在，平安酒店与王小明实验基地都在城里。',
-      ghosts: ['guiguan', 'zhenname'], effects: [{ k: 'money', key: 'contribution', v: 30 }], mods: { encounter: 4, advance: 0 },
+      ghosts: ['guiguan', 'zhenname', 'gangqin'], effects: [{ k: 'money', key: 'contribution', v: 30 }], mods: { encounter: 4, advance: 0 },
       rule: { text: '总部辖区：补给好拿（物价 ×0.8），但规矩多（驾驭 −5%）', mastery: -5, price: 0.8 },
       act: { label: '去培训基地蹭一堂驭鬼者的课',
         effects: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'stat', key: 'stamina', v: -5 }],
@@ -1614,7 +2066,7 @@ body.story-mode .logwrap{max-height:22vh !important}
         lines: ['路上开始出现熟人，都背对着你，走的方向和你一样。', '你忍住没有叫住他们——叫住其中一个的代价，队长替你付过了。'] } },
     taiping: { id: 'taiping', name: '太平古镇', src: '原著', place: 'town',
       desc: '招魂人一脉守着鬼街。这地方对"阴"的东西有一套自己的规矩。',
-      ghosts: ['yinqigui', 'guixiang'], effects: [{ k: 'flag', key: 'favor', v: 2 }], mods: { encounter: 2, advance: 0 },
+      ghosts: ['yinqigui', 'guixiang', 'guihu'], effects: [{ k: 'flag', key: 'favor', v: 2 }], mods: { encounter: 2, advance: 0 },
       rule: { text: '招魂人一脉：驾驭 +8%，纸钱纸船都好用', mastery: 8, price: 1.0 },
       act: { label: '向招魂人买一张纸船',
         cost: [{ k: 'money', key: 'cash', v: -15 }],
@@ -1622,7 +2074,7 @@ body.story-mode .logwrap{max-height:22vh !important}
         lines: ['老人把纸船放在你掌心，纸是湿的。', '\"过水的时候把它放下去，它会替你走一段。\"'] } },
     huanggang: { id: 'huanggang', name: '黄岗村', src: '原著', place: 'village',
       desc: '鬼棺事件现场。棺材还埋在村后的坡上，位置只有村里老人知道。',
-      ghosts: ['guiguan', 'ganshigui'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 4, advance: 0 },
+      ghosts: ['guiguan', 'ganshigui', 'hunping'], effects: [{ k: 'flag', key: 'intel', v: 1 }], mods: { encounter: 4, advance: 0 },
       rule: { text: '村里忌讳多：线索好问，但村民不愿提那口棺材', mastery: 3, price: 1.0 },
       act: { label: '去村后坡上看那口棺材',
         effects: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'stat', key: 'sanity', v: -6 }, { k: 'stat', key: 'pollution', v: 3 }],
@@ -1891,6 +2343,19 @@ body.story-mode .logwrap{max-height:22vh !important}
     xuyuan: { threat: 74, rule: 95, sense: 68, pollution: 60, sanity: 82, counter: 85, note: '它的条款永远合法：反制它的唯一办法是许一个它执行不了的愿。' },
     captain: { threat: 86, rule: 80, sense: 72, pollution: 75, sanity: 78, counter: 68, note: '它招人补员：上船就等于登记，之后连岸上的名字都会被忘掉。' },
     guilouti: { threat: 75, rule: 90, sense: 66, pollution: 60, sanity: 74, counter: 70, note: '它靠计数抓人：你越规律，它越准。' },
+    // —— 第 23 轮：原著补充厉鬼 ——
+    shengzi: { threat: 62, rule: 74, sense: 80, pollution: 40, sanity: 55, counter: 68, note: '它认"结"：缠上就等于被记住，挣扎只会收得更紧。' },
+    gangqin: { threat: 70, rule: 88, sense: 60, pollution: 45, sanity: 72, counter: 66, note: '曲终人亡：唯一的机会是让它弹不完。' },
+    guihu: { threat: 88, rule: 82, sense: 76, pollution: 78, sanity: 70, counter: 72, note: '整片湖是一次事件的结果：下面那半座镇子还按当时的规矩运转。' },
+    hunping: { threat: 58, rule: 80, sense: 45, pollution: 65, sanity: 60, counter: 55, note: '封条是唯一的分界：撕开就出来，补上就压住。' },
+    // —— 第 23 轮：驭鬼者（人）——数值表示"作为对手有多麻烦"，不是鬼化程度 ——
+    lvjun: { threat: 72, rule: 50, sense: 55, pollution: 40, sanity: 35, counter: 45, note: '鬼火能烧灵异附着，也会反烧使用者——他也不喜欢贴脸打。' },
+    ahong: { threat: 58, rule: 45, sense: 60, pollution: 45, sanity: 50, counter: 40, note: '鬼妆改的是"脸"：被改过的人，鬼认不出，人也未必认得。' },
+    xiongwenwen: { threat: 62, rule: 70, sense: 92, pollution: 30, sanity: 45, counter: 60, note: '预知：她看到的是没被改变的那个版本，所以她不动手也难缠。' },
+    shenlin: { threat: 74, rule: 66, sense: 58, pollution: 50, sanity: 45, counter: 52, note: '鬼相替位：一次挡死，代价是你身上一样东西。' },
+    guofan: { threat: 60, rule: 72, sense: 66, pollution: 40, sanity: 48, counter: 50, note: '灵位写名：名字在位，鬼找你得多绕一圈；写错名就挂同一根钉子。' },
+    heyiner: { threat: 66, rule: 68, sense: 62, pollution: 55, sanity: 52, counter: 48, note: '招魂借力，但借来的东西会记住现场每个人的脸。' },
+    king: { threat: 90, rule: 88, sense: 78, pollution: 55, sanity: 60, counter: 82, note: '国王组织的逻辑是交易：连"拒绝"都要付钱。' },
   };
   const DIM_LABEL = {
     threat: '威胁', rule: '规律严苛', sense: '感知追踪',
@@ -2046,6 +2511,11 @@ body.story-mode .logwrap{max-height:22vh !important}
     ghosts: ghosts,
     smartGhosts: smartGhosts,
     smartGhostIds: Object.keys(smartGhosts),
+    canonExtraGhosts: canonExtraGhosts,
+    canonExtraIds: Object.keys(canonExtraGhosts),
+    driverGhosts: driverGhosts,
+    driverGhostIds: Object.keys(driverGhosts),
+    stances: stances,
     packs: packs,
     npcs: npcs,
     difficulties: difficulties,
@@ -3819,6 +4289,11 @@ body.story-mode .logwrap{max-height:22vh !important}
     'flags.favor': [0, 100],
     'flags.intel': [0, 20],         // 情报点数
     'flags.marks': [0, 99],         // 灾厄印记层数
+    // 第 23 轮：立场标记（只表示"你属于哪一边"，不参与判定）
+    'flags.org': [0, 3],            // 编制内（总部队长）
+    'flags.forum': [0, 3],          // 灵异论坛
+    'flags.outlaw': [0, 3],         // 民间驭鬼者
+    'flags.endgame': [0, 3],        // 自立·终结灵异时代
     'meta.deaths': [0, 1e6],
     'meta.bestTurn': [0, 1e6],
   };
@@ -3897,7 +4372,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       wife: null,
       children: 0,
       place: city.place || pack.place || 'city',
-      flags: Object.assign({ safehouse: 0, disguise: 0, intel: 0, marks: 0, favor: 0 }, pack.flags || {}),
+      flags: Object.assign({ safehouse: 0, disguise: 0, intel: 0, marks: 0, favor: 0,
+        org: 0, forum: 0, outlaw: 0, endgame: 0 }, pack.flags || {}),
       attempts: {},
       chapterReduction: 0,   // 本章已使用的劫难降低量（上限 5）
       chapterPurge: 0,       // 本章已用「处置灵异源头」次数（上限 3，不受 5 点上限约束）
@@ -3936,6 +4412,16 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (era.effects && era.effects.length) applyEffects(state, era.effects, '时期·' + era.name);
     if (city.effects && city.effects.length) applyEffects(state, city.effects, '落地·' + city.name);
 
+    // 第 23 轮：立场（总部队长 / 灵异论坛 / 民间驭鬼者 / 自立）。只改初始值与每日行动表，
+    // 不参与任何判定；老存档没有这个字段时按"民间驭鬼者"以外的默认值处理（stanceOf 会兜底）。
+    state.stance = (CONTENT.stances && CONTENT.stances[opts.stance]) ? opts.stance : 'civilian';
+    const st = CONTENT.stances[state.stance];
+    if (st) {
+      applyEffects(state, stanceEffectsOf(st), '立场·' + st.name);
+      state.meta.stance = state.stance;
+      if (state.stance === 'own') state.purgeRiskBonus = 5;   // 自立：被总部与国王组织盯着，遭遇率 +5%
+    }
+
     // 劫难值下限必须在**所有开局修正之后**才算：P1 的防苟活底线是"开局初始值 − 5"，
     // 而"初始值"指的是玩家真正拿到手的那个数。原来在应用时代/城市加成之前就固定了，
     // 于是像末日（劫难 +15）这种时期会白送 15 点可反复压低的余量，底线被悄悄放宽。
@@ -3943,6 +4429,25 @@ body.story-mode .logwrap{max-height:22vh !important}
 
     startTurn(state);        // 进入第 1 天
     return state;
+  }
+
+  /** 把立场的 stats/money/items/flags 组装成标准 effects（走唯一写入点） */
+  function stanceEffectsOf(st) {
+    const out = [];
+    const s = st.stats || {};
+    Object.keys(s).forEach((k) => out.push({ k: 'stat', key: k, v: s[k] }));
+    const m = st.money || {};
+    Object.keys(m).forEach((k) => out.push({ k: 'money', key: k, v: m[k] }));
+    (st.items || []).forEach((id) => out.push({ k: 'itemAdd', id: id }));
+    const f = st.flags || {};
+    Object.keys(f).forEach((k) => out.push({ k: 'flag', key: k, v: f[k] }));
+    return out;
+  }
+
+  /** 当前立场定义（老存档 / 未知值 → 民间驭鬼者） */
+  function stanceOf(state) {
+    const id = (state && state.stance) || 'civilian';
+    return (CONTENT.stances && CONTENT.stances[id]) || CONTENT.stances.civilian;
   }
 
   /** 缓存：从 state 取落地/时期定义（老存档没有这两个字段 → 退回原著 2018 + 普通城市） */
@@ -3964,6 +4469,8 @@ body.story-mode .logwrap{max-height:22vh !important}
   function ghostAllowedNow(state, gid) {
     const g = CONTENT.ghosts[gid];
     if (!g) return false;
+    // 第 23 轮：驭鬼者（人）不参与随机遭遇——只从「会见其他驭鬼者」这条每日行动里出现
+    if (g.person) return false;
     // 第 21 轮：智慧级厉鬼（有灵智、能被 AI 扮演的那些）只有接入 AI 叙事才会出现。
     // state.aiOn 由界面层每次调用引擎前根据"是否绑定并启用了 AI 接口"写进来，不进存档。
     if (g.smart) return !!state.aiOn && state.turn >= 3;
@@ -5018,9 +5525,108 @@ body.story-mode .logwrap{max-height:22vh !important}
     });
     const ca = cityAction(state);
     if (ca) add(ca);
+    // 第 23 轮：立场专属行动（每天一个）
+    const stanceAct = stanceAction(state);
+    if (stanceAct) add(stanceAct);
+    // 第 23 轮：会见其他驭鬼者（每 3 天一次机会；人和鬼不同，他们是能谈的）
+    if (state.turn - (state.lastDriverTurn || -99) >= 3) add(driverAction(state));
     // 自由探索：每天 3 个"去哪里看看"（让选项不再只有那几个功能按钮）
     for (const p of placeProbeOptions(state)) add(probeAction(state, p.name));
     return pool.filter((a) => !a.if || a.if(state));
+  }
+
+  /* ------------------------------------------------ 第 23 轮：立场与驭鬼者 */
+  /** 立场专属的每日行动 */
+  function stanceAction(state) {
+    const st = stanceOf(state);
+    const list = st && st.daily ? st.daily : [];
+    if (list.indexOf('report') >= 0) {
+      return {
+        id: 'stance_report', label: '向总部汇报（换贡献与情报）', tags: ['org'],
+        run: (s) => {
+          const r = doCheck(s, 'report', chapterKey(s, 'org'), 70, [{ name: '贡献', v: s.money.contribution >= 100 ? 10 : 0 }]);
+          if (r.refused) return { lines: [r.note], check: r };
+          applyEffects(s, [{ k: 'money', key: 'contribution', v: 25 }, { k: 'flag', key: 'intel', v: 1 },
+            { k: 'stat', key: 'stealth', v: -3 }], '总部汇报');
+          return { lines: ['你把这一周的见闻报上去。' + (r.success ? '总部给你记了功，也顺手把你调进了更靠前的序列。'
+            : '接电话的人嗯了两声，把你这通记录归档。')], check: r };
+        },
+      };
+    }
+    if (list.indexOf('browse') >= 0) {
+      return {
+        id: 'stance_browse', label: '上灵异论坛翻帖子（换线索，但会暴露）', tags: ['forum'],
+        run: (s) => {
+          applyEffects(s, [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stealth', v: -8 },
+            { k: 'stat', key: 'sanity', v: -3 }], '泡论坛');
+          return { lines: ['论坛上今天有三条帖子在说同一件事，其中一条有图。',
+            '你把 IP 换了一遍，但你知道——看得越久，越容易被反向找到。'] };
+        },
+      };
+    }
+    if (list.indexOf('oddjob') >= 0) {
+      return {
+        id: 'stance_oddjob', label: '接一份私活（钱多、脏、没保障）', tags: ['outlaw'],
+        run: (s) => {
+          const r = doCheck(s, 'oddjob', chapterKey(s, 'odd'), 55, [{ name: '民间口碑', v: s.flags.favor ? s.flags.favor * 3 : 0 }]);
+          if (r.refused) return { lines: [r.note], check: r };
+          if (r.success) {
+            const got = gainCash(s, 'cash', 120, '私活报酬');
+            applyEffects(s, [{ k: 'stat', key: 'pollution', v: 8 }, { k: 'stat', key: 'stamina', v: -15 }], '私活代价');
+            return { lines: ['活干完了，钱到手了——没人问你中间看到了什么。',
+              '（报酬 +' + got.applied + ' 万' + (got.capped ? '，本章收入已达上限' : '') + '）'], check: r };
+          }
+          applyEffects(s, [{ k: 'stat', key: 'stamina', v: -25 }, { k: 'stat', key: 'pollution', v: 12 },
+            { k: 'stat', key: 'sanity', v: -6 }], '私活失败');
+          return { lines: ['活没干完，钱没拿到，还带回来一身冷。'], check: r };
+        },
+      };
+    }
+    return {
+      id: 'stance_plan', label: '推进「终结计划」（自己收场，代价是劫难更快）', tags: ['endgame'],
+      run: (s) => {
+        const r = doCheck(s, 'plan', chapterKey(s, 'end'), 60, [{ name: '线索', v: Math.min(20, s.clues.length * 2) }]);
+        if (r.refused) return { lines: [r.note], check: r };
+        applyEffects(s, [{ k: 'stat', key: 'calamity', v: 6 }, { k: 'stat', key: 'causality', v: 6 },
+          { k: 'flag', key: 'intel', v: 1 }], '推进终结计划');
+        s.endgamePush = (s.endgamePush || 0) + 1;
+        return { lines: ['你在本子上又划掉一行：这一步走通了，代价是世界推进得更快。',
+          '（终结计划已推进 ' + s.endgamePush + ' 步——它会在结局判定里算进去）'], check: r };
+      },
+    };
+  }
+
+  /** 今天能见到哪位驭鬼者（确定性挑选；见过的人短期内不重复） */
+  function pickDriver(state) {
+    const ids = (CONTENT.driverGhostIds || []).filter((id) => {
+      const g = CONTENT.ghosts[id];
+      if (!g) return false;
+      if (id === 'king') return state.turn >= 12;        // 国王：第 12 天后才出场
+      return true;
+    });
+    if (!ids.length) return null;
+    const avoid = state.lastDriver || null;
+    const i = hashStr(state.seed + ':' + state.turn + ':driver') % ids.length;
+    if (ids.length > 1 && ids[i] === avoid) return ids[(i + 1) % ids.length];
+    return ids[i];
+  }
+
+  function driverAction(state) {
+    return {
+      id: 'meet_driver', label: '会见其他驭鬼者（同行：能谈、能换、也能翻脸）', tags: ['person'],
+      run: () => ({ lines: [] }),      // 真正的遭遇在 resolve 里挂 pending
+    };
+  }
+
+  function startDriverEncounter(state) {
+    const gid = pickDriver(state);
+    if (!gid) return false;
+    state.lastDriver = gid;
+    state.pending = buildEncounter(state, gid);
+    state.pending.person = true;
+    state.phase = 'encounter';
+    if (state.events.done.indexOf('driver:' + gid) < 0) state.events.done.push('driver:' + gid);
+    return true;
   }
 
   function activeGhost(state) {
@@ -5089,6 +5695,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     c += (cityOf(state).mods && cityOf(state).mods.encounter) || 0;
     c += (eraOf(state).mods && eraOf(state).mods.encounter) || 0;
     c += state.purgeRisk || 0;      // 「处置灵异源头」当天把自己亮出来的代价
+    if (state.stance === 'own') c += 5;   // 自立：总部与国王组织都在盯着你
     return clamp(c, 3, tu.encounterCap);
   }
 
@@ -5125,7 +5732,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     }
     // 生路选项：需要线索支撑（P12：陷阱必须可推理）+ 代价必须付得起
     for (const opt of g.exits) {
-      if (known >= opt.needClues && canPay(state, opt.cost)) {
+      // 第 23 轮：驭鬼者（人）没有"杀人规律"要先解锁——你随时可以和他谈
+      const ok = g.person ? true : known >= opt.needClues;
+      if (ok && canPay(state, opt.cost)) {
         options.push({ id: opt.id, label: opt.label, tags: opt.tags, kind: 'exit', cost: opt.cost });
       }
     }
@@ -5155,6 +5764,18 @@ body.story-mode .logwrap{max-height:22vh !important}
     let deadCause = null;
 
     if (opt.kind === 'trap') {
+      // 第 23 轮：驭鬼者（人）的"陷阱"不是必死——是当场翻脸/被重伤，仍然留一条命
+      if (g.person) {
+        applyEffects(state, [
+          { k: 'stat', key: 'stamina', v: -30 }, { k: 'stat', key: 'pollution', v: 12 },
+          { k: 'stat', key: 'erosion', v: 5 }, { k: 'stat', key: 'sanity', v: -8 },
+        ], '与驭鬼者翻脸');
+        lines.push('他翻脸比你想的快。你退出来的时候，身上的样子已经不像刚进门那样了。');
+        settlement.push('与人翻脸：体力 -30、污染 +12、侵蚀 +5、理智 -8（不是必死，但很难看）');
+        state.pending = null;
+        state.phase = 'day';
+        return { lines: lines, settlement: settlement, dead: false, deadCause: null, ghost: g };
+      }
       // 确定性必死判定；只有持有有效抵御手段才进入概率结算
       const shield = pickShield(state, g);
       if (!shield) {
@@ -5322,6 +5943,19 @@ body.story-mode .logwrap{max-height:22vh !important}
         state.events.done.push('act:' + act.id);
       }
       state.actionTakenToday = true;
+      // 第 23 轮：「会见其他驭鬼者」= 直接进入人物遭遇（人是能谈的，所以不进随机鬼池）
+      if (choiceId === 'meet_driver' && !dead) {
+        if (startDriverEncounter(state)) {
+          state.lastDriverTurn = state.turn;
+          settlement.push('会见判定：今天约到的是「' + state.pending.name + '」');
+          return {
+            narrative: narrative.concat(state.notes ? state.notes.splice(0) : []),
+            actionVariant: null, settlement: settlement.concat(state.lastMechLines || []),
+            choices: availableActions(state), panel: panelOf(state), over: state.over,
+            encounter: state.pending,
+          };
+        }
+      }
       // 遭遇判定
       const rc = encounterChance(state);
       const v = roll100(state, 'encounter', 0);
@@ -5367,8 +6001,10 @@ body.story-mode .logwrap{max-height:22vh !important}
   /* ------------------------------------------------------------- 面板数据 */
   function panelOf(state) {
     const city = cityOf(state); const era = eraOf(state);
+    const st = stanceOf(state);
     const out = {
       回合: state.turn + ' 天（第 ' + state.chapter + ' 章）',
+      立场: st ? st.name : '民间驭鬼者',
       落地: city.name + (state.cityRandom ? '（随机）' : ''),
       时期: era.short + (state.eraRandom ? '（随机）' : ''),
       本地规矩: (city.rule && city.rule.text) || '无',
@@ -5410,6 +6046,10 @@ body.story-mode .logwrap{max-height:22vh !important}
       pack: state.pack, custom: state.custom, tuning: state.tuning, legacy: state.legacy,
       city: state.city, era: state.era, cityRandom: state.cityRandom, eraRandom: state.eraRandom,
       lastGhost: state.lastGhost || null,
+      stance: state.stance || null,
+      lastDriver: state.lastDriver || null,
+      lastDriverTurn: state.lastDriverTurn || 0,
+      endgamePush: state.endgamePush || 0,
       godLayers: state.godLayers || 0,
       stats: state.stats, money: state.money, items: state.items,
       contracts: state.contracts, clues: state.clues, bestiary: state.bestiary,
@@ -6828,7 +7468,7 @@ body.story-mode .logwrap{max-height:22vh !important}
   let state = null;
   let selected = {
     difficulty: 'standard', pack: 'ordinary', level: 'A', seed: '',
-    city: 'random', era: 'random',
+    city: 'random', era: 'random', stance: 'civilian',
     custom: { encounter: 'normal', judge: 'normal', mercy: 'normal' },
     legacy: null,
   };
@@ -6949,10 +7589,14 @@ body.story-mode .logwrap{max-height:22vh !important}
   function isSmartPending(s) {
     return !!(s && s.pending && s.pending.smart);
   }
+  /** 第 23 轮：遇到的是"人"（驭鬼者）——他们能对话，但不吃"智慧级"那套 AI 独占规则 */
+  function isPersonPending(s) {
+    return !!(s && s.pending && s.pending.person);
+  }
 
-  /** 让 AI 用这只鬼的口吻说话（遭遇开场 / 玩家说完话之后各调一次） */
+  /** 让 AI 用这只鬼（或这个人）的口吻说话（遭遇开场 / 玩家说完话之后各调一次） */
   async function aiGhostSpeak(pending, playerSpeech) {
-    if (!pending || !pending.smart || !aiReady()) return;
+    if (!pending || !(pending.smart || pending.person) || !aiReady()) return;
     const g = (C.ghosts && C.ghosts[pending.ghost]) || null;
     if (!g || !g.persona) return;
     try {
@@ -7082,8 +7726,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     const box = $('choices');
     clear(box);
     // 遭遇中不提供自定义入口：此刻必须做出选择，避免用描述性文本绕过判定。
-    // 例外（第 21 轮）：智慧级厉鬼可以对话——它听得懂人话，这也正是"它有智慧"的意义。
-    $('footer').style.display = (state && state.pending && !isSmartPending(state)) ? 'none' : '';
+    // 例外（第 21/23 轮）：智慧级厉鬼与驭鬼者（人）可以对话——这正是"他们不一样"的地方。
+    $('footer').style.display = (state && state.pending && !isSmartPending(state) && !isPersonPending(state)) ? 'none' : '';
     if (state && state.over) {
       document.body.classList.remove('story-mode');
       const b = el('button', 'btn primary', '重开一局');
@@ -7117,9 +7761,11 @@ body.story-mode .logwrap{max-height:22vh !important}
     // 标题：明确这里是"要你选一个"，否则一排按钮看起来像不明所以的文字块
     const inEnc = !!(state && state.pending);
     const smart = isSmartPending(state);
+    const person = isPersonPending(state);
     box.appendChild(el('div', 'choicesHead',
       inEnc ? (smart ? '你有智慧级厉鬼在你面前 —— 可以直接对它说话，也可以从下面选一步'
-                     : '你必须做出选择 —— 点下面任意一行（生路要线索支撑，陷阱会死人）')
+                     : (person ? '对面也是驭鬼者 —— 可以和他谈，也可以从下面选一步'
+                               : '你必须做出选择 —— 点下面任意一行（生路要线索支撑，陷阱会死人）'))
             : '今天可以做的事 —— 选一件（每天只能做一个主动作）'));
     if (inEnc) {
       const opts = state.pending.options || [];
@@ -7148,9 +7794,18 @@ body.story-mode .logwrap{max-height:22vh !important}
 
   function renderEncounter() {
     if (!state.pending) return;
-    addLog('enc', '【遭遇】' + state.pending.name + '（' + state.pending.level + ' 级）' +
-      (state.pending.smart ? '　★智慧级' : ''));
+    const enc0 = C.ghosts[state.pending.ghost];
+    const tag = state.pending.person ? '　◎驭鬼者' : (state.pending.smart ? '　★智慧级' : '');
+    addLog('enc', '【' + (state.pending.person ? '遇到' : '遭遇') + '】' + state.pending.name +
+      '（' + state.pending.level + ' 级）' + tag);
     addLog('', state.pending.text);
+    if (state.pending.person) {
+      addLog('muted', '对方也是驭鬼者：可以直接和他谈。' +
+        (enc0 && enc0.persona ? '（接了 AI 时，他会用自己的性格和语气回你；判定仍归引擎。）' : ''));
+      const tl = (enc0 && enc0.talk) || [];
+      if (tl.length) addLog('say ghost', '【' + state.pending.name + '】' + tl[0]);
+      if (aiReady() && enc0 && enc0.persona) aiGhostSpeak(state.pending, '');
+    }
     if (state.pending.smart) {
       addLog('warn', '它有智慧：听得懂人话，会跟你谈条件。你可以直接在下面输入框里对它说话——' +
         '它会用自己的思维与说话方式回应你（AI 扮演），但判定仍归引擎。');
@@ -7236,10 +7891,10 @@ body.story-mode .logwrap{max-height:22vh !important}
           const kindName = { exit: '生路', neutral: '中性', trap: '陷阱' }[ei.kind] || ei.kind;
           intent = { label: '[' + kindName + '] ' + ei.label, via: '你写的那句话' };
         } else {
-          if (isSmartPending(state)) {
-            addLog('muted', '（它听完了你的话。不过你"真的要做什么"，仍然要从下面这些选项里挑一步——' +
+          if (isSmartPending(state) || isPersonPending(state)) {
+            addLog('muted', '（对方听完了你的话。不过你"真的要做什么"，仍然要从下面这些选项里挑一步——' +
               '说话能影响它、影响不了规则。）');
-            addLog('muted', '提示：想活下来，就从选项里挑一条代价付得起的生路；它认的是条件，不是嘴。）');
+            addLog('muted', '提示：谈条件要落在选项上；人比鬼好说话，但人也会记仇。）');
             renderNow();
             return;
           }
@@ -8626,6 +9281,40 @@ body.story-mode .logwrap{max-height:22vh !important}
       LS.set('rs_autosave', E.serialize(state));
     }
   }
+
+  /* 第 23 轮：随时存档 / 读档（用户要求「可以随时存档读档」）
+   * rs_slot1 是"手动快速存档"，任意时刻（包括遭遇中途）都能存；自动存档仍在每天开始时写 rs_autosave。
+   */
+  function manualSave() {
+    if (!state) { addLog('warn', '【存档】还没有开局。'); return; }
+    LS.set('rs_slot1', E.serialize(state));
+    const when = new Date();
+    LS.set('rs_slot1_at', when.toLocaleString());
+    addLog('muted', '【存档】已存到本机快速存档位（第 ' + state.turn + ' 天' +
+      (state.pending ? '·遭遇中「' + state.pending.name + '」' : '') + '）' + when.toLocaleString());
+  }
+  let loadArmAt = 0;      // 读档"二次确认"的计时（不用 confirm，避免锁死渲染线程）
+  function manualLoad() {
+    const raw = LS.get('rs_slot1', null);
+    if (!raw) { addLog('warn', '【读档】本机还没有快速存档（先点「存档」）。'); return; }
+    const risky = !!(state && !state.over && (state.pending || state.actionTakenToday));
+    if (risky && Date.now() - loadArmAt > 6000) {
+      loadArmAt = Date.now();
+      addLog('warn', '【读档】你现在正处在未结算的状态（遭遇中 / 今天已经行动过）。' +
+        '再点一次「读档」就会丢掉这段进度。');
+      const b = $('btnLoadQuick');
+      if (b) {
+        const old = b.textContent;
+        b.textContent = '再点一次确认读档';
+        setTimeout(() => { if (b.textContent === '再点一次确认读档') b.textContent = old; }, 6000);
+      }
+      return;
+    }
+    loadArmAt = 0;
+    const b2 = $('btnLoadQuick');
+    if (b2) b2.textContent = '读档';
+    loadFromText(raw, '快速存档 ' + (LS.get('rs_slot1_at', '') || ''));
+  }
   function saveToFile() {
     const text = E.serialize(state);
     const blob = new Blob([text], { type: 'application/json' });
@@ -8635,7 +9324,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     a.click();
     URL.revokeObjectURL(a.href);
   }
-  function loadFromText(text) {
+  function loadFromText(text, label) {
     const r = E.deserialize(String(text || '').trim());
     if (r.error) {
       addLog('warn', '【载入失败】' + r.error + '（存档被修改过，或被截断）');
@@ -8643,7 +9332,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     }
     state = r.state;
     clear($('log'));
-    addLog('', '【读档】第 ' + state.turn + ' 天（第 ' + state.chapter + ' 章），难度：' + (state.difficulty === 'hard' ? '极难' : '标准'));
+    addLog('', '【读档】' + (label ? label + '　' : '') + '第 ' + state.turn + ' 天（第 ' + state.chapter + ' 章），难度：' +
+      (state.difficulty === 'hard' ? '极难' : (state.tuning ? state.tuning.name : '标准')) +
+      '，立场：' + ((C.stances && C.stances[state.stance]) ? C.stances[state.stance].name : '民间驭鬼者'));
     if (state.over) renderOver();
     renderPanel();
     lastSceneTurn = 0;
@@ -8687,6 +9378,18 @@ body.story-mode .logwrap{max-height:22vh !important}
         });
         box.appendChild(row);
       });
+    }
+
+    // 第 23 轮：立场（决定开局初始值、专属每日行动、与"杨间线"的关系）
+    if (C.stances) {
+      box.appendChild(el('div', 'sectionTitle', '选择立场（你和这个时代的关系）· 原著向可选"总部队长"'));
+      for (const id of Object.keys(C.stances)) {
+        const st = C.stances[id];
+        const b = el('button', 'btn card' + (selected.stance === id ? ' on' : ''), st.name + '　—　' + st.blurb +
+          (st.rules && st.rules.length ? '　【规矩】' + st.rules.join(' ') : ''));
+        b.onclick = () => { selected.stance = id; showMenu(); };
+        box.appendChild(b);
+      }
     }
 
     // 开局包按来源分组：原著开局 / 同人衍生开局（源自用户点名的 11 部同人作）
@@ -8851,11 +9554,17 @@ body.story-mode .logwrap{max-height:22vh !important}
       custom: selected.difficulty === 'custom' ? selected.custom : null,
       seed: selected.seed || undefined, contentLevel: selected.level,
       city: selected.city, era: selected.era,
+      stance: selected.stance,
       legacy: legacy,
     });
     $('panel').style.display = '';
     clear($('log'));
     addLog('', '【开局】' + C.packs[selected.pack].blurb);
+    const stNow = (C.stances && C.stances[state.stance]) || null;
+    if (stNow) {
+      addLog('', '【立场】' + stNow.name + '——' + stNow.blurb +
+        (stNow.rules && stNow.rules.length ? '　规矩：' + stNow.rules.join(' ') : ''));
+    }
     const ci = cityInfo(state), ei = eraInfo(state);
     if (ci) addLog('', '【落地】' + ci.name + '（' + ci.src + '，' + (state.cityRandom ? '随机' : '自选') + '）——' + ci.desc);
     if (ei) addLog('', '【时期】' + ei.name + '（' + ei.src + '，' + (state.eraRandom ? '随机' : '自选') + '）——' + ei.desc);
@@ -9065,6 +9774,8 @@ body.story-mode .logwrap{max-height:22vh !important}
   /* ------------------------------------------------------------ 初始化 */
   window.addEventListener('DOMContentLoaded', function () {
     $('btnSave').onclick = saveToFile;
+    if ($('btnSaveQuick')) $('btnSaveQuick').onclick = manualSave;     // 第 23 轮：随时存档
+    if ($('btnLoadQuick')) $('btnLoadQuick').onclick = manualLoad;     // 第 23 轮：随时读档
     $('btnLoad').onclick = function () { openToolbox('load'); };
     $('btnCard').onclick = function () {
       const txt = E.serialize(state || E.createGame({}));
