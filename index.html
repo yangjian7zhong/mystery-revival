@@ -186,6 +186,18 @@ body.panelOpen #side{display:block}
   #choices{display:grid; grid-template-columns:1fr 1fr; gap:8px; align-content:start}
   #choices .choicesHead, #choices .choicesSub, #choices .muted, #choices .hint{grid-column:1 / -1}
   #choices > .btn.primary.big{grid-column:1 / -1}
+}
+/* ==== 第 19 轮：剧情模式（点完选项先只看剧情，选项收起） + 取消插画 ==== */
+/* 插画按用户要求先取消：隐藏容器（画册与相关代码保留，随时可恢复） */
+#scene{display:none !important}
+/* 剧情模式：这一屏只服务"读剧情"——日志区放开高度，选项区只剩继续按钮 */
+body.story-mode .logwrap{max-height:none !important; flex:1 1 auto}
+body.story-mode #choices{display:flex; flex-direction:column; gap:8px}
+body.story-mode .storyHint{color:var(--dim); font-size:12.5px; text-align:center; padding:2px 0}
+body.story-mode #choices .btn.primary.big{padding:15px 16px; font-size:16px}
+body.story-mode #stage{gap:14px}
+@media (max-width:900px){
+  body.story-mode .logwrap{max-height:none !important}
 }</style>
 </head>
 <body>
@@ -5359,6 +5371,29 @@ body.panelOpen #side{display:block}
       '它的注意力不在你身上，而在你身上的某一样东西上。你顺着看过去，是你带的那件灵异道具。',
       '它数着步子靠近：一、二、三，停；一、二、三，停。你听出那个节奏和阁楼上敲更的声音一模一样。',
     ],
+
+    /* ===== 第 19 轮：再加厚（用户："剧情描述过于少了"）=====
+     * 内心活动 + 周围的人：让每一天都有"你在想什么""别人在做什么"两层视角。 */
+    innerThought: [
+      '你心里其实清楚：这条线索就算查到底，也未必能换来活下去的机会。但你还是要去查——因为不查的话，今晚会更难受。',
+      '你在想一个很实际的问题：如果今天出事，谁会来找你。答案是一个人也没有，而你已经习惯了。',
+      '你反复告诉自己不要去想"它到底是什么"。可越是这样，脑子里关于它的细节就越清楚，清楚得像你亲手画过。',
+      '有那么一瞬间你想过报警。然后你想起了那个在派出所门口站了三个小时、最后自己走回家的女人。',
+      '你算了一下身上的钱、手机的电、还能撑几天。算完你发现最缺的其实不是这些，是时间。',
+      '你忽然理解为什么老一辈驭鬼者话都很少：说出口的东西会被记住，而被记住的东西会被找上门。',
+      '你在心里给它起了个代号，只用两个字。起了名字之后，这件事才变得勉强可以处理。',
+      '你想起小时候外婆讲的规矩：夜里有人叫你，先看影子再看人。当时你当笑话听，现在你天天照做。',
+      '你告诉自己，今天只要做成一件事就算赢。这个标准已经很低了，但你还是不敢定高。',
+      '你不敢细想"如果今晚就是最后一晚"。你只是把钥匙和手机放在随手能拿到的地方，然后强迫自己坐下。',
+    ],
+    crowd: [
+      '楼下的小卖部照常开着，老板在看短视频，声音开得很大。他觉得这个世界很正常，这让你羡慕。',
+      '有人在楼下遛狗，狗走到某个位置就不肯再往前，被主人硬拽着走，一直在回头看。',
+      '公交站台陆续有人上车下车，没人抬头看天上。天是灰的，那种"要下雨但下不来"的灰。',
+      '对面楼的窗里亮了几盏灯，其中一盏从你搬来那天就没灭过。',
+      '一群学生骑车经过，笑得很响。经过那栋封了的楼时，他们不约而同安静了两秒，然后接着笑。',
+      '有人在楼下搬东西，满身是汗。他朝你点了点头，还问了一句"今天挺冷的吧"。',
+    ],
   };
 
   /* ------------------------------------------------------------ 取句逻辑 */
@@ -5426,11 +5461,13 @@ body.panelOpen #side{display:block}
     lines.push(pick('timeOfDay', s) + '，' + pick('weather', s) + '。'); tags.push('timeOfDay', 'weather');
     lines.push(pick('place', s)); tags.push('place');
     // 第 13 轮：加厚——环境细节 + 时期感 + 地点专属细节（带库就取，没有就跳过）
-    if (B.dayDetail) { const dd = pickN('dayDetail', s, 2, 4); dd.forEach((x) => lines.push(x)); tags.push('dayDetail'); }
+    if (B.dayDetail) { pickN('dayDetail', s, 3, 4).forEach((x) => lines.push(x)); tags.push('dayDetail'); }
     const eraBank = 'era_' + (s.era || '');
-    if (B[eraBank]) { lines.push(pick(eraBank, s)); tags.push(eraBank); }
+    if (B[eraBank]) { pickN(eraBank, s, 2, 1).forEach((x) => lines.push(x)); tags.push(eraBank); }
     const placeBank = 'place_' + (s.place || '');
-    if (B[placeBank]) { lines.push(pick(placeBank, s, 1)); tags.push(placeBank); }
+    if (B[placeBank]) { pickN(placeBank, s, 2, 2).forEach((x) => lines.push(x)); tags.push(placeBank); }
+    if (B.crowd) { lines.push(pick('crowd', s, 5)); tags.push('crowd'); }
+    if (B.innerThought) { lines.push(pick('innerThought', s, 6)); tags.push('innerThought'); }
 
     // 感官与异象：交替出现，保证不会每回合都只有一种味道
     if (s.turn % 2 === 1) { lines.push(pick('sense', s)); tags.push('sense'); }
@@ -5534,6 +5571,8 @@ body.panelOpen #side{display:block}
     actionProcess: actionProcess,
     bodyState: bodyState,
     encounterAct: encounterAct,
+    innerThoughtOf: (state) => (B.innerThought ? pick('innerThought', state, 6) : ''),
+    crowdLine: (state) => (B.crowd ? pick('crowd', state, 5) : ''),
     encounterSense: encounterSense,
     aftermath: aftermath,
     actionLine: actionLine,
@@ -5937,21 +5976,25 @@ body.panelOpen #side{display:block}
     // 遭遇中不提供自定义入口：此刻必须做出选择，避免用描述性文本绕过判定
     $('footer').style.display = state && state.pending ? 'none' : '';
     if (state && state.over) {
+      document.body.classList.remove('story-mode');
       const b = el('button', 'btn primary', '重开一局');
       b.onclick = () => showMenu();
       box.appendChild(b);
       return;
     }
-    // 结算后先只有「继续」：玩家读完结果再进下一步（不再"一跳就到下一个选择"）
+    // 剧情模式（用户要求）：点完选项先把选项收起来，只显示这一段剧情；读完再点「继续」回到选项
     if (mode === 'continue') {
+      document.body.classList.add('story-mode');
+      const hint = el('div', 'storyHint', '（读完上面这段剧情，再点下面继续）');
+      box.appendChild(hint);
       const b = el('button', 'btn primary big', state && state.pending
-        ? '继续｜面对「' + state.pending.name + '」'
-        : '继续｜进入第 ' + (state.turn + 1) + ' 天');
+        ? '继续 ▶　面对「' + state.pending.name + '」'
+        : '继续 ▶　进入第 ' + (state.turn + 1) + ' 天');
       b.onclick = continueNext;
       box.appendChild(b);
-      box.appendChild(el('div', 'hint', '上面是刚刚发生的事；点「继续」才推进到下一步。'));
       return;
     }
+    document.body.classList.remove('story-mode');
     if (!choices.length) {
       box.appendChild(el('div', 'muted', '（没有可选行动——请把存档贴回来继续）'));
       return;
@@ -6095,7 +6138,7 @@ body.panelOpen #side{display:block}
     if (rep.settlement && rep.settlement.length) addLog('set', rep.settlement.map((s) => '▸ ' + s));
     // 第 13 轮：行动之后的余波（让"做完了"有下文，剧情更完整）
     if (N && N.aftermath && !state.over) {
-      const af = N.aftermath(state, 2);
+      const af = N.aftermath(state, 3);
       if (af.length) addLog('scene', af[0]);
     }
     if (state.integrity.length) { addLog('warn', '【完整性告警】' + state.integrity.slice(-3).join(' / ')); }
