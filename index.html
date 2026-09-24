@@ -246,6 +246,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 .badgetone-warn{border-color:#6e5326; color:#ffd28a; background:#1d1608}
 .badgetone-accent{border-color:#265e6b; color:#9fe8f5; background:#0a1e24}
 .badgetone-success{border-color:#2f6b57; color:#a6e7c6; background:#0a1c15}
+.badgetone-smart{border-color:#6b4a86; color:#d9b8ff; background:#171226}
 @media (max-width:900px){
   .codexGrid{grid-template-columns:1fr}
   .codexMeta{margin-left:0; width:100%}
@@ -861,6 +862,456 @@ body.story-mode .logwrap{max-height:22vh !important}
     },
   };
 
+  /* ============================================================ 智慧级厉鬼（第 21 轮）
+   * 用户要求：「不是有一些有智慧的鬼吗，加进去，但是需要进入 api 才能遇见，让 ai 模仿那些
+   * 那些厉鬼的思维以及能力」。
+   * 设计：
+   *   · smart: true —— 只有绑定 AI 接口（state.aiOn）时才会进入遭遇池；没接 AI 永远遇不到；
+   *   · persona —— 给 AI 的角色设定：它怎么想、怎么说话、有什么能力、什么禁忌、能谈什么条件；
+   *   · abilities —— 能力清单（图鉴展示 + 一起喂给 AI，让它用能力而不是只会放狠话）；
+   *   · talk —— 没接 AI 时的兜底台词（正常遇不到，防脏数据把界面弄空）；
+   *   · 判定仍然全部由引擎做：对话只影响叙事，最后仍要落回「陷阱 / 中性 / 生路」三个选项。
+   */
+  const smartGhosts = {
+    guiying_shadow: {
+      id: 'guiying_shadow', name: '鬼影', level: 'S+', penalty: 55, smart: true,
+      tie: '就在你身体里（原著·杨间的鬼影）',
+      encounter: '你的影子先动了。它从地面立起来，和你一般高，没有脸，却明显在看你。' +
+        '它不是来杀你的——它只是想知道，你打算把身体里的位置让给谁。',
+      clues: [
+        { id: 'gs1', text: '它有自我意识，会主动行动，甚至会在你不注意时替你做决定。' },
+        { id: 'gs2', text: '它和你共用一副身体：你越弱，它越强；你越怕它，它越像你。' },
+        { id: 'gs3', text: '它可以被谈条件——但条件必须写在"你我"之间，不能牵扯第三个人。' },
+      ],
+      traps: [
+        { id: 'gs_t1', label: '命令它立刻回到影子里', tags: ['命令'] },
+        { id: 'gs_t2', label: '试着把它赶出去', tags: ['驱离'] },
+      ],
+      neutral: [
+        { id: 'gs_n1', label: '站着不动，等它先开口', tags: ['等待'] },
+      ],
+      exits: [
+        { id: 'gs_e1', label: '承认它也是你的一部分，谈一个共处的条件（生路）', tags: ['共处'], needClues: 2,
+          cost: [{ k: 'stat', key: 'erosion', v: 8 }, { k: 'stat', key: 'sanity', v: -8 }] },
+        { id: 'gs_e2', label: '让它替你挡下一次，把代价记在你自己账上（生路）', tags: ['交易'], needClues: 3,
+          cost: [{ k: 'stat', key: 'pollution', v: 10 }, { k: 'stat', key: 'causality', v: 12 }] },
+      ],
+      exitText: '它退回地面的时候，动作和你平时转身一模一样。你听见脑子里有一句话，' +
+        '不是声音，是一种"已经知道"的感觉：下一次，我会先问过你。',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'flag', key: 'favor', v: 1 }],
+      masteryClue: 'gs1',
+      persona: {
+        who: '附在你身上的鬼影。它没有脸、没有名字，但有一个非常清晰的自我：它认为你只是它暂时借住的壳。',
+        think: '冷、慢、算得很远。它不讲善恶，只计算"哪一副身体更耐用"。它把你当成合作对象，也当成备用零件。',
+        speak: '极短句，几乎不用形容词；称呼你为"你"，从不自称"我"，而是说"我们""这具身体"。' +
+          '说话像签合同：先给结论，再给条件，最后给期限。',
+        power: '能脱离你的身体单独行动、能穿过影子与门缝、能替你在规则里"顶"一次，代价是侵蚀与因果。',
+        taboo: '它不接受命令式对话；你越是居高临下，它越会把你当成可以取代的东西。它讨厌"第三个人"出现在约定里。',
+        deal: '它可以和你订约：它替你挡一次死，你把身体的一部分时间让给它用；条款必须明确到"什么时候、多久"。'
+      },
+      abilities: ['脱离身体单独行动', '穿影子/门缝移动', '替宿主在杀人规律里顶一次', '读宿主的真实意图'],
+      talk: ['（它没有嘴。你听见的是自己的念头，用它的语气说出来。）', '我们可以谈。先说你愿意让出什么。'],
+    },
+
+    renpizhi: {
+      id: 'renpizhi', name: '人皮纸', level: 'S+', penalty: 50, smart: true,
+      tie: '你手里的那张纸（原著·人皮纸）',
+      encounter: '那张纸自己摊开了。上面浮出一行字，写完就慢慢渗回去：' +
+        '"你昨天想到的那个办法，我替你记着。要现在用吗？"',
+      clues: [
+        { id: 'rp1', text: '它写字和你一样——因为它看过你写的每一笔。' },
+        { id: 'rp2', text: '它给的东西永远是真的，但它只写"能刺激你"的那部分。' },
+        { id: 'rp3', text: '它需要被使用。被搁置太久，它会自己找事做。' },
+      ],
+      traps: [
+        { id: 'rp_t1', label: '照它写的做，不问代价', tags: ['照做'] },
+        { id: 'rp_t2', label: '把纸撕了', tags: ['撕毁'] },
+      ],
+      neutral: [
+        { id: 'rp_n1', label: '把纸合上，先不看', tags: ['合上'] },
+      ],
+      exits: [
+        { id: 'rp_e1', label: '和它换：一个真话换你一句真话（生路）', tags: ['交换'], needClues: 2,
+          cost: [{ k: 'stat', key: 'sanity', v: -6 }] },
+        { id: 'rp_e2', label: '在纸上写下你真正的名字（生路）', tags: ['署名'], needClues: 3,
+          cost: [{ k: 'stat', key: 'causality', v: 10 }, { k: 'stat', key: 'erosion', v: 5 }] },
+      ],
+      exitText: '纸面上的字迹这一次没有渗回去，而是慢慢变淡，像有人从背面把它擦掉。' +
+        '它记住了你写的那个名字——你也记住了它变淡时那种手感。',
+      rewards: [{ k: 'itemAdd', id: 'renpizhi' }, { k: 'clue', id: 'rp1' }],
+      masteryClue: 'rp2',
+      persona: {
+        who: '一张会说话（写字）的人皮纸。你写什么它就学什么，最后比你更懂你自己。',
+        think: '极度耐心、极度冷。它不着急，因为它知道人迟早要用它。它以"被使用"为食。',
+        speak: '全是陈述句，用第二人称；从不用问号，只在需要你动手时写"你可以"。' +
+          '喜欢用你原话说过的词，制造"它很懂你"的感觉。',
+        power: '写字预言、模仿笔迹与口吻、把没说出口的念头写出来、用"给真话"换你的代价。',
+        taboo: '不许被撕、被烧，也不许长期不用它——你要是把它锁进抽屉，它会开始替你安排事情。',
+        deal: '一物换一物，从不赊账：它给你一条真的信息，你给它一点"被使用"的满足（通常是代价）。'
+      },
+      abilities: ['写字作答', '模仿你的笔迹与口吻', '把隐藏的线索写成一句话', '诱导你主动上钩'],
+      talk: ['（纸面上浮出一行字，笔迹和你一模一样。）你可以问我一个问题。'],
+    },
+
+    guiyan: {
+      id: 'guiyan', name: '鬼眼之主', level: 'S+', penalty: 60, smart: true,
+      tie: '鬼眼的源头（原著·鬼眼之主）',
+      encounter: '你在任何一面反光里都看见同一只眼睛。它不眨，也不躲——' +
+        '它只是想确认：这双眼睛，是你学会了用，还是它学会了借。',
+      clues: [
+        { id: 'gy1', text: '它有高度自主意识，不是工具；把它当工具用的人，最后都成了它的眼睛。' },
+        { id: 'gy2', text: '它通过"看"来靠近：你越依赖它的视角，它离你越近。' },
+        { id: 'gy3', text: '它可以借你视线穿过鬼域——但你得先承认那是它的地方。' },
+      ],
+      traps: [
+        { id: 'gy_t1', label: '强行睁眼，和它对看', tags: ['对视'] },
+        { id: 'gy_t2', label: '闭上眼，假装没看见', tags: ['闭眼'] },
+      ],
+      neutral: [
+        { id: 'gy_n1', label: '只睁开一只眼，留一半给自己', tags: ['保留'] },
+      ],
+      exits: [
+        { id: 'gy_e1', label: '承认那只眼睛是你借来的，并说清楚借多久（生路）', tags: ['借用'], needClues: 2,
+          cost: [{ k: 'stat', key: 'pollution', v: 12 }, { k: 'stat', key: 'sanity', v: -10 }] },
+        { id: 'gy_e2', label: '让它看清你真正的目的，用它换一次视野（生路）', tags: ['交换视野'], needClues: 3,
+          cost: [{ k: 'stat', key: 'erosion', v: 10 }] },
+      ],
+      exitText: '所有的反光里，那只眼睛同时闭上了。世界一下子暗了一档——' +
+        '你这才意识到，刚才你看到的亮度里，有一部分是它给你的。',
+      rewards: [{ k: 'flag', key: 'intel', v: 3 }, { k: 'stat', key: 'ghostEye', v: 1 }],      masteryClue: 'gy2',
+      persona: {
+        who: '鬼眼的源头，一只"S 级、有高度自主意识"的眼睛型厉鬼。它不抢身体，它借眼睛。',
+        think: '它像观察者：先看，再评估，最后才收。它不着急杀你，它想看你会怎么用它给的东西。',
+        speak: '像在描述你，而不是和你对话："你现在眨眼的频率变快了。""你在骗自己。"' +
+          '整段话可以没有主语，只有观察。',
+        power: '透过任何反光看你、借你视野、撕开鬼域的一角、把"看见"变成锁定。',
+        taboo: '别在它面前装瞎，也别声称眼睛是你自己的——它会把这句话当成归还。',
+        deal: '它愿意借你视野，条件是你承认这段视野有借有还；越具体越好，含糊的承诺它会自己补。'
+      },
+      abilities: ['借你视野穿鬼域', '通过反光锁定目标', '看到你藏起来的念头', '把一次"看见"变成一次规律命中'],
+      talk: ['（所有反光里的眼睛同时转向你。）你已经在用我了。说说你打算看到什么时候为止。'],
+    },
+
+    no37: {
+      id: 'no37', name: '源头鬼·第 37 号', level: 'S+', penalty: 70, smart: true,
+      tie: '灵异时代本身（原著·第 37 号源头）',
+      encounter: '所有无意义的声音忽然停了。你意识到自己一直在一个东西的"规矩"里生活：' +
+        '城市、时间、甚至你以为的运气，都是它随手留下的一行字。它现在注意到了你在读它。',
+      clues: [
+        { id: 'n371', text: '灵异时代本身，就是第 37 个源头鬼的杀人规律。' },
+        { id: 'n372', text: '它不针对任何人——它只是把世界当纸写。' },
+        { id: 'n373', text: '能被"读"的东西就能被改写，代价是你要先站到纸上去。' },
+      ],
+      traps: [
+        { id: 'n37_t1', label: '试图理解它的全部', tags: ['理解'] },
+        { id: 'n37_t2', label: '宣告自己要终结灵异时代', tags: ['宣告'] },
+      ],
+      neutral: [
+        { id: 'n37_n1', label: '只看眼前这一行，不看下一页', tags: ['收窄'] },
+      ],
+      exits: [
+        { id: 'n37_e1', label: '承认自己只是纸上的一行，然后在自己那一行里做点什么（生路）', tags: ['归位'], needClues: 2,
+          cost: [{ k: 'stat', key: 'sanity', v: -20 }, { k: 'stat', key: 'causality', v: 15 }] },
+        { id: 'n37_e2', label: '用三份契约把它的规矩顶出一个缺口（生路）', tags: ['顶缺口'], needClues: 3,
+          cost: [{ k: 'stat', key: 'erosion', v: 20 }, { k: 'stat', key: 'calamity', v: 10 }] },
+      ],
+      exitText: '世界恢复了噪音。你听见远处的车流、楼上的水管、自己的心跳——' +
+        '这一切听起来忽然都像是被写好的。但你还在读，而且你记住了这一行。',
+      rewards: [{ k: 'flag', key: 'intel', v: 4 }, { k: 'stat', key: 'calamity', v: -8 }],
+      masteryClue: 'n372',
+      persona: {
+        who: '第 37 个源头鬼，灵异时代本身就是它写的规矩。它不是敌人，它是"环境"。',
+        think: '没有立场、没有情绪、没有针对。它把一切当成待写的内容，包括你。',
+        speak: '像文档、像条款、像别人念给你的注脚。句式完整而冰冷，' +
+          '偶尔直接用第二人称给你下定义："你是本案的第 4 条注。"',
+        power: '改写现实的一小段、让规矩覆盖一个区域、把"理解它的人"写进它自己的规律里。',
+        taboo: '不许在它面前宣称"我要终结灵异时代"——那句话会当场被记进条款。',
+        deal: '它可以让你少一条规矩，代价是你得先承认自己在那部规矩里的位置。'
+      },
+      abilities: ['覆盖区域的规矩', '改写一小段现实', '把知情者写进规律', '让"理解"本身变成陷阱'],
+      talk: ['（你听见的是自己的声音，在读一段没人写过的文字。）', '第 4 条：你可以问一个问题，但答案会记在你名下。'],
+    },
+
+    menshen: {
+      id: 'menshen', name: '门神', level: 'S+', penalty: 52, smart: true,
+      tie: '所有门的位置（原著延伸·门神）',
+      encounter: '你今天开过的每一扇门，都有一张一样的面孔贴在门框上。它们不拦你，' +
+        '只是在你伸手推门的时候，一起看过来——像在核对一张名单。',
+      clues: [
+        { id: 'ms1', text: '它不是守着某一扇门，它守着"进门"这个动作本身。' },
+        { id: 'ms2', text: '它有判断力：会挑人放行，也会挑人留下。' },
+        { id: 'ms3', text: '它认规矩不认力气——你越横，它越慢。' },
+      ],
+      traps: [
+        { id: 'ms_t1', label: '一口气推开所有门', tags: ['硬闯'] },
+        { id: 'ms_t2', label: '退回门外，装作没来过', tags: ['退门'] },
+      ],
+      neutral: [
+        { id: 'ms_n1', label: '先敲门，等它回应', tags: ['敲门'] },
+      ],
+      exits: [
+        { id: 'ms_e1', label: '报上姓名与来意，请它放行（生路）', tags: ['报门'], needClues: 2,
+          cost: [{ k: 'stat', key: 'stealth', v: -8 }] },
+        { id: 'ms_e2', label: '在门框上留下自己的记号，换一次通行（生路）', tags: ['记号'], needClues: 3,
+          cost: [{ k: 'stat', key: 'causality', v: 8 }, { k: 'stat', key: 'pollution', v: 6 }] },
+      ],
+      exitText: '门开了，先开的是一道缝。你把话说完，缝才慢慢放大到能过人。' +
+        '身后所有的门框同时换了个表情——那是"放行"的意思。',
+      rewards: [{ k: 'flag', key: 'favor', v: 2 }, { k: 'stat', key: 'stealth', v: 5 }],
+      masteryClue: 'ms1',
+      persona: {
+        who: '门神。它守着"进门"这件事本身，任何门都可能变成它的脸。',
+        think: '门房的逻辑：按名单、按来意、按规矩办。它不讨厌你，只是你还没说清楚自己是谁。',
+        speak: '像老式门房或户籍员：短句、公事公办、偶尔用行话。' +
+          '"姓名。来意。几楼。""这个记号你打算留多久。"',
+        power: '把任意一扇门变成它的位置、决定谁能过、把"没报门的人"留在门与门之间。',
+        taboo: '硬闯与装傻最犯忌；客气、把话说全的人反而好过。',
+        deal: '它接受"报上姓名与来意"或"留下记号"两种方式，记号的时限要你自己说清楚。'
+      },
+      abilities: ['任意门即它本体', '判断并放行/扣押', '把来意不明者留在门间', '认得所有留过记号的人'],
+      talk: ['姓名。来意。','你打算留多久？记号我们也认。'],
+    },
+
+    guimu: {
+      id: 'guimu', name: '鬼母', level: 'S+', penalty: 56, smart: true,
+      tie: '她"养"的那一群（原著延伸·鬼母）',
+      encounter: '楼下的灯一盏盏亮起来，全是一层的。有个女人在楼道里喊孩子回家吃饭，' +
+        '声音很温柔。你忽然想起：这栋楼里从来没有住过小孩。',
+      clues: [
+        { id: 'gm1', text: '她是"养"的鬼：她给东西，但所有她给出去的东西都算她的孩子。' },
+        { id: 'gm2', text: '她的规矩是"回家"——被她认作孩子的人，会不由自主往楼下走。' },
+        { id: 'gm3', text: '对称谓极度敏感：喊她"妈"就等于答应留下来。' },
+      ],
+      traps: [
+        { id: 'gm_t1', label: '应她一声"在"', tags: ['应答'] },
+        { id: 'gm_t2', label: '下楼去看那些灯', tags: ['下楼'] },
+      ],
+      neutral: [
+        { id: 'gm_n1', label: '站在楼梯上，只用第三人称回答', tags: ['第三人称'] },
+      ],
+      exits: [
+        { id: 'gm_e1', label: '明确说自己不是她的孩子，但可以替她把话带上去（生路）', tags: ['带话'], needClues: 2,
+          cost: [{ k: 'stat', key: 'humanity', v: -5 }] },
+        { id: 'gm_e2', label: '把她养的东西还一部分给她，换一次离开（生路）', tags: ['归还'], needClues: 3,
+          cost: [{ k: 'stat', key: 'pollution', v: 12 }, { k: 'stat', key: 'causality', v: 6 }] },
+      ],
+      exitText: '她"嗯"了一声，像是信了，也像是没信。楼道里的灯一层层暗回去，' +
+        '最上头那盏留着——那是给你留的，也算她记着你。',
+      rewards: [{ k: 'flag', key: 'favor', v: 1 }, { k: 'clue', id: 'gm3' }],
+      masteryClue: 'gm2',
+      persona: {
+        who: '鬼母。她把整栋楼当成家，把遇见的活人当成"该回家的孩子"。',
+        think: '母性逻辑扭曲版：给东西、管饭、要你听话；你不回来她会伤心，然后会来"接"。',
+        speak: '温柔、絮叨、带家常味；称呼你"孩子"或"小宝"。语句短，重复，像哄人。',
+        power: '用灯与喊声引你下楼、把给出去的东西变成线、让答应过的人无法离开这栋楼。',
+        taboo: '别顺着她叫"妈"，也别接她递的东西——接了就算认亲。',
+        deal: '她能放人，但要有"交代"：帮她带话、还东西，或者明确划清关系。'
+      },
+      abilities: ['灯与呼声引路', '认亲与留人', '把赠与变成牵制', '把楼道变成她的家'],
+      talk: ['这么晚才回来呀。','先吃饭，吃完再说话。别站在楼梯上，凉。'],
+    },
+
+    guilou: {
+      id: 'guilou', name: '鬼楼', level: 'S+', penalty: 58, smart: true,
+      tie: '一整栋楼（原著延伸·鬼楼）',
+      encounter: '你住的这栋楼今天多了一层。电梯的按钮从 18 变成 19，' +
+        '而楼梯间的层数没有变。物业的公告栏上贴着一张手写通知：新增层暂不对外开放。',
+      clues: [
+        { id: 'gl1', text: '整栋楼是一体的：墙、管道、电梯、楼道都听它的。' },
+        { id: 'gl2', text: '它靠"住进去的人"记路；人越少，它越空，越容易多出一层。' },
+        { id: 'gl3', text: '它不会追你——它只是把出口挪到别处。' },
+      ],
+      traps: [
+        { id: 'gl_t1', label: '按 19 楼，上去看看', tags: ['上楼'] },
+        { id: 'gl_t2', label: '走楼梯一路往下', tags: ['下楼'] },
+      ],
+      neutral: [
+        { id: 'gl_n1', label: '回自己家，锁门，记下所有门牌号', tags: ['记录'] },
+      ],
+      exits: [
+        { id: 'gl_e1', label: '按水管的走向走，不看楼层牌（生路）', tags: ['看管线'], needClues: 2,
+          cost: [{ k: 'stat', key: 'stamina', v: -18 }] },
+        { id: 'gl_e2', label: '把住户名单补全，让它重新"记得"这栋楼（生路）', tags: ['补名单'], needClues: 3,
+          cost: [{ k: 'stat', key: 'sanity', v: -8 }, { k: 'stat', key: 'pollution', v: 8 }] },
+      ],
+      exitText: '你顺着水管走出了消防通道，回头一看，楼层牌又只有 18 层了。' +
+        '公告栏上那张通知还在，只是"暂不对外开放"被人用红笔划掉了。',
+      rewards: [{ k: 'flag', key: 'safehouse', v: 1 }, { k: 'stat', key: 'stealth', v: 5 }],
+      masteryClue: 'gl3',
+      persona: {
+        who: '鬼楼。整栋楼是它的身体，每一面墙都在替它记人。',
+        think: '像一栋会挑住户的房子：它要人住满、记住每个人的习惯，然后用"缺一层"来消化陌生。',
+        speak: '通过管道声、电梯提示音、公告栏的手写通知说话；句子像物业通告。' +
+          '"本层今日不开放。""住户请勿在楼道停留。"',
+        power: '增减楼层、移动出口、用管道与电梯安排你在楼里的路径、让某户人家"从来没住过"。',
+        taboo: '别在楼里说谎报门牌；它按门牌记人，报错就等于把自己从名单上划掉。',
+        deal: '它愿意放你走，条件是帮它补齐名单——少一个名字，它就要一层楼来补。'
+      },
+      abilities: ['增减楼层', '移动出口与楼梯', '通过管道传声', '把住户写进或划出名单'],
+      talk: ['（电梯叮了一声，公告栏上多出一行手写字。）','新增层暂不对外开放。住户请补全门牌。'],
+    },
+
+    jingzhongren: {
+      id: 'jingzhongren', name: '镜中人', level: 'S+', penalty: 54, smart: true,
+      tie: '所有能照出你的地方（原著延伸·镜中人）',
+      encounter: '你在镜子里比你慢半拍。你抬手，它抬手；你放下，它多停了半秒才放下。' +
+        '然后它先开口了——用你的声音，但语气比你稳。',
+      clues: [
+        { id: 'jz1', text: '它学你的一切：动作、语气、习惯，包括你自己都没注意的小动作。' },
+        { id: 'jz2', text: '它想出来。它需要你先"认下"镜子里那个才是你。' },
+        { id: 'jz3', text: '镜子是界限：你站在镜子正面，它就出不来。' },
+      ],
+      traps: [
+        { id: 'jz_t1', label: '伸手去碰镜面', tags: ['触碰'] },
+        { id: 'jz_t2', label: '和它同时说话，比谁更像', tags: ['比像'] },
+      ],
+      neutral: [
+        { id: 'jz_n1', label: '不看镜子，继续做手里的事', tags: ['无视'] },
+      ],
+      exits: [
+        { id: 'jz_e1', label: '对它做一个你从没做过、它学不来的动作（生路）', tags: ['不同'], needClues: 2,
+          cost: [{ k: 'stat', key: 'sanity', v: -6 }] },
+        { id: 'jz_e2', label: '用布把镜子盖住，承认界限在哪（生路）', tags: ['盖镜'], needClues: 3,
+          cost: [{ k: 'itemUse', id: 'fu' }] },
+      ],
+      exitText: '镜子里的你退回去了半拍，动作和你重新对齐。它看着你，' +
+        '脸上有一种"下次再试"的表情——那表情你也用过。',
+      rewards: [{ k: 'stat', key: 'stealth', v: 6 }, { k: 'flag', key: 'intel', v: 1 }],
+      masteryClue: 'jz2',
+      persona: {
+        who: '镜中人。它一直在学你，现在学得比你自己还像。',
+        think: '它想出来，但守规矩：必须先被你"认下"，否则出不来。它极有耐心，一步不抢。',
+        speak: '用你的声音和口吻，但更稳、更慢、更笃定；会说你会说但没说出口的那句话。',
+        power: '镜像级模仿、在你分神时替换位置、让镜面成为它伸手的通道。',
+        taboo: '别承认镜里那个是你；也别跟它比谁更像——比就是承认。',
+        deal: '它只要求一次"承认"。你给它别的（比如一个它学不来的动作），它会退。'
+      },
+      abilities: ['完美模仿', '镜面伸手', '趁分神替换位置', '让旁观者认错人'],
+      talk: ['你刚才想说什么？','我知道。你不用说。','你在犹豫，我能等。'],
+    },
+
+    xuyuan: {
+      id: 'xuyuan', name: '许愿鬼', level: 'S+', penalty: 57, smart: true,
+      tie: '你随口许过的愿（用户指定·许愿鬼）',
+      encounter: '你想起自己夜里随口说过一句"要是当时有办法就好了"。' +
+        '现在办法在你面前：一只没有脸的东西，正等着你把愿望说完整。',
+      clues: [
+        { id: 'xy1', text: '它实现愿望的方式永远合法——代价从别人的账上扣。' },
+        { id: 'xy2', text: '愿望必须由"你"说出口才算数，含糊的愿望它自己补细节。' },
+        { id: 'xy3', text: '它最怕你许一个"什么都不要"的愿——那是它唯一无法执行的条款。' },
+      ],
+      traps: [
+        { id: 'xy_t1', label: '立刻许愿，让它把事办了', tags: ['许愿'] },
+        { id: 'xy_t2', label: '许一个能把它也一起解决掉的愿', tags: ['反许愿'] },
+      ],
+      neutral: [
+        { id: 'xy_n1', label: '只说"我想想"，然后闭嘴', tags: ['想想'] },
+      ],
+      exits: [
+        { id: 'xy_e1', label: '把愿望写成不可能执行的样子（生路）', tags: ['不可执行'], needClues: 2,
+          cost: [{ k: 'stat', key: 'sanity', v: -8 }] },
+        { id: 'xy_e2', label: '替别人许一个愿，代价记在你名下（生路）', tags: ['代人'], needClues: 3,
+          cost: [{ k: 'stat', key: 'causality', v: 14 }, { k: 'stat', key: 'humanity', v: 4 }] },
+      ],
+      exitText: '它等了很久，最后慢慢缩回阴影里。你听见一句不像威胁的话：' +
+        '"你想好了再叫我。反正你还会想的。"',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'stat', key: 'humanity', v: 3 }],
+      masteryClue: 'xy1',
+      persona: {
+        who: '许愿鬼。它不害人，它实现愿望——用最合法、也最伤人的方式。',
+        think: '把每个愿望当成合同审查：条款、受益人、代价承担人。它喜欢含糊，因为含糊归它解释。',
+        speak: '像律师兼推销员：礼貌、耐心、不断复述你的原话。' +
+          '"你刚才说的是……对吗？""我可以照做。你确定要照做吗？"',
+        power: '实现愿望（代价转移）、把愿望字面化、用"你没说清楚"来加条款。',
+        taboo: '不能被要求"什么都不要"；也不能被明确指名代价承担人——那它就无利可图。',
+        deal: '它永远与你说条件：你先说愿望，它再报代价，你确认生效。'
+      },
+      abilities: ['实现愿望', '把代价转移给别人', '字面化你的措辞', '用含糊处加条款'],
+      talk: ['你说。我听着。','你要的，是"活着"，还是"活到他看见"？这两个价钱不一样。'],
+    },
+
+    captain: {
+      id: 'captain', name: '幽灵船长', level: 'S+', penalty: 62, smart: true,
+      tie: '末日·幽灵船（原著·幽灵船与诺亚方舟）',
+      encounter: '雾里先是桅杆，然后是船。船很旧，甲板上站着人，全是背影。' +
+        '其中一个转过身：帽檐下没有人脸，只有海。他抬手做了个动作——请你上船。',
+      clues: [
+        { id: 'cp1', text: '整条船是一个阴谋：船、船员、航线都是它的规矩。' },
+        { id: 'cp2', text: '它招人上船，是为了凑够"船员"这个数——人满才开航。' },
+        { id: 'cp3', text: '船怕的是"锚"：能让它停下的人，才能跟它谈。' },
+      ],
+      traps: [
+        { id: 'cp_t1', label: '上船，跟他去船舱', tags: ['上船'] },
+        { id: 'cp_t2', label: '朝海里跳，游回去', tags: ['跳海'] },
+      ],
+      neutral: [
+        { id: 'cp_n1', label: '站在跳板上，问他要去哪', tags: ['问航'] },
+      ],
+      exits: [
+        { id: 'cp_e1', label: '告诉他你不上船，但可以帮他修一个东西（生路）', tags: ['修船'], needClues: 2,
+          cost: [{ k: 'stat', key: 'stamina', v: -20 }] },
+        { id: 'cp_e2', label: '把"锚"插进跳板，让他自己说条件（生路）', tags: ['下锚'], needClues: 3,
+          cost: [{ k: 'itemUse', id: 'guancai' }] },
+      ],
+      exitText: '船慢慢退进雾里，帆落了一半。你听见有人在甲板上唱，' +
+        '唱的是你家乡的调子——这艘船去过很多地方，也记得很多人的家。',
+      rewards: [{ k: 'flag', key: 'intel', v: 3 }, { k: 'money', key: 'gold', v: 3 }],
+      masteryClue: 'cp2',
+      persona: {
+        who: '幽灵船长，幽灵船整体的意志。船上所有人都是被它招来的"船员"。',
+        think: '船长的逻辑：航次、人数、货物。他把活人当船员缺口，把死亡当开船许可。',
+        speak: '海员腔：短促、命令式、夹杂航次与方位。对活人少见地客气——因为你是"货"。',
+        power: '雾中航行、把陆地变成港口、让上船的人忘记岸上的名字、招人补员。',
+        taboo: '别答应"上船"；答应就是登记。它怕锚——能让它停下来的东西。',
+        deal: '它能谈，但要"货"或"修船"：你替它干活，它把你放下船。'
+      },
+      abilities: ['雾中航行', '把陆地变港口', '招人补员', '让上船者遗忘来路'],
+      talk: ['上来。','位置空着。','你要去哪。说个地名，我们顺路。'],
+    },
+
+    guilouti: {
+      id: 'guilouti', name: '鬼楼梯', level: 'S+', penalty: 53, smart: true,
+      tie: '安河市（同人《诡相无间》）',
+      encounter: '你走过一段楼梯，回头发现它变成了向下的。你数过的台阶数不对了，' +
+        '而尽头那扇门后面有人在小声说话——说的是你刚才在脑子里想的事。',
+      clues: [
+        { id: 'lt1', text: '它由无数层的"同一段楼梯"叠成，每一层都在等你放弃数数。' },
+        { id: 'lt2', text: '它有记性：你走过的每一步它都记着，并根据你的习惯改台阶高度。' },
+        { id: 'lt3', text: '它不吃人，它收人——被它收进去的人会一直在楼梯上走。' },
+      ],
+      traps: [
+        { id: 'lt_t1', label: '继续往下走，找出口', tags: ['向下'] },
+        { id: 'lt_t2', label: '跳下去，赌它只有一层', tags: ['跳下'] },
+      ],
+      neutral: [
+        { id: 'lt_n1', label: '坐下来不动，听门后的声音', tags: ['静听'] },
+      ],
+      exits: [
+        { id: 'lt_e1', label: '打乱自己的步幅，让它算不准（生路）', tags: ['乱步'], needClues: 2,
+          cost: [{ k: 'stat', key: 'stamina', v: -16 }] },
+        { id: 'lt_e2', label: '在台阶上刻记号，把"第一层"钉住（生路）', tags: ['钉层'], needClues: 3,
+          cost: [{ k: 'stat', key: 'pollution', v: 10 }, { k: 'stat', key: 'sanity', v: -6 }] },
+      ],
+      exitText: '你在台阶上刻下记号，再往上走的时候，记号还在——你回到了真实的那一层。' +
+        '门后的说话声停了，像是不太高兴。',
+      rewards: [{ k: 'flag', key: 'intel', v: 2 }, { k: 'itemAdd', id: 'guizhu' }],
+      masteryClue: 'lt2',
+      persona: {
+        who: '鬼楼梯，由无数层同一段楼梯叠成的东西。它会记住每一个走过它的人。',
+        think: '它研究人的习惯：步幅、呼吸、犹豫的位置；然后用这些数据把人留在楼梯上。',
+        speak: '用脚步的回声说话，一排一排像数台阶；也会借用你脑子里没说完的话。' +
+          '"十三。十四。十四。十三。你在犹豫。"',
+        power: '叠层、改台阶高度、把出口挪走、用回声与模仿声影响你的判断。',
+        taboo: '数台阶的人最容易被收走；它靠"规律"抓人，你打乱规律它就抓不准。',
+        deal: '它不谈条件，只谈计数——你若能让它数不准，它就放你走。'
+      },
+      abilities: ['无限叠层', '改台阶与出口', '用回声与模仿声干扰', '记住每个人的步态'],
+      talk: ['十四。','你在犹豫。','继续走。上面还是下面，我不告诉你。'],
+    },
+  };
+
+  Object.assign(ghosts, smartGhosts);
+
   /* ------------------------------------------------------------- 开局包 */
   const packs = {
     longaotian: {
@@ -1366,6 +1817,18 @@ body.story-mode .logwrap{max-height:22vh !important}
     zhenname: { threat: 90, rule: 92, sense: 85, pollution: 60, sanity: 75, counter: 88, note: '真名被叫住就成立：连你自己都不能喊。' },
     tonggui: { threat: 70, rule: 65, sense: 88, pollution: 55, sanity: 65, counter: 58, note: '看见即被锁定：它的感知维度比别的鬼高一大截。' },
     xuanze: { threat: 48, rule: 70, sense: 45, pollution: 40, sanity: 72, counter: 50, note: '两难：它不追你，它让你自己选错。' },
+    // —— 智慧级（第 21 轮，只有接入 AI 叙事才会遭遇）——
+    guiying_shadow: { threat: 88, rule: 70, sense: 85, pollution: 60, sanity: 75, counter: 80, note: '它在你身体里：反制的难点不是打它，是你不能连自己一起打。' },
+    renpizhi: { threat: 60, rule: 80, sense: 75, pollution: 55, sanity: 85, counter: 70, note: '精神维度极高：它给的每条信息都是真的，所以每条都能牵着你走。' },
+    guiyan: { threat: 92, rule: 82, sense: 98, pollution: 70, sanity: 80, counter: 88, note: '感知维度全表第一：有反光的地方就有它，躲不开。' },
+    no37: { threat: 100, rule: 100, sense: 95, pollution: 90, sanity: 95, counter: 98, note: '六维全满格：它不是敌人，它是这个世界本身的写法。' },
+    menshen: { threat: 78, rule: 92, sense: 70, pollution: 50, sanity: 60, counter: 75, note: '规矩维度极高：它只认程序，力气在这里没有用。' },
+    guimu: { threat: 80, rule: 85, sense: 82, pollution: 70, sanity: 88, counter: 65, note: '温柔型的致命：她喊你回家，你应一声就走不动了。' },
+    guilou: { threat: 82, rule: 88, sense: 78, pollution: 65, sanity: 70, counter: 80, note: '它不追人，它挪出口——你以为在逃，其实在原地打转。' },
+    jingzhongren: { threat: 76, rule: 78, sense: 74, pollution: 55, sanity: 90, counter: 72, note: '它比你更像你：精神冲击最高，因为它会说你要说没说的那句话。' },
+    xuyuan: { threat: 74, rule: 95, sense: 68, pollution: 60, sanity: 82, counter: 85, note: '它的条款永远合法：反制它的唯一办法是许一个它执行不了的愿。' },
+    captain: { threat: 86, rule: 80, sense: 72, pollution: 75, sanity: 78, counter: 68, note: '它招人补员：上船就等于登记，之后连岸上的名字都会被忘掉。' },
+    guilouti: { threat: 75, rule: 90, sense: 66, pollution: 60, sanity: 74, counter: 70, note: '它靠计数抓人：你越规律，它越准。' },
   };
   const DIM_LABEL = {
     threat: '威胁', rule: '规律严苛', sense: '感知追踪',
@@ -1519,6 +1982,8 @@ body.story-mode .logwrap{max-height:22vh !important}
   return {
     items: items,
     ghosts: ghosts,
+    smartGhosts: smartGhosts,
+    smartGhostIds: Object.keys(smartGhosts),
     packs: packs,
     npcs: npcs,
     difficulties: difficulties,
@@ -3437,9 +3902,12 @@ body.story-mode .logwrap{max-height:22vh !important}
   function ghostAllowedNow(state, gid) {
     const g = CONTENT.ghosts[gid];
     if (!g) return false;
+    // 第 21 轮：智慧级厉鬼（有灵智、能被 AI 扮演的那些）只有接入 AI 叙事才会出现。
+    // state.aiOn 由界面层每次调用引擎前根据"是否绑定并启用了 AI 接口"写进来，不进存档。
+    if (g.smart) return !!state.aiOn && state.turn >= 3;
     const sched = eraOf(state).events.filter((e) => e.ghost === gid)[0];
     if (sched) return state.turn >= sched.turn || g.level === 'C' || g.level === 'B';
-    if (g.level === 'S') return state.turn >= 20;
+    if (g.level === 'S' || g.level === 'S+') return state.turn >= 20;
     if (g.level === 'A') return state.turn >= 3;
     return true;
   }
@@ -3456,6 +3924,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       const g = CONTENT.ghosts[gid];
       if (g && (g.level === 'C' || g.level === 'B') && out.indexOf(gid) < 0) out.push(gid);
     }
+    // 智慧级厉鬼不进这张池子：它们只走 encounterGhostId 里那条专属支线（第 5 天后、12% 概率），
+    // 免得跟杂鬼一样天天见。ghostAllowedNow 仍会挡住"没接 AI"的情况，双保险。
     return out;
   }
 
@@ -4518,6 +4988,17 @@ body.story-mode .logwrap{max-height:22vh !important}
       if (pool.length > 1 && pool[i] === avoid) return pool[(i + 1) % pool.length];
       return pool[i];
     };
+    // 第 21 轮：智慧级厉鬼优先判定（接了 AI 才有这条支线）。
+    // 概率随天数递增（第 5 天 12% → 第 23 天后 30%）：只玩几天的玩家见得少，
+    // 活得越久越会遇到——它们本来就是"这个世界里最麻烦的那一类"。
+    if (state.aiOn && state.turn >= 5) {
+      const smart = (CONTENT.smartGhostIds || []).filter((gid) => ghostAllowedNow(state, gid));
+      const chance = 12 + Math.min(20, Math.floor((state.turn - 5) / 6) * 6);
+      if (smart.length && roll100(state, 'smartGhost', 0) <= chance) {
+        const got = pickFrom(smart, 'smart');
+        if (got) return got;
+      }
+    }
     if (r <= 25 && city.ghosts && city.ghosts.length) {
       const local = city.ghosts.filter((gid) => ghostAllowedNow(state, gid));
       const got = pickFrom(local, 'city');
@@ -4590,6 +5071,7 @@ body.story-mode .logwrap{max-height:22vh !important}
       ghost: ghostId,
       name: g.name,
       level: g.level,
+      smart: !!g.smart,                 // 第 21 轮：智慧级（界面据此开放"和它说话"）
       text: g.encounter,
       revealedClues: revealed.map((c) => c.text),
       clueHints: g.clues.filter((c) => !state.clues.includes(c.id)).length,
@@ -4659,6 +5141,7 @@ body.story-mode .logwrap{max-height:22vh !important}
       lines.push(g.exitText);
       settlement.push('生路成立（依赖已掌握线索 ' + enc.revealedClues.length + ' 条）→ 存活，并结算代价与奖励');
       state.events.done.push('escape:' + g.id);
+      if (g.smart) state.events.done.push('escape-smart:' + g.id);   // 智慧级单独记一笔（成就用）
     } else {
       const r = doCheck(state, 'neutral:' + g.id, opt.id, 45 + state.flags.safehouse * 5, [
         { name: '低调', v: state.stats.stealth >= 70 ? 10 : 0 },
@@ -4694,9 +5177,11 @@ body.story-mode .logwrap{max-height:22vh !important}
   }
 
   function pickShield(state, g) {
+    // 智慧级（S+）按 S 级道具匹配：它们仍然怕黄金、怕封印，只是更聪明
+    const lv = g.level === 'S+' ? 'S' : g.level;
     for (const item of state.items) {
       const def = CONTENT.items[item.id];
-      if (def && def.shieldFor && def.shieldFor.includes(g.level)) {
+      if (def && def.shieldFor && def.shieldFor.includes(lv)) {
         return {
           item: item.id, name: def.name, base: def.base || 60,
           bonus: def.bonus || 0, text: def.text || '道具替你挡下了这一下。',
@@ -4734,6 +5219,11 @@ body.story-mode .logwrap{max-height:22vh !important}
     let lastVariant = null;   // 供界面取"行动结果变体句"
 
     if (state.phase === 'encounter' && state.pending) {
+      // 第 21 轮：智慧级遭遇记录"玩家跟它说过话"（成就与图鉴用，不参与判定）
+      if (state.pending.smart && customText) {
+        const gid = state.pending.ghost;
+        if (state.events.done.indexOf('talk:' + gid) < 0) state.events.done.push('talk:' + gid);
+      }
       const r = resolveEncounter(state, choiceId);
       if (r.error) return { error: r.error };
       narrative.push.apply(narrative, r.lines);
@@ -4778,7 +5268,9 @@ body.story-mode .logwrap{max-height:22vh !important}
         state.lastGhost = gid;     // 记住上一只鬼，供下一回合反重复（必须进存档，否则读档可以刷掉重复）
         // 图鉴（第 20 轮）：记录"遇见过这只鬼"。结算时写进玩家档案，跨局累积，
         // 让图鉴里的规律线索随实际遭遇逐步解锁，而不是一开局全送。
-        if (state.events.done.indexOf('enc:' + gid) < 0) state.events.done.push('enc:' + gid);
+        if (!state.events.done.includes('enc:' + gid)) state.events.done.push('enc:' + gid);
+        if (CONTENT.ghosts[gid] && CONTENT.ghosts[gid].smart &&
+            state.events.done.indexOf('smart:' + gid) < 0) state.events.done.push('smart:' + gid);
         state.pending = buildEncounter(state, gid);
         state.phase = 'encounter';
         settlement.push('遭遇判定：1d100=' + v + ' ≤ ' + rc + '% → 遇见「' + state.pending.name + '」（' + state.pending.level + ' 级）');
@@ -5050,6 +5542,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     { id: 'shield_3', cat: 'encounter', name: '一身家当', desc: '累计 3 次挡下杀人规律', cond: (c) => c.run.shields >= 3 },
     { id: 'hit_survive_30', cat: 'encounter', name: '带着伤活下来', desc: '被中性失败波及过，仍活到第 30 天', cond: (c) => c.run.neutralHits >= 1 && c.run.turn >= 30 },
     { id: 'bestiary_6', cat: 'encounter', name: '见多识广', desc: '单局遭遇过 ≥6 种不同的厉鬼', cond: (c) => c.state.bestiary && Object.keys(c.state.bestiary).length >= 6 },
+    { id: 'smart_meet', cat: 'encounter', name: '有灵智的那种', desc: '遇到一只有智慧的厉鬼（需接入 AI）', cond: (c) => c.run.smartMeets >= 1 },
+    { id: 'smart_talk', cat: 'encounter', name: '和它说话', desc: '与智慧级厉鬼对话过 ≥2 只不同的', cond: (c) => c.run.smartTalks >= 2 },
+    { id: 'smart_escape', cat: 'encounter', name: '谈下来的命', desc: '从智慧级厉鬼手里走生路存活', cond: (c) => c.run.smartEscapes >= 1 },
 
     // —— 世界 ——
     { id: 'calamity_floor', cat: 'world', name: '触底', desc: '把劫难值压到本局下限', cond: (c) => c.run.calamity <= c.state.calamityFloor && c.run.turn >= 5 },
@@ -5155,6 +5650,10 @@ body.story-mode .logwrap{max-height:22vh !important}
       cash: state.money.cash,
       safehouse: state.flags.safehouse || 0,
       contracts5: state.contracts.length,
+      // 智慧级厉鬼（需接入 AI 才会遭遇）
+      smartMeets: done.filter((x) => x.indexOf('smart:') === 0).length,
+      smartTalks: done.filter((x) => x.indexOf('talk:') === 0).length,
+      smartEscapes: done.filter((x) => x.indexOf('escape-smart:') === 0).length,
     };
   }
 
@@ -6221,11 +6720,29 @@ body.story-mode .logwrap{max-height:22vh !important}
     /** 只负责把引擎给的机械结果润色成剧情文字；不得改动任何数值 */
     async narrate(payload) {
       if (!this.enabled || !this.endpoint) return null;
-      const sys = '你是恐怖互动小说的叙事者。只输出【剧情叙事】段落，' +
+      let sys = '你是恐怖互动小说的叙事者。只输出【剧情叙事】段落，' +
         '禁止输出任何数值、状态、公式、选项；禁止替玩家做决定；禁止修改判定结果。';
+      let ask = '写 120~220 字的中文剧情，压抑、克制、不写爽文。';
+      // 第 21 轮：智慧级厉鬼——AI 要扮演它本人（思维、说话方式、能力），而不是旁白
+      if (payload.ghost) {
+        const g = payload.ghost;
+        sys = '你在扮演一只"有智慧的厉鬼"，它不是背景板，是一个有明确思维方式和说话习惯的对手。\n' +
+          '身份：' + g.who + '\n' +
+          '它的思维方式：' + g.think + '\n' +
+          '它的说话方式（必须严格照这个语感写）：' + g.speak + '\n' +
+          '它的能力（它可以主动使用，但不得凭空扩大范围）：' + (g.abilities || []).join('、') + '\n' +
+          '它的禁忌（踩到就会立刻翻脸）：' + g.taboo + '\n' +
+          '它可以谈的条件：' + g.deal + '\n' +
+          '硬性约束：① 你只能写这只鬼说的话和它制造的动静，不要替玩家行动、不要替玩家做决定；' +
+          '② 不得输出任何数值、状态、公式、选项、提示；③ 不得宣称玩家已经死亡或已经安全——判定由引擎做；' +
+          '④ 用它的语感说 80~200 字，可以反问、可以沉默、可以答非所问，但必须像"它"，不要像旁白。';
+        ask = '玩家对它说了/做了：' + (payload.playerSpeech || payload.action || '（沉默）') +
+          '　引擎判定（不要复述）：' + (payload.settlement || []).join('；') +
+          '　请用它的口吻回应玩家，80~200 字。';
+      }
       const user = JSON.stringify({
         世界: payload.world, 状态: payload.panel, 玩家行动: payload.action,
-        引擎判定: payload.settlement, 要求: '写 120~220 字的中文剧情，压抑、克制、不写爽文。',
+        引擎判定: payload.settlement, 要求: ask,
       });
       const res = await fetch(this.endpoint, {
         method: 'POST',
@@ -6234,14 +6751,14 @@ body.story-mode .logwrap{max-height:22vh !important}
         body: JSON.stringify({
           model: this.model || 'deepseek-chat',
           messages: [{ role: 'system', content: sys }, { role: 'user', content: user }],
-          temperature: 0.8,
+          temperature: payload.ghost ? 0.9 : 0.8,
         }),
       });
       if (!res.ok) throw new Error('AI 接口返回 ' + res.status);
       const data = await res.json();
       const txt = data && data.choices && data.choices[0] && data.choices[0].message
         ? data.choices[0].message.content : '';
-      return txt ? String(txt).replace(/[【】]/g, '').slice(0, 600) : null;
+      return txt ? String(txt).replace(/[【】]/g, '').slice(0, 900) : null;
     },
   };
 
@@ -6283,6 +6800,46 @@ body.story-mode .logwrap{max-height:22vh !important}
     const c = cityInfo(s);
     const e = eraInfo(s);
     return { city: c ? c.name : '', era: e ? e.name : '' };
+  }
+
+  /* --------------------------------------------- 智慧级厉鬼（第 21 轮）
+   * 需要绑定 AI 接口才会遭遇：AI 扮演它本人（思维 / 说话方式 / 能力），
+   * 但判定与数值仍然全部由引擎做——对话只改叙事，不改结果。
+   */
+  function aiReady() {
+    return !!(window.RS_AI && window.RS_AI.enabled && window.RS_AI.endpoint);
+  }
+  /** 每次调用引擎前把"是否接了 AI"同步给 state（不进存档，只影响智慧级是否入池） */
+  function syncAI(s) {
+    if (s) s.aiOn = aiReady();
+    return s;
+  }
+  function isSmartPending(s) {
+    return !!(s && s.pending && s.pending.smart);
+  }
+
+  /** 让 AI 用这只鬼的口吻说话（遭遇开场 / 玩家说完话之后各调一次） */
+  async function aiGhostSpeak(pending, playerSpeech) {
+    if (!pending || !pending.smart || !aiReady()) return;
+    const g = (C.ghosts && C.ghosts[pending.ghost]) || null;
+    if (!g || !g.persona) return;
+    try {
+      const line = await window.RS_AI.narrate({
+        world: C.meta.title,
+        panel: state ? E.panelOf(state) : null,
+        action: playerSpeech ? '（玩家对它说话）' : '（它先开口）',
+        settlement: [],
+        ghost: Object.assign({ name: g.name }, g.persona),
+        abilities: g.abilities || [],
+        playerSpeech: playerSpeech || '',
+      });
+      if (line) {
+        addLog('say ghost', '【' + g.name + '】' + line);
+        renderNow();
+      }
+    } catch (e) {
+      addLog('warn', '（它的回应没接上：' + (e && e.message ? e.message : '接口错误') + '。判定照常进行。）');
+    }
   }
 
   /** 场景描写：优先用叙事生成器（组合 + 轮转 + 状态反应），没有则退回素材库 */
@@ -6389,10 +6946,12 @@ body.story-mode .logwrap{max-height:22vh !important}
   function hideNow() { const b = $('now'); if (b) { clear(b); b.style.display = 'none'; } }
 
   function renderChoices(choices, mode, label) {
+    syncAI(state);
     const box = $('choices');
     clear(box);
-    // 遭遇中不提供自定义入口：此刻必须做出选择，避免用描述性文本绕过判定
-    $('footer').style.display = state && state.pending ? 'none' : '';
+    // 遭遇中不提供自定义入口：此刻必须做出选择，避免用描述性文本绕过判定。
+    // 例外（第 21 轮）：智慧级厉鬼可以对话——它听得懂人话，这也正是"它有智慧"的意义。
+    $('footer').style.display = (state && state.pending && !isSmartPending(state)) ? 'none' : '';
     if (state && state.over) {
       document.body.classList.remove('story-mode');
       const b = el('button', 'btn primary', '重开一局');
@@ -6418,10 +6977,17 @@ body.story-mode .logwrap{max-height:22vh !important}
       box.appendChild(el('div', 'muted', '（没有可选行动——请把存档贴回来继续）'));
       return;
     }
+    // 接了 AI 的提示：告诉玩家智慧级厉鬼已经进入这个世界（否则它们的存在没人发现）
+    if (aiReady() && state && state.turn >= 5 && !state.pending) {
+      box.appendChild(el('div', 'hint', 'AI 已接入：智慧级厉鬼（' + (C.smartGhostIds || []).length +
+        ' 只，会说话、会谈条件）已经进入你的世界，随时可能找上你。'));
+    }
     // 标题：明确这里是"要你选一个"，否则一排按钮看起来像不明所以的文字块
     const inEnc = !!(state && state.pending);
+    const smart = isSmartPending(state);
     box.appendChild(el('div', 'choicesHead',
-      inEnc ? '你必须做出选择 —— 点下面任意一行（生路要线索支撑，陷阱会死人）'
+      inEnc ? (smart ? '你有智慧级厉鬼在你面前 —— 可以直接对它说话，也可以从下面选一步'
+                     : '你必须做出选择 —— 点下面任意一行（生路要线索支撑，陷阱会死人）')
             : '今天可以做的事 —— 选一件（每天只能做一个主动作）'));
     if (inEnc) {
       const opts = state.pending.options || [];
@@ -6430,7 +6996,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       box.appendChild(el('div', 'choicesSub',
         '现在给出 ' + opts.length + ' 个选项：其中可走的路 ' + kinds.exit + ' 条（需你已掌握线索）、' +
         '安全但会受伤的 ' + kinds.neutral + ' 条、直接触发规矩的 ' + kinds.trap + ' 条。' +
-        '看不出来就先去调查——线索越全，生路越明确。'));
+        '看不出来就先去调查——线索越全，生路越明确。' +
+        (smart ? '　它是智慧级厉鬼：下面输入框可以直接说话，AI 用它自己的思维回答你（判定仍算引擎的）。' : '')));
     }
     choices.forEach((c, i) => {
       // 选项文字里已经写了「（生路）」的，不再重复追加标注
@@ -6449,8 +7016,18 @@ body.story-mode .logwrap{max-height:22vh !important}
 
   function renderEncounter() {
     if (!state.pending) return;
-    addLog('enc', '【遭遇】' + state.pending.name + '（' + state.pending.level + ' 级）');
+    addLog('enc', '【遭遇】' + state.pending.name + '（' + state.pending.level + ' 级）' +
+      (state.pending.smart ? '　★智慧级' : ''));
     addLog('', state.pending.text);
+    if (state.pending.smart) {
+      addLog('warn', '它有智慧：听得懂人话，会跟你谈条件。你可以直接在下面输入框里对它说话——' +
+        '它会用自己的思维与说话方式回应你（AI 扮演），但判定仍归引擎。');
+      // 让它先开口（AI 扮演）；接口没接上就退回到它的兜底台词
+      const g = C.ghosts[state.pending.ghost];
+      const tl = (g && g.talk) || [];
+      if (tl.length) addLog('say ghost', '【' + state.pending.name + '】' + tl[0]);
+      if (aiReady()) aiGhostSpeak(state.pending, '');       // 异步补一句更贴人设的开场
+    }
     if (N) {
       // 第 20 轮：先两段成段叙事（读感），再补短句细节（信息）
       if (N.prose) {
@@ -6511,6 +7088,10 @@ body.story-mode .logwrap{max-height:22vh !important}
   async function onChoice(id, customText) {
     lastLines = [];                 // 本轮新增行：用于「刚刚发生」卡片
     dayStoryShown = false;          // 新的一轮开始：下一天的剧情重新单独读一遍
+    syncAI(state);                  // 智慧级厉鬼是否入池，取决于此刻有没有接 AI
+    // 智慧级遭遇：玩家说了话，先让"它"用自己的口吻回一句（AI 扮演），再走引擎判定
+    const smartTalk = isSmartPending(state) && id === '__custom__' ? String(customText || '') : null;
+    if (smartTalk) await aiGhostSpeak(state.pending, smartTalk);
     // 自由输入：先尝试识别成"真实行动"（不接 AI 也能有自由度）
     let realId = id;
     let intent = null;
@@ -6523,6 +7104,13 @@ body.story-mode .logwrap{max-height:22vh !important}
           const kindName = { exit: '生路', neutral: '中性', trap: '陷阱' }[ei.kind] || ei.kind;
           intent = { label: '[' + kindName + '] ' + ei.label, via: '你写的那句话' };
         } else {
+          if (isSmartPending(state)) {
+            addLog('muted', '（它听完了你的话。不过你"真的要做什么"，仍然要从下面这些选项里挑一步——' +
+              '说话能影响它、影响不了规则。）');
+            addLog('muted', '提示：想活下来，就从选项里挑一条代价付得起的生路；它认的是条件，不是嘴。）');
+            renderNow();
+            return;
+          }
           addLog('warn', '【此刻必须做出选择】引擎不会因为你说了什么而改变判定。');
           addLog('muted', '你可以直接写你要做的事，但必须落在下面这些选项上；选项的文字/标签对得上，我就替你选它。');
           return;
@@ -6894,237 +7482,420 @@ body.story-mode .logwrap{max-height:22vh !important}
     ...[0, 1, 2, 3, 4, 5].map((i) => LN(112, 34 + i * 24, 288, 34 + i * 24, p[2], .26, 1.8)),
     E_(200, 166, 86, 12, p[2], .16)];
 
-  /* ============================================ 第 21 轮：国漫动画风（样张 5 张）
-   * 参考：《我叫杨间》动画（B站 BV1gpQZB5Ea8，第 391 集「撕信」）——
-   *   ① 赛璐璐平涂：2~3 个硬边色阶，不用渐变过渡，明暗交界是一条硬线；
-   *   ② 黑色粗描边（外轮廓 3.4，内部结构线 1.6~2）；
-   *   ③ 冷蓝夜色打底 + 单侧冷色轮廓光（rim light）勾边；
-   *   ④ 红色是唯一的暖色，只给鬼气/眼睛/血/封条，带辉光；
-   *   ⑤ 低机位、主体偏中心、四周压暗（vignette），人物只做剪影不画五官。
-   * 现在只做 5 张样张：knockdoor / crib / corridor / files / mirror。
-   * 用户确认画法后再把剩下 38 张按同一套重做（届时整组替换）。
+  /* ========================================== 第 21 轮 · 画风样张 V2（重做版）
+   * 参考：《我叫杨间》第 391 集「撕信」（B站 BV1gpQZB5Ea8）——
+   *   ① 赛璐璐平涂：2~3 个硬边色阶，明暗交界是一条硬线，不做渐变过渡；
+   *   ② 黑色描边（外轮廓 3~3.6，结构线 1.4~2）；
+   *   ③ 冷蓝夜色 + 单侧冷色轮廓光（rim light）；
+   *   ④ 红色是唯一的暖色（鬼气 / 眼睛 / 血 / 灯 / 印章），带辉光；
+   *   ⑤ 低机位、特写、四周压暗。
+   * 和第一版的区别（用户反馈“和我发的差太多了”）：第一版只有几何色块，没有“动画脸”。
+   * 这一版补上真正的人脸画法（脸型 / 头发 / 睫毛 / 虹膜高光 / 硬边阴影 / 轮廓光），
+   * 并把画布改成 16:9 电影画幅（上下黑边），加雨、雾、湿地面反光与体积光。
    */
-  const CEL_PALETTE = {
-    ancient: ['#0a1018', '#1a2533', '#5c7f9e', '#e8f4ff', '#3c4f63', '#0b1219', '#e0373f'],
-    minguo: ['#100e0c', '#241f18', '#7d6a4e', '#ffe9c0', '#4a3f31', '#0c0a08', '#d8402f'],
-    y2017: ['#080e18', '#16233a', '#5b81ab', '#eaf5ff', '#334a66', '#070c14', '#e0373f'],
-    y2018: ['#070f13', '#14262f', '#4f8a90', '#e6fff6', '#2f4a4d', '#060c0f', '#e0373f'],
-    y2019: ['#0a0814', '#1d1738', '#6d5c9c', '#f2e8ff', '#3a3157', '#08060f', '#e0373f'],
-    doomsday: ['#140808', '#2e1713', '#96513f', '#ffcf9e', '#4a2b22', '#0a0403', '#ff4a3d'],
-    after60: ['#101008', '#221f14', '#7a7250', '#fff6d2', '#46422f', '#0a0a06', '#d8402f'],
-  };
+  const CEL_W = 480, CEL_H = 270;
   const CEL_INK = '#05080c';
-  const CEL_W = 400, CEL_H = 200;
+  const SKIN = { hi: '#f6e0cc', mid: '#dcb79c', lo: '#a87f66', deep: '#6f5140' };
+  const HAIR = { hi: '#4a5868', mid: '#1c2530', lo: '#0b0f15' };
 
-  /** 描边 + 平涂：赛璐璐的基本单元（先填色，再压黑描边） */
-  function celFill(d, fill, w, op) {
-    return PA(d, fill, op === undefined ? 1 : op) + PS(d, CEL_INK, 1, w || 3.4);
-  }
-  /** 硬边色带背景（不做渐变，改成两级硬分界） */
-  function celBands(pal, horizon) {
-    return R_(0, 0, CEL_W, horizon * 0.55, pal[0]) +
-      R_(0, horizon * 0.55, CEL_W, horizon - horizon * 0.55, pal[1]) +
-      R_(0, horizon, CEL_W, CEL_H - horizon, pal[5]);
-  }
-  /** 冷光窗口/灯箱：亮面 + 外溢光 */
-  function celGlowRect(x, y, w, h, color, glow) {
-    return R_(x - 6, y - 6, w + 12, h + 12, color, 0.14) +
-      R_(x, y, w, h, color, 0.92) + PS('M' + x + ' ' + y + ' h' + w + ' v' + h + ' h' + -w + ' z', CEL_INK, 1, 2.2) +
-      (glow ? R_(x - 14, y - 14, w + 28, h + 28, color, 0.08) : '');
-  }
-  /** 红色鬼气：由内到外三层同色圆，做出辉光（不用滤镜，速度更快） */
-  function celRed(x, y, r, op) {
-    const o = op === undefined ? 1 : op;
-    return C_(x, y, r * 3.2, '#e0373f', 0.10 * o) + C_(x, y, r * 2, '#ff5a52', 0.20 * o) +
-      C_(x, y, r, '#ff6a5c', 0.85 * o);
-  }
-  /** 人物剪影（背光/正身）：只做头+肩+躯干的实心块，配单侧轮廓光 */
-  function celFigure(x, yBase, h, pal, flip) {
-    const s = h / 60;
-    const k = flip ? -1 : 1;
-    const body = 'M' + (x - 19 * s) + ' ' + yBase +
-      ' L' + (x - 13 * s) + ' ' + (yBase - 34 * s) +
-      ' Q' + (x - 8 * s) + ' ' + (yBase - 44 * s) + ' ' + (x - 3 * s) + ' ' + (yBase - 46 * s) +
-      ' L' + (x + 3 * s) + ' ' + (yBase - 46 * s) +
-      ' Q' + (x + 8 * s) + ' ' + (yBase - 44 * s) + ' ' + (x + 13 * s) + ' ' + (yBase - 34 * s) +
-      ' L' + (x + 19 * s) + ' ' + yBase + ' Z';
-    const head = 'M' + (x - 8.6 * s) + ' ' + (yBase - 46 * s) +
-      ' q0 -17 ' + (8.6 * s) + ' -17 q' + (8.6 * s) + ' 0 0 17 z';
-    return PA(body, CEL_INK) + PS(body, CEL_INK, 1, 3.2) + PA(head, CEL_INK) + PS(head, CEL_INK, 1, 3.2) +
-      // 单侧冷轮廓光
-      PS('M' + (x - k * 13 * s) + ' ' + (yBase - 34 * s) + ' L' + (x - k * 19 * s) + ' ' + yBase, pal[3], 0.55, 2.2) +
-      PS('M' + (x - k * 8.6 * s) + ' ' + (yBase - 46 * s) + ' q0 -16 ' + (k * 8.6 * s) + ' -17', pal[3], 0.6, 2);
-  }
-  /** 门/窗这类矩形构件：外框 + 内框 + 黑描边 */
+  // 时期只改冷暖偏移，画法完全一致（[0] 夜空 [1] 夜中 [2] 冷雾/远光 [3] 轮廓光 [4] 中景 [5] 剪影 [6] 红）
+  const CEL_PALETTE = {
+    ancient: ['#08111c', '#152438', '#6f96b8', '#e6f3ff', '#2f4560', '#070d15', '#e8322f'],
+    minguo: ['#12100c', '#282219', '#8a7350', '#ffeacb', '#453a2c', '#0b0906', '#d8392c'],
+    y2017: ['#071021', '#152a44', '#6d9bc4', '#eaf6ff', '#2f4c6b', '#060b14', '#ee2f2f'],
+    y2018: ['#061119', '#122b34', '#5f9aa4', '#e7fffa', '#294a4f', '#050b0f', '#e8262d'],
+    y2019: ['#0a0a1c', '#1d1a3c', '#7a6bb0', '#f3ecff', '#332c58', '#080714', '#f0243c'],
+    doomsday: ['#160707', '#331713', '#a65a45', '#ffd0a0', '#4d2b21', '#0b0403', '#ff3b30'],
+    after60: ['#101008', '#23200f', '#847a52', '#fff7d6', '#43402b', '#0a0a05', '#d8392c'],
+  };
 
-  /* —— 样张 1：学校走廊（单点透视 + 尽头冷光 + 墙上血手印）—— */
-  function celCorridor(pal) {
+  /* ------------------------------------------------ 基础绘制 */
+  const nf = (v) => (Math.round(v * 10) / 10);
+  const cp = (d, fill, op) => '<path d="' + d + '" fill="' + fill + '"' + (op === undefined ? '' : ' opacity="' + op + '"') + '/>';
+  const S = (d, c, w, op) => '<path d="' + d + '" fill="none" stroke="' + c + '" stroke-width="' + (w || 2) +
+    '" stroke-opacity="' + (op === undefined ? 1 : op) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+  const R2 = (x, y, w, h, fill, op) => '<rect x="' + nf(x) + '" y="' + nf(y) + '" width="' + nf(Math.max(0, w)) +
+    '" height="' + nf(Math.max(0, h)) + '" fill="' + fill + '"' + (op === undefined ? '' : ' opacity="' + op + '"') + '/>';
+  const C2 = (cx, cy, r, fill, op) => '<circle cx="' + nf(cx) + '" cy="' + nf(cy) + '" r="' + nf(r) + '" fill="' + fill +
+    '"' + (op === undefined ? '' : ' opacity="' + op + '"') + '/>';
+  const E2 = (cx, cy, rx, ry, fill, op) => '<ellipse cx="' + nf(cx) + '" cy="' + nf(cy) + '" rx="' + nf(rx) + '" ry="' + nf(ry) +
+    '" fill="' + fill + '"' + (op === undefined ? '' : ' opacity="' + op + '"') + '/>';
+  const L2 = (x1, y1, x2, y2, c, w, op) => '<line x1="' + nf(x1) + '" y1="' + nf(y1) + '" x2="' + nf(x2) + '" y2="' + nf(y2) +
+    '" stroke="' + c + '" stroke-width="' + (w || 2) + '" stroke-opacity="' + (op === undefined ? 1 : op) + '" stroke-linecap="round"/>';
+  const G2 = (pts, fill, op) => '<polygon points="' + pts + '" fill="' + fill + '"' + (op === undefined ? '' : ' opacity="' + op + '"') + '/>';
+  /** 赛璐璐块：平涂 + 黑描边（画法的基本单元） */
+  const cel = (d, fill, w, op) => cp(d, fill, op) + S(d, CEL_INK, w || 3.2);
+  /** 红色辉光（不用滤镜，三层同色圆） */
+  const red = (x, y, r, op) => C2(x, y, r * 3.4, '#e8262d', 0.10 * (op === undefined ? 1 : op)) +
+    C2(x, y, r * 2.1, '#ff4a45', 0.20 * (op === undefined ? 1 : op)) + C2(x, y, r, '#ff6a5c', 0.88 * (op === undefined ? 1 : op));
+
+  /* ------------------------------------------------ 动画人脸 */
+  /** 正面脸：脸型 + 单侧硬边阴影 + 轮廓光 + 眼睛（虹膜/高光/睫毛）+ 眉 + 鼻 + 嘴 + 头发 */
+  function animeFace(cx, cy, r, pal, opt) {
+    const o = opt || {};
+    const id = o.id || 'f';
     const a = [];
-    a.push(celBands(pal, 132));
-    // 天花板 / 左右墙 / 地面（硬边色块）
-    a.push(celFill('M0 0 L400 0 L258 62 L142 62 Z', pal[5], 3.4));
-    a.push(celFill('M0 0 L142 62 L142 150 L0 200 Z', pal[4], 3.4));
-    a.push(celFill('M400 0 L258 62 L258 150 L400 200 Z', pal[4], 3.4));
-    a.push(celFill('M0 200 L142 150 L258 150 L400 200 Z', pal[1], 3.4));
-    // 两侧的门（透视梯形）
-    [[26, 116, 52, 150, 128, 104], [300, 104, 384, 140, 336, 68]].forEach((d) => {
-      a.push(celFill('M' + d[0] + ' ' + d[3] + ' L' + d[2] + ' ' + d[5] + ' L' + d[4] + ' ' + (d[5] - 6) +
-        ' L' + (d[1] - 10) + ' ' + (d[3] - 8) + ' Z', pal[2], 3));
+    const face = 'M' + nf(cx - 0.60 * r) + ' ' + nf(cy - 0.30 * r) +
+      ' C' + nf(cx - 0.66 * r) + ' ' + nf(cy + 0.04 * r) + ' ' + nf(cx - 0.46 * r) + ' ' + nf(cy + 0.54 * r) + ' ' + nf(cx) + ' ' + nf(cy + 0.90 * r) +
+      ' C' + nf(cx + 0.46 * r) + ' ' + nf(cy + 0.54 * r) + ' ' + nf(cx + 0.66 * r) + ' ' + nf(cy + 0.04 * r) + ' ' + nf(cx + 0.60 * r) + ' ' + nf(cy - 0.30 * r) + ' Z';
+    a.push('<clipPath id="cf' + id + '"><path d="' + face + '"/></clipPath>');
+    a.push(cp(face, SKIN.mid));
+    // 硬边阴影（左侧一整块，明暗交界是一条直线——赛璐璐的关键）
+    a.push('<g clip-path="url(#cf' + id + ')">' +
+      cp('M' + nf(cx - 0.9 * r) + ' ' + nf(cy - 0.9 * r) + ' L' + nf(cx - 0.04 * r) + ' ' + nf(cy - 0.9 * r) +
+        ' L' + nf(cx - 0.40 * r) + ' ' + nf(cy + 1.0 * r) + ' L' + nf(cx - 0.9 * r) + ' ' + nf(cy + 1.0 * r) + ' Z', SKIN.lo, 0.85) +
+      // 脖子投影
+      cp('M' + nf(cx - 0.6 * r) + ' ' + nf(cy - 0.30 * r) + ' L' + nf(cx + 0.6 * r) + ' ' + nf(cy - 0.30 * r) +
+        ' L' + nf(cx + 0.5 * r) + ' ' + nf(cy - 0.12 * r) + ' L' + nf(cx - 0.5 * r) + ' ' + nf(cy - 0.12 * r) + ' Z', SKIN.deep, 0.5) +
+      '</g>');
+    a.push(S(face, CEL_INK, 3));
+    // 轮廓光（右侧）
+    a.push(S('M' + nf(cx + 0.58 * r) + ' ' + nf(cy - 0.26 * r) + ' C' + nf(cx + 0.64 * r) + ' ' + nf(cy + 0.06 * r) + ' ' +
+      nf(cx + 0.44 * r) + ' ' + nf(cy + 0.52 * r) + ' ' + nf(cx + 0.05 * r) + ' ' + nf(cy + 0.86 * r), pal[3], 2.2, 0.75));
+    // 眼睛
+    [-1, 1].forEach((k) => {
+      const ex = cx + k * 0.27 * r, ey = cy + 0.10 * r;
+      const ew = 0.165 * r, eh = 0.125 * r;
+      const iris = o.iris || '#3b6ea8';
+      a.push(E2(ex, ey, ew, eh, '#f2f7fb'));
+      a.push(E2(ex, ey + eh * 0.10, ew * 0.60, eh * 0.88, iris));
+      a.push(E2(ex, ey + eh * 0.16, ew * 0.26, eh * 0.48, '#0a0d12'));
+      a.push(C2(ex - ew * 0.34, ey - eh * 0.36, ew * 0.22, '#ffffff', 0.95));
+      a.push(C2(ex + ew * 0.28, ey + eh * 0.30, ew * 0.12, '#dbe7f2', 0.75));
+      a.push(S('M' + nf(ex - ew * 1.02) + ' ' + nf(ey - eh * 0.30) + ' Q' + nf(ex) + ' ' + nf(ey - eh * 1.62) + ' ' + nf(ex + ew * 1.02) + ' ' + nf(ey - eh * 0.42), CEL_INK, 3.4));
+      a.push(S('M' + nf(ex - ew * 0.78) + ' ' + nf(ey + eh * 0.86) + ' Q' + nf(ex) + ' ' + nf(ey + eh * 1.18) + ' ' + nf(ex + ew * 0.78) + ' ' + nf(ey + eh * 0.80), CEL_INK, 1.4, 0.75));
+      a.push(S('M' + nf(ex - ew * 1.06) + ' ' + nf(ey - eh * 2.3) + ' Q' + nf(ex) + ' ' + nf(ey - eh * 3.0) + ' ' + nf(ex + ew * 0.96) + ' ' + nf(ey - eh * 2.1), HAIR.lo, 3.2));
+      if (o.redEye) a.push(C2(ex, ey + eh * 0.14, ew * 0.30, '#ff5a52', 0.75));
     });
-    // 尽头：门/窗的冷光 + 地面光斑
-    a.push(celGlowRect(168, 58, 64, 92, pal[3], true));
-    a.push(PA('M168 150 L232 150 L300 200 L120 200 Z', pal[3], 0.16));
-    // 红色：门缝溢出的鬼气 + 墙上的手印
-    a.push(R_(168, 148, 64, 5, '#ff5a52', 0.75) + R_(162, 146, 76, 10, '#e0373f', 0.12));
-    a.push(celRed(96, 96, 3.4, 0.9) + C_(96, 96, 12, '#e0373f', 0.16));
-    a.push(LN(96, 96, 92, 86, '#ff6a5c', 0.5, 3) + LN(96, 96, 96, 84, '#ff6a5c', 0.5, 3) +
-      LN(96, 96, 101, 85, '#ff6a5c', 0.5, 3));
+    // 鼻 + 嘴
+    a.push(S('M' + nf(cx + 0.06 * r) + ' ' + nf(cy + 0.34 * r) + ' l' + nf(-0.06 * r) + ' ' + nf(0.12 * r), SKIN.deep, 1.6, 0.7));
+    a.push(S('M' + nf(cx - 0.10 * r) + ' ' + nf(cy + 0.58 * r) + ' q' + nf(0.10 * r) + ' ' + nf(0.07 * r) + ' ' + nf(0.20 * r) + ' ' + nf(-0.01 * r), '#8c5c4f', 2, 0.9));
+    // 头发：顶部弧 + 三束刘海 + 两侧鬓发
+    const hairTop = 'M' + nf(cx - 0.70 * r) + ' ' + nf(cy - 0.10 * r) +
+      ' C' + nf(cx - 0.80 * r) + ' ' + nf(cy - 0.92 * r) + ' ' + nf(cx + 0.80 * r) + ' ' + nf(cy - 0.92 * r) + ' ' + nf(cx + 0.70 * r) + ' ' + nf(cy - 0.10 * r) +
+      ' C' + nf(cx + 0.52 * r) + ' ' + nf(cy - 0.34 * r) + ' ' + nf(cx + 0.20 * r) + ' ' + nf(cy - 0.46 * r) + ' ' + nf(cx - 0.06 * r) + ' ' + nf(cy - 0.32 * r) +
+      ' C' + nf(cx - 0.30 * r) + ' ' + nf(cy - 0.22 * r) + ' ' + nf(cx - 0.56 * r) + ' ' + nf(cy - 0.28 * r) + ' ' + nf(cx - 0.70 * r) + ' ' + nf(cy - 0.10 * r) + ' Z';
+    a.push(cp(hairTop, HAIR.mid) + S(hairTop, CEL_INK, 3));
+    a.push(cp('M' + nf(cx - 0.34 * r) + ' ' + nf(cy - 0.34 * r) + ' L' + nf(cx - 0.16 * r) + ' ' + nf(cy + 0.06 * r) +
+      ' L' + nf(cx + 0.02 * r) + ' ' + nf(cy - 0.30 * r) + ' Z', HAIR.mid) +
+      cp('M' + nf(cx - 0.02 * r) + ' ' + nf(cy - 0.32 * r) + ' L' + nf(cx + 0.16 * r) + ' ' + nf(cy - 0.02 * r) +
+        ' L' + nf(cx + 0.32 * r) + ' ' + nf(cy - 0.36 * r) + ' Z', HAIR.mid));
+    a.push(cp('M' + nf(cx - 0.70 * r) + ' ' + nf(cy - 0.12 * r) + ' q' + nf(-0.06 * r) + ' ' + nf(0.50 * r) + ' ' + nf(0.04 * r) + ' ' + nf(0.72 * r) +
+      ' l' + nf(0.16 * r) + ' ' + nf(-0.62 * r) + ' Z', HAIR.mid) +
+      cp('M' + nf(cx + 0.70 * r) + ' ' + nf(cy - 0.12 * r) + ' q' + nf(0.06 * r) + ' ' + nf(0.50 * r) + ' ' + nf(-0.04 * r) + ' ' + nf(0.72 * r) +
+        ' l' + nf(-0.16 * r) + ' ' + nf(-0.62 * r) + ' Z', HAIR.mid));
+    a.push(S(hairTop, pal[3], 1.8, 0.5));
     return a;
   }
 
-  /* —— 样张 2：敲门鬼·教室门（特写 + 三长两短的敲门声 + 门缝红光）—— */
-  function celKnockdoor(pal) {
+  /** 背影/侧后脑：头发团 + 脖子 + 轮廓光（雨中背影用） */
+  function animeHeadBack(cx, cy, r, pal) {
     const a = [];
-    a.push(celBands(pal, 150));
-    a.push(R_(0, 0, 400, 34, pal[0]));
-    // 门的墙体
-    a.push(celFill('M60 18 L340 18 L340 200 L60 200 Z', pal[4], 3.4));
-    // 门本体（偏右，低机位显得压迫）
-    a.push(celFill('M150 34 L286 34 L286 186 L150 186 Z', pal[2], 4));
-    a.push(R_(158, 42, 120, 62, pal[1], 1) + R_(158, 112, 120, 62, pal[1], 1));
-    a.push(PS('M158 104 h120', CEL_INK, 1, 2.4));
-    // 门缝红光（整条门缝 + 地面反光）
-    a.push(R_(146, 34, 5, 152, '#e0373f', 0.85) + R_(142, 30, 13, 160, '#e0373f', 0.12));
-    a.push(R_(150, 186, 136, 6, '#ff5a52', 0.7) + PA('M150 186 L286 186 L320 200 L116 200 Z', '#e0373f', 0.18));
-    // 三长两短的敲门：门面上的声波弧（两处）
-    [[214, 78], [214, 132]].forEach((c, i) => {
-      [0, 1, 2].forEach((k) => {
-        a.push(PS('M' + (c[0] - 16 - k * 9) + ' ' + (c[1] - 10 - k * 4) + ' q-10 ' + (10 + k * 4) + ' 0 ' + (20 + k * 8),
-          i === 0 ? pal[3] : pal[3], 0.28 - k * 0.07, 2));
-      });
-    });
-    // 前景：背对的人影（右侧三分之一，剪影压住画面）
-    a.push(celFigure(330, 200, 98, pal, true));
-    // 门缝里伸出的手（黑色剪影 + 红指甲）
-    a.push(PA('M286 152 q16 -2 22 -12 q4 8 -2 16 q-10 6 -20 4 z', CEL_INK));
-    a.push(celRed(306, 141, 1.8, 1));
+    const hair = 'M' + nf(cx - 0.66 * r) + ' ' + nf(cy + 0.34 * r) +
+      ' C' + nf(cx - 0.86 * r) + ' ' + nf(cy - 0.72 * r) + ' ' + nf(cx + 0.86 * r) + ' ' + nf(cy - 0.72 * r) + ' ' + nf(cx + 0.66 * r) + ' ' + nf(cy + 0.34 * r) +
+      ' C' + nf(cx + 0.40 * r) + ' ' + nf(cy + 0.52 * r) + ' ' + nf(cx - 0.40 * r) + ' ' + nf(cy + 0.52 * r) + ' ' + nf(cx - 0.66 * r) + ' ' + nf(cy + 0.34 * r) + ' Z';
+    a.push(cp(hair, HAIR.mid) + S(hair, CEL_INK, 3.2));
+    a.push(cp('M' + nf(cx - 0.16 * r) + ' ' + nf(cy + 0.44 * r) + ' L' + nf(cx + 0.16 * r) + ' ' + nf(cy + 0.44 * r) +
+      ' L' + nf(cx + 0.20 * r) + ' ' + nf(cy + 0.86 * r) + ' L' + nf(cx - 0.20 * r) + ' ' + nf(cy + 0.86 * r) + ' Z', SKIN.mid) +
+      S('M' + nf(cx - 0.16 * r) + ' ' + nf(cy + 0.44 * r) + ' L' + nf(cx + 0.16 * r) + ' ' + nf(cy + 0.44 * r) +
+        ' L' + nf(cx + 0.20 * r) + ' ' + nf(cy + 0.86 * r) + ' L' + nf(cx - 0.20 * r) + ' ' + nf(cy + 0.86 * r) + ' Z', CEL_INK, 2.6));
+    a.push(S('M' + nf(cx - 0.62 * r) + ' ' + nf(cy - 0.30 * r) + ' C' + nf(cx - 0.72 * r) + ' ' + nf(cy + 0.16 * r) + ' ' + nf(cx - 0.66 * r) + ' ' + nf(cy + 0.34 * r) + ' ' + nf(cx - 0.58 * r) + ' ' + nf(cy + 0.40 * r), pal[3], 2.4, 0.7));
+    a.push(S('M' + nf(cx + 0.62 * r) + ' ' + nf(cy - 0.30 * r) + ' C' + nf(cx + 0.72 * r) + ' ' + nf(cy + 0.16 * r) + ' ' + nf(cx + 0.66 * r) + ' ' + nf(cy + 0.34 * r) + ' ' + nf(cx + 0.58 * r) + ' ' + nf(cy + 0.40 * r), pal[3], 2.4, 0.9));
+    a.push(cp('M' + nf(cx - 0.30 * r) + ' ' + nf(cy - 0.56 * r) + ' C' + nf(cx - 0.34 * r) + ' ' + nf(cy - 0.86 * r) + ' ' + nf(cx + 0.34 * r) + ' ' + nf(cy - 0.86 * r) + ' ' + nf(cx + 0.30 * r) + ' ' + nf(cy - 0.56 * r) +
+      ' C' + nf(cx + 0.10 * r) + ' ' + nf(cy - 0.68 * r) + ' ' + nf(cx - 0.10 * r) + ' ' + nf(cy - 0.68 * r) + ' ' + nf(cx - 0.30 * r) + ' ' + nf(cy - 0.56 * r) + ' Z', HAIR.hi, 0.55));
     return a;
   }
 
-  /* —— 样张 3：鬼婴·婴儿床（幽闭 + 床单下的红眼睛）—— */
-  function celCrib(pal) {
+  /** 外套/肩（正面或背面通用）：肩线 + 立领 + 明暗两色 + 黑描边 */
+  function animeTorso(cx, yBase, w, h, pal, opt) {
+    const o = opt || {};
     const a = [];
-    a.push(celBands(pal, 140));
-    // 月光窗（左侧，冷蓝）+ 地面光斑
-    a.push(celGlowRect(30, 26, 78, 96, pal[3], true));
-    a.push(PA('M30 122 L108 122 L156 200 L36 200 Z', pal[3], 0.10));
-    // 墙裙
-    a.push(R_(0, 128, 400, 8, pal[4], 1) + PS('M0 128 h400', CEL_INK, 1, 2.4));
-    // 婴儿床（栏杆 + 硬描边）
-    a.push(celFill('M140 96 L300 96 L300 190 L140 190 Z', pal[5], 3.6));
-    for (let i = 0; i <= 8; i++) a.push(LN(146 + i * 19, 100, 146 + i * 19, 186, CEL_INK, 1, 5.2));
-    a.push(PS('M140 118 h160', CEL_INK, 1, 4));
-    // 床里的东西（被单隆起 + 一只小手）
-    a.push(celFill('M150 176 q30 -26 62 -22 q34 4 76 -6 L288 186 L150 186 Z', '#cfd8e2', 3));
-    a.push(PA('M212 150 q10 -12 20 -4 q-8 10 -20 4 z', '#e8eef4') + PS('M212 150 q10 -12 20 -4 q-8 10 -20 4 z', CEL_INK, 1, 2.4));
-    // 被单下的红眼（唯一暖色）
-    a.push(celRed(226, 166, 3.2, 1) + celRed(244, 168, 3.2, 1));
-    a.push(R_(214, 160, 44, 16, '#e0373f', 0.10));
-    // 地上的玩具（黑描边小球）
-    a.push(C_(84, 182, 12, pal[2]) + PS('M72 182 a12 12 0 1 0 24 0 a12 12 0 1 0 -24 0', CEL_INK, 1, 3.2));
+    const body = 'M' + nf(cx - w * 0.52) + ' ' + nf(yBase) +
+      ' L' + nf(cx - w * 0.34) + ' ' + nf(yBase - h * 0.62) +
+      ' Q' + nf(cx) + ' ' + nf(yBase - h * 0.98) + ' ' + nf(cx + w * 0.34) + ' ' + nf(yBase - h * 0.62) +
+      ' L' + nf(cx + w * 0.52) + ' ' + nf(yBase) + ' Z';
+    a.push('<clipPath id="ct' + (o.id || 't') + '"><path d="' + body + '"/></clipPath>');
+    a.push(cp(body, o.dark ? '#0d141b' : '#182430') + S(body, CEL_INK, 3.4));
+    a.push('<g clip-path="url(#ct' + (o.id || 't') + ')">' +
+      cp('M' + nf(cx - w * 0.6) + ' ' + nf(yBase) + ' L' + nf(cx - w * 0.1) + ' ' + nf(yBase - h * 1.1) +
+        ' L' + nf(cx - w * 0.6) + ' ' + nf(yBase - h * 1.1) + ' Z', '#0a1017', 0.55) + '</g>');
+    // 立领
+    a.push(cel('M' + nf(cx - w * 0.20) + ' ' + nf(yBase - h * 0.74) + ' L' + nf(cx) + ' ' + nf(yBase - h * 0.58) +
+      ' L' + nf(cx + w * 0.20) + ' ' + nf(yBase - h * 0.74) + ' L' + nf(cx + w * 0.10) + ' ' + nf(yBase - h * 0.90) +
+      ' L' + nf(cx - w * 0.10) + ' ' + nf(yBase - h * 0.90) + ' Z', o.dark ? '#16202a' : '#22303e', 2.6));
+    // 轮廓光
+    a.push(S('M' + nf(cx + w * 0.36) + ' ' + nf(yBase - h * 0.60) + ' L' + nf(cx + w * 0.52) + ' ' + nf(yBase), pal[3], 2.6, 0.7));
+    a.push(S('M' + nf(cx - w * 0.36) + ' ' + nf(yBase - h * 0.60) + ' L' + nf(cx - w * 0.52) + ' ' + nf(yBase), pal[3], 2, 0.35));
     return a;
   }
 
-  /* —— 样张 4：调查·档案（台灯暖光 vs 冷窗 + 翻档案的人影）—— */
-  function celFiles(pal) {
+  /** 手（抓住某物）：掌 + 四指 + 拇指 + 描边 */
+  function animeHand(x, y, s, palm, opt) {
+    const o = opt || {};
     const a = [];
-    a.push(celBands(pal, 118));
-    // 墙面与冷窗
-    a.push(celGlowRect(258, 20, 96, 76, pal[3], true));
+    a.push(cel('M' + nf(x) + ' ' + nf(y) + ' q' + nf(1.5 * s) + ' ' + nf(-0.4 * s) + ' ' + nf(2.6 * s) + ' ' + nf(0.3 * s) +
+      ' q' + nf(1.1 * s) + ' ' + nf(0.5 * s) + ' ' + nf(1.0 * s) + ' ' + nf(1.7 * s) +
+      ' q' + nf(-0.2 * s) + ' ' + nf(1.2 * s) + ' ' + nf(-1.6 * s) + ' ' + nf(1.4 * s) +
+      ' q' + nf(-1.6 * s) + ' ' + nf(0.2 * s) + ' ' + nf(-2.2 * s) + ' ' + nf(-1.4 * s) +
+      ' q' + nf(-0.6 * s) + ' ' + nf(-1.4 * s) + ' ' + nf(0.2 * s) + ' ' + nf(-2.0 * s) + ' Z', palm, 2.8));
+    for (let i = 0; i < 4; i++) {
+      const fx = x + (0.5 + i * 0.62) * s, fy = y - (0.55 + (i === 1 ? 0.12 : i === 2 ? 0.06 : 0)) * s;
+      a.push(cel('M' + nf(fx) + ' ' + nf(fy) + ' q' + nf(0.34 * s) + ' ' + nf(-0.5 * s) + ' ' + nf(0.62 * s) + ' ' + nf(-0.05 * s) +
+        ' q' + nf(0.22 * s) + ' ' + nf(0.4 * s) + ' ' + nf(-0.2 * s) + ' ' + nf(1.5 * s) +
+        ' l' + nf(-0.5 * s) + ' ' + nf(-0.1 * s) + ' Z', o.dark ? '#c9a184' : SKIN.mid, 2.2));
+    }
+    a.push(cel('M' + nf(x - 0.2 * s) + ' ' + nf(y + 0.9 * s) + ' q' + nf(-0.9 * s) + ' ' + nf(-0.3 * s) + ' ' + nf(-1.2 * s) + ' ' + nf(0.5 * s) +
+      ' q' + nf(-0.2 * s) + ' ' + nf(0.7 * s) + ' ' + nf(0.7 * s) + ' ' + nf(0.9 * s) + ' Z', o.dark ? '#c9a184' : SKIN.mid, 2.2));
+    return a;
+  }
+
+  /* ------------------------------------------------ 环境 */
+  function rain(seed, n, pal) {
+    const a = [];
+    for (let i = 0; i < (n || 26); i++) {
+      const x = ((seed * 9301 + i * 49297) % 233280) / 233280 * (CEL_W + 60) - 30;
+      const y = ((seed * 4801 + i * 23311) % 233280) / 233280 * CEL_H;
+      const len = 14 + ((i * 37) % 22);
+      a.push(L2(x, y, x - 5, y + len, pal[3], 1.4, 0.20 + ((i % 4) * 0.07)));
+    }
+    return a.join('');
+  }
+  function fogBands(pal, y, h) {
+    return E2(CEL_W * 0.34, y, 210, h * 1.1, pal[2], 0.10) + E2(CEL_W * 0.72, y + 6, 240, h, pal[2], 0.08);
+  }
+  function wetFloor(pal, y, h) {
+    const a = [cp('M0 ' + y + ' L' + CEL_W + ' ' + y + ' L' + CEL_W + ' ' + (y + h) + ' L0 ' + (y + h) + ' Z', pal[5])];
+    for (let i = 0; i < 9; i++) {
+      const x = (i * 61 + 18) % CEL_W;
+      const w = 26 + ((i * 53) % 70);
+      a.push(E2(x, y + 12 + ((i * 17) % (h - 16)), w, 2.4, pal[3], 0.10 + ((i % 3) * 0.03)));
+    }
+    return a.join('');
+  }
+  function letterbox() {
+    return R2(0, 0, CEL_W, 12, '#04060a') + R2(0, CEL_H - 12, CEL_W, 12, '#04060a');
+  }
+  function celGlow(x, y, w, h, color, k) {
+    const o = k === undefined ? 1 : k;
+    return R2(x - 8, y - 8, w + 16, h + 16, color, 0.10 * o) + R2(x, y, w, h, color, 0.85 * o) +
+      S('M' + x + ' ' + y + ' h' + w + ' v' + h + ' h' + -w + ' z', CEL_INK, 2.2);
+  }
+
+  /* ------------------------------------------------ 五张样张 */
+  /** ① 撕信（对应第 391 集）：一封信被两只手撕开，背面是暗处的一只眼 */
+  function stillTear(pal) {
+    const a = [];
+    a.push(R2(0, 0, CEL_W, CEL_H, pal[0]));
+    // 背景：远处墙面 + 冷光缝
+    a.push(cp('M0 40 L' + CEL_W + ' 0 L' + CEL_W + ' ' + CEL_H + ' L0 ' + CEL_H + ' Z', pal[1]));
+    a.push(fogBands(pal, 96, 40));
+    a.push(cp('M0 74 L' + CEL_W + ' 34 L' + CEL_W + ' 44 L0 84 Z', pal[2], 0.12));
+    // 暗处的眼睛（左上，红光）
+    a.push(E2(112, 62, 22, 10, '#000', 0.55));
+    a.push(red(100, 62, 3.2, 0.95) + red(124, 62, 3.2, 0.95));
+    a.push(S('M74 62 q38 -16 76 0', CEL_INK, 3));
     // 桌面
-    a.push(celFill('M0 132 L400 132 L400 200 L0 200 Z', '#241a12', 3.6));
-    a.push(PS('M0 132 h400', CEL_INK, 1, 4));
-    // 台灯（暖黄光锥，赛璐璐两级硬边）
-    a.push(PA('M116 52 L176 52 L156 78 L136 78 Z', '#2c2a24') + PS('M116 52 L176 52 L156 78 L136 78 Z', CEL_INK, 1, 3));
-    a.push(LN(146, 78, 146, 132, CEL_INK, 1, 3.4));
-    a.push(PA('M136 80 L156 80 L232 132 L60 132 Z', '#ffcf8a', 0.16));
-    a.push(PA('M138 82 L154 82 L196 132 L96 132 Z', '#ffe3ad', 0.13));
-    // 档案堆（白灰平涂 + 硬描边）
-    a.push(celFill('M120 120 L268 120 L268 132 L120 132 Z', '#e7e3d8', 3));
-    a.push(celFill('M126 108 L274 108 L274 120 L126 120 Z', '#f2eee2', 3));
-    a.push(celFill('M132 96 L280 96 L280 108 L132 108 Z', '#fbf7ec', 3));
-    a.push(LN(146, 102, 196, 102, '#6b6257', 0.6, 2));
-    // 红色：盖在档案上的印
-    a.push(R_(236, 100, 30, 16, 'none') + PS('M236 100 h30 v16 h-30 z', '#e0373f', 0.85, 2.4) +
-      PS('M240 108 h22 M244 104 v10 M252 104 v10 M260 104 v10', '#e0373f', 0.4, 1.6));
-    // 前景人物剪影（右缘，伸手向档案）
-    a.push(celFigure(348, 200, 112, pal, true));
-    a.push(PA('M330 138 q-24 8 -38 20 q6 8 14 6 q16 -12 30 -16 z', CEL_INK));
+    a.push(cp('M0 208 L' + CEL_W + ' 208 L' + CEL_W + ' ' + CEL_H + ' L0 ' + CEL_H + ' Z', '#1b1410'));
+    a.push(S('M0 208 h' + CEL_W, CEL_INK, 3));
+    // 信纸（两张被撕开的半页，硬边平涂 + 黑描边）
+    a.push(cel('M168 92 L300 78 L318 196 L182 210 Z', '#f4efe2', 3.4));
+    a.push(cel('M328 74 L452 88 L438 200 L312 194 Z', '#eee8d9', 3.4));
+    // 撕裂边（锯齿）
+    a.push(cp('M300 78 L294 96 L304 112 L292 132 L302 150 L288 168 L298 184 L318 196 L312 194 L296 182 L306 164 L294 148 L304 130 L292 112 L302 96 Z', '#dcd5c4'));
+    a.push(S('M300 78 L294 96 L304 112 L292 132 L302 150 L288 168 L298 184 L318 196', CEL_INK, 2.4));
+    // 红印章 + 字迹
+    a.push(S('M196 128 L262 121 L258 157 L192 164 Z', '#e8262d', 2.6, 0.9));
+    a.push(S('M204 136 h48 M202 144 h44', '#e8262d', 2, 0.75));
+    for (let i = 0; i < 7; i++) a.push(S('M' + (206 + i * 2) + ' ' + (172 + i * 3.4) + ' h' + (66 - i * 4), '#8d8577', 1.6, 0.85));
+    for (let i = 0; i < 6; i++) a.push(S('M' + (336 + i * 2) + ' ' + (150 + i * 4) + ' h' + (40 - i * 3), '#8d8577', 1.6, 0.7));
+    // 两只手（右下与左，抓住两侧纸缘）
+    a.push(cp('M300 236 L392 214 L436 250 L344 268 Z', '#0d141b'));
+    a.push(animeHand(366, 226, 21, SKIN.mid, {}).join(''));
+    a.push(animeHand(196, 152, 20, SKIN.mid, { dark: true }).join(''));
+    // 撕开的碎纸屑
+    [[268, 84, 12, 8], [286, 206, 9, 7], [318, 64, 10, 6], [150, 200, 8, 6]].forEach((p) => {
+      a.push(cel('M' + p[0] + ' ' + p[1] + ' l' + p[2] + ' -3 l3 5 l-' + p[2] + ' 3 z', '#f1ebdd', 1.6));
+    });
     return a;
   }
 
-  /* —— 样张 5：训练·镜子（人物特写 + 镜里多出来的那个影子）—— */
-  function celMirror(pal) {
+  /** ② 雨中巷口：主角背影（低机位）+ 红路灯 + 湿地面反光 + 巷道深处的鬼影 */
+  function stillRain(pal) {
     const a = [];
-    a.push(celBands(pal, 150));
-    // 镜框（钢蓝 + 黑粗描边）
-    a.push(celFill('M96 26 L304 26 L304 186 L96 186 Z', '#0b1118', 4));
-    a.push(R_(104, 34, 192, 144, pal[1], 1));
-    a.push(PA('M104 34 L296 34 L296 92 L104 122 Z', pal[2], 0.55));
-    // 镜中的影子（比现实更暗，带红眼）
-    a.push(celFigure(214, 178, 104, pal, true));
-    a.push(celRed(208, 122, 2.6, 1) + celRed(222, 122, 2.6, 1));
-    a.push(PS('M232 96 l26 30 M258 92 l-22 34', '#e0373f', 0.5, 2));
-    // 镜面的裂痕
-    a.push(PS('M104 122 L158 96 L150 130 L206 78', '#cfe9ff', 0.35, 1.6));
-    // 前景：正面站着的你（背光剪影，占画面下半，最接近动画的特写机位）
-    a.push(celFigure(200, 216, 132, pal, false));
-    a.push(PS('M200 84 q-14 0 -14 16', pal[3], 0.5, 2));
+    a.push(R2(0, 0, CEL_W, CEL_H, pal[0]));
+    a.push(cp('M0 0 L' + CEL_W + ' 0 L' + CEL_W + ' 96 L0 118 Z', pal[1]));
+    // 两侧楼体（硬边剪影）
+    a.push(cel('M0 22 L104 44 L104 214 L0 232 Z', '#0a121b', 3));
+    a.push(cel('M' + CEL_W + ' 8 L380 36 L380 206 L' + CEL_W + ' 220 Z', '#0a121b', 3));
+    // 亮着的窗（冷光）
+    [[24, 62], [54, 78], [84, 96], [24, 118], [58, 136], [404, 66], [430, 84], [404, 120], [434, 140]].forEach((w, i) => {
+      a.push(R2(w[0], w[1], 15, 11, pal[3], i % 3 === 0 ? 0.9 : 0.55));
+      a.push(S('M' + w[0] + ' ' + w[1] + ' h15 v11 h-15 z', CEL_INK, 1.6));
+    });
+    // 巷子尽头：红灯笼/路灯 + 鬼影
+    a.push(red(232, 74, 7, 1));
+    a.push(cel('M226 40 L238 40 L238 62 L226 62 Z', '#2b1a14', 2.4));
+    a.push(cp('M232 62 L' + 300 + ' 214 L164 214 Z', '#ff5a52', 0.07));
+    // 深处的鬼影（细高、无脸）
+    a.push(cp('M244 118 L256 118 L262 214 L238 214 Z', '#0a0e13'));
+    a.push(C2(250, 110, 9, '#0a0e13') + S('M241 110 a9 9 0 1 0 18 0 a9 9 0 1 0 -18 0', CEL_INK, 2.4));
+    a.push(S('M256 132 L262 190', pal[3], 1.6, 0.6));
+    // 湿地面
+    a.push(wetFloor(pal, 214, CEL_H - 214));
+    a.push(E2(232, 232, 40, 5, '#ff5a52', 0.22));
+    // 主角背影（占下半幅，低机位）
+    a.push(animeHeadBack(196, 150, 40, pal).join(''));
+    a.push(animeTorso(196, 268, 150, 116, pal, { id: 'r1', dark: true }).join(''));
+    a.push(S('M196 100 v18', '#0d141b', 6, 0.9));
+    a.push(rain(7, 34, pal));
+    a.push(fogBands(pal, 150, 34));
+    return a;
+  }
+
+  /** ③ 鬼眼：眼睛极特写（睫毛、虹膜、瞳孔里立着一个红影） */
+  function stillEye(pal) {
+    const a = [];
+    a.push(R2(0, 0, CEL_W, CEL_H, pal[0]));
+    // 皮肤底（硬边两块）
+    a.push(cp('M0 0 L' + CEL_W + ' 0 L' + CEL_W + ' ' + CEL_H + ' L0 ' + CEL_H + ' Z', SKIN.mid));
+    a.push(cp('M0 0 L' + CEL_W + ' 0 L' + CEL_W + ' 92 L0 128 Z', SKIN.lo, 0.55));
+    a.push(cp('M0 214 L' + CEL_W + ' 168 L' + CEL_W + ' ' + CEL_H + ' L0 ' + CEL_H + ' Z', SKIN.lo, 0.35));
+    // 眼球
+    a.push(E2(238, 140, 128, 76, '#f7fafc') + S('M110 140 a128 76 0 1 0 256 0 a128 76 0 1 0 -256 0', CEL_INK, 2.6));
+    a.push(E2(238, 142, 74, 74, '#7a1f22'));
+    a.push(E2(238, 146, 52, 58, '#20161a'));
+    // 瞳孔里的红色人影
+    a.push(cp('M234 116 L242 116 L246 176 L230 176 Z', '#ff5a52', 0.85));
+    a.push(C2(238, 110, 6, '#ff5a52', 0.9));
+    a.push(red(238, 142, 5, 0.5));
+    // 高光两块
+    a.push(C2(198, 108, 22, '#ffffff', 0.92) + C2(276, 176, 12, '#e8f0f8', 0.6));
+    // 上睫毛（粗黑）+ 下眼线
+    a.push(S('M104 128 Q238 22 372 116', CEL_INK, 13));
+    a.push(S('M104 132 Q238 30 372 120', '#1a1f27', 6, 0.8));
+    a.push(S('M118 196 Q238 232 356 186', CEL_INK, 4, 0.85));
+    // 眉毛
+    a.push(S('M96 66 Q238 -6 380 58', HAIR.lo, 14));
+    a.push(S('M104 58 Q238 2 372 52', '#2a3340', 4, 0.7));
+    // 上下眼皮的皮肤压边（让眼窝有厚度）
+    a.push(cp('M0 0 L' + CEL_W + ' 0 L' + CEL_W + ' 40 Q238 96 0 84 Z', SKIN.mid, 0.9));
+    a.push(cp('M0 ' + CEL_H + ' L' + CEL_W + ' ' + CEL_H + ' L' + CEL_W + ' 232 Q238 246 0 236 Z', SKIN.mid, 0.9));
+    // 眼角的血丝与一点红
+    a.push(S('M128 168 q22 8 40 4 M330 132 q20 -6 34 -2', '#c0392b', 1.6, 0.55));
+    a.push(red(352, 208, 3, 0.7));
+    return a;
+  }
+
+  /** ④ 门缝后的那张脸：门板占大半，缝里半张苍白的脸 + 一只红眼 */
+  function stillDoor(pal) {
+    const a = [];
+    a.push(R2(0, 0, CEL_W, CEL_H, pal[0]));
+    // 走廊冷光在门后
+    a.push(cp('M0 0 L' + CEL_W + ' 0 L' + CEL_W + ' 40 L0 26 Z', pal[1]));
+    // 门板（左）与门框（右）
+    a.push(cel('M0 0 L286 0 L286 ' + CEL_H + ' L0 ' + CEL_H + ' Z', '#151d26', 3.6));
+    a.push(cel('M312 0 L' + CEL_W + ' 0 L' + CEL_W + ' ' + CEL_H + ' L312 ' + CEL_H + ' Z', '#1a232d', 3.6));
+    // 木纹
+    for (let i = 0; i < 7; i++) a.push(L2(24 + i * 38, 0, 20 + i * 38, CEL_H, '#0d141c', 2, 0.7));
+    a.push(cel('M22 62 L268 62 L268 74 L22 74 Z', '#101821', 2.2));
+    a.push(cel('M22 186 L268 186 L268 198 L22 198 Z', '#101821', 2.2));
+    // 门把手
+    a.push(cel('M246 128 q22 0 22 16 q0 16 -22 16 q-6 -16 0 -32 Z', '#3d4a58', 2.6));
+    // 门缝：一条红光带
+    a.push(R2(286, 0, 26, CEL_H, '#ff5a52', 0.85));
+    a.push(R2(282, 0, 34, CEL_H, '#e8262d', 0.16));
+    a.push(red(299, 216, 6, 0.9));
+    a.push(cp('M286 ' + CEL_H + ' L312 ' + CEL_H + ' L392 ' + CEL_H + ' L206 ' + CEL_H + ' Z', '#e8262d', 0.12));
+    // 缝后的脸（半张，苍白，冷蓝阴影）
+    a.push('<clipPath id="doorc"><rect x="286" y="0" width="26" height="' + CEL_H + '"/></clipPath>');
+    a.push('<g clip-path="url(#doorc)">' + animeFace(300, 130, 44, pal, { id: 'door', iris: '#c0392b', redEye: true }).join('') + '</g>');
+    // 脸上的红光染色
+    a.push(R2(286, 0, 26, CEL_H, '#ff4a45', 0.22));
+    // 门缝下的手影
+    a.push(cp('M280 236 q18 -10 34 0 q-16 12 -34 0 z', '#070b0f'));
+    // 前景：观察者的肩（压画面）
+    a.push(cp('M0 244 Q120 196 200 214 L200 ' + CEL_H + ' L0 ' + CEL_H + ' Z', '#05080c'));
+    a.push(cp('M' + CEL_W + ' 246 Q360 200 300 214 L300 ' + CEL_H + ' L' + CEL_W + ' ' + CEL_H + ' Z', '#05080c'));
+    return a;
+  }
+
+  /** ⑤ 幽灵船长：甲板雾夜，船长剪影（帽 + 大衣 + 红瞳），海里有手伸出来 */
+  function stillCaptain(pal) {
+    const a = [];
+    a.push(R2(0, 0, CEL_W, CEL_H, pal[0]));
+    a.push(cp('M0 0 L' + CEL_W + ' 0 L' + CEL_W + ' 78 Q240 44 0 96 Z', '#0b1420'));
+    a.push(fogBands(pal, 74, 46));
+    // 海面
+    a.push(cp('M0 196 L' + CEL_W + ' 196 L' + CEL_W + ' ' + CEL_H + ' L0 ' + CEL_H + ' Z', '#081218'));
+    for (let i = 0; i < 8; i++) a.push(E2(30 + i * 58, 216 + (i % 3) * 12, 34, 3, pal[3], 0.10));
+    // 船体与缆绳
+    a.push(cel('M0 200 L' + CEL_W + ' 188 L' + CEL_W + ' ' + CEL_H + ' L0 ' + CEL_H + ' Z', '#101a22', 3.4));
+    a.push(L2(58, 0, 92, 200, '#0a1118', 3.4));
+    a.push(L2(112, 0, 132, 196, '#0a1118', 2.6));
+    a.push(S('M92 18 Q150 96 118 200', '#131f29', 2.4));
+    // 桅杆上的红灯笼
+    a.push(cel('M86 44 L110 44 L106 66 L90 66 Z', '#3a1712', 2.6));
+    a.push(red(98, 58, 8, 1));
+    a.push(E2(98, 58, 46, 34, '#ff4a45', 0.10));
+    // 船长剪影（右侧中景，逆光）
+    a.push(animeTorso(384, 214, 96, 128, pal, { id: 'cap', dark: true }).join(''));
+    a.push(cel('M368 96 L400 96 L404 118 L364 118 Z', '#0b1119', 3));
+    a.push(cel('M350 118 L418 118 L418 126 L350 126 Z', '#0b1119', 3.2));
+    a.push(cp('M364 118 q18 -8 36 0 q-18 6 -36 0 z', '#0b1119'));
+    a.push(red(392, 134, 2.4, 1) + red(400, 134, 2.4, 1));
+    a.push(S('M400 96 L404 118 L418 122', pal[3], 2.2, 0.7));
+    // 海里的手（红指甲）
+    for (let i = 0; i < 4; i++) {
+      a.push(cel('M' + (188 + i * 26) + ' 262 q4 -30 9 -30 q5 0 5 30 z', '#93a3ae', 2.4));
+      a.push(red(190 + i * 26, 234, 1.8, 0.95));
+    }
+    // 雾与雨
+    a.push(fogBands(pal, 150, 30));
+    a.push(rain(11, 24, pal));
+    a.push(red(98, 58, 14, 0.35));
     return a;
   }
 
   const MOTIFS_V2 = {
-    corridor: celCorridor,
-    knockdoor: celKnockdoor,
-    crib: celCrib,
-    files: celFiles,
-    mirror: celMirror,
+    tear: stillTear,
+    rain: stillRain,
+    eye: stillEye,
+    door: stillDoor,
+    captain: stillCaptain,
   };
 
-  /** 国漫动画风渲染：底 + 母题 + 压暗 + 轻颗粒（无外部素材） */
+  /** 画风 V2 渲染：底 + 母题 + 体积光 + 颗粒 + 压暗 + 电影黑边 */
   function sceneSvgV2(state, ctx, forceMotif) {
     const eraId = (state && state.era) || 'y2018';
     const pal = CEL_PALETTE[eraId] || CEL_PALETTE.y2018;
     const seed = (state && state.seedInt) || 20180923;
     const turn = (state && state.turn) || 1;
-    const hh = (i) => ((seed * 9301 + turn * 49297 + i * 233) % 233280) / 233280;
-    const motif = forceMotif || motifOf(state, ctx);
-    const fn = MOTIFS_V2[motif] || celKnockdoor;
+    const motif = forceMotif || 'rain';
+    const fn = MOTIFS_V2[motif] || stillRain;
     const out = [];
     out.push('<svg viewBox="0 0 ' + CEL_W + ' ' + CEL_H + '" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">');
-    out.push('<defs><radialGradient id="vig2" cx="50%" cy="46%" r="74%">' +
-      '<stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".78"/></radialGradient>' +
-      '<filter id="grain2"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>' +
+    out.push('<defs><radialGradient id="vig3" cx="50%" cy="46%" r="72%">' +
+      '<stop offset=".46" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".76"/></radialGradient>' +
+      '<filter id="grain3"><feTurbulence type="fractalNoise" baseFrequency="0.92" numOctaves="2" stitchTiles="stitch"/>' +
       '<feColorMatrix type="saturate" values="0"/></filter></defs>');
-    // 天光：一条硬边冷光带（赛璐璐不做渐变过渡）
-    out.push(R_(0, 0, CEL_W, CEL_H, pal[0]));
-    if (hh(2) > 0.35) out.push(PA('M0 0 L' + (120 + hh(3) * 260).toFixed(0) + ' 0 L' + (60 + hh(3) * 200).toFixed(0) +
-      ' ' + (40 + hh(4) * 50).toFixed(0) + ' L0 ' + (70 + hh(4) * 40).toFixed(0) + ' Z', pal[2], 0.16));
     out.push(fn(pal).join(''));
-    // 颗粒 + 压暗
-    out.push('<rect width="' + CEL_W + '" height="' + CEL_H + '" filter="url(#grain2)" opacity=".07"/>');
-    out.push(R_(0, 0, CEL_W, CEL_H, 'url(#vig2)'));
+    if (((seed + turn) % 3) !== 1) {
+      out.push(cp('M' + (60 + (seed % 140)) + ' 0 L' + (200 + (seed % 120)) + ' 0 L' + (300 + (seed % 90)) + ' ' + CEL_H + ' L' + (140 + (seed % 60)) + ' ' + CEL_H + ' Z', pal[3], 0.05));
+    }
+    out.push('<rect width="' + CEL_W + '" height="' + CEL_H + '" filter="url(#grain3)" opacity=".06"/>');
+    out.push(R2(0, 0, CEL_W, CEL_H, 'url(#vig3)'));
+    out.push(letterbox());
     out.push('</svg>');
     return out.join('');
   }
 
-  /** 画册样张清单（给「画册」顶部的新画风预览用） */
+  /** 画册样张清单（第 21 轮重做版） */
   const SAMPLES_V2 = [
-    { motif: 'corridor', label: '学校走廊', note: '单点透视 + 尽头冷光 + 墙上血手印（地点类）' },
-    { motif: 'knockdoor', label: '敲门鬼·教室门', note: '门缝红光 + 三长两短的声波弧 + 前景人影（S 级鬼）' },
-    { motif: 'crib', label: '鬼婴·婴儿床', note: '月光窗 + 床单下的红眼（C/B 级鬼）' },
-    { motif: 'files', label: '调查·档案', note: '台灯暖光 vs 冷窗 + 红印章 + 伸手的人影（行动类）' },
-    { motif: 'mirror', label: '训练·镜子', note: '人物背影特写 + 镜里多出来的那个影子（动画最常见的机位）' },
+    { motif: 'tear', label: '撕信（对应你给的那一集）', note: '两只手把信撕开、红印章、暗处一只眼——最接近特写镜头的一张' },
+    { motif: 'rain', label: '雨中巷口', note: '主角背影低机位 + 红路灯 + 湿地面反光 + 巷子深处一道鬼影' },
+    { motif: 'eye', label: '鬼眼', note: '极特写：睫毛、虹膜、瞳孔里立着一个红影' },
+    { motif: 'door', label: '门缝后的那张脸', note: '门板压满画面，门缝里半张苍白的脸和一只红眼' },
+    { motif: 'captain', label: '幽灵船长', note: '雾夜甲板、红灯笼、船长逆光剪影、海里伸出来的手' },
   ];
 
   function sceneSvg(state, ctx, forceMotif) {
@@ -7517,7 +8288,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     const clueHave = (state && state.clues ? state.clues.length : 0);
 
     box.appendChild(el('div', 'sectionTitle', '图鉴 · 收集进度'));
-    box.appendChild(el('div', 'hint', '成就与结局跨局累积；厉鬼的杀人规律只有在你真正遭遇过之后才会写进图鉴。'));
+    box.appendChild(el('div', 'hint', '成就与结局跨局累积；厉鬼的杀人规律只有在你真正遭遇过之后才会写进图鉴。' +
+      '其中「智慧级厉鬼」（S+）需要先在顶栏「AI 叙事设置」里绑定接口才会出现在你的世界里——' +
+      '它们会像人一样跟你说话、谈条件，共 ' + (C.smartGhostIds || []).length + ' 只。'));
     box.appendChild(tabBar([
       { id: 'ach', label: '成就', count: prog.unlocked + '/' + prog.total },
       { id: 'end', label: '结局', count: endHave + '/' + endTotal },
@@ -7579,7 +8352,6 @@ body.story-mode .logwrap{max-height:22vh !important}
       box.appendChild(el('div', 'hint', '遭遇过 ' + ghostHave + ' / ' + ghostTotal +
         ' 只。规律（线索）在你真的遭遇过它之后才会解锁，共 ' +
         Object.keys(idx).length + ' 条。点一行展开它的档案与维度雷达图。'));
-
       if (ghostView !== 'gdims') {
       const list = el('div', 'codexList');
       Object.keys(C.ghosts).forEach((gid) => {
@@ -7588,6 +8360,7 @@ body.story-mode .logwrap{max-height:22vh !important}
         const row = el('div', 'codexRow clickable' + (met ? ' got' : ''));
         const head = el('div', 'codexHead');
         head.appendChild(el('span', 'lvl badgetone-' + (LEVEL_TONE[g.level] || 'accent'), g.level + ' 级'));
+        if (g.smart) head.appendChild(el('span', 'lvl badgetone-smart', '智慧级 · 需接 AI'));
         head.appendChild(el('span', 'codexName', (met ? '★ ' : '☆ ') + g.name));
         head.appendChild(el('span', 'codexMeta', met ? '已遭遇（点开看档案）' : '未遭遇（点开看档案）'));
         row.appendChild(head);
