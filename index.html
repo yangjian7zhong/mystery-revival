@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260925115921">
+<meta name="rs-build" content="v260925123618">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -417,7 +417,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260925115921";</script>
+<script>window.__RS_BUILD = "v260925123618";</script>
 <header>
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
@@ -6357,6 +6357,9 @@ body.story-mode .logwrap{max-height:22vh !important}
 
     captain: {
       id: 'captain', name: '幽灵船长', level: 'S+', penalty: 62, smart: true,
+      // 第 40 轮（用户定稿）：国王组织的老大是幽灵船长——它不是人，是那条船的意志，
+      // 所以走的是智慧级厉鬼那条通道（要接 AI 才会遇到），但阵营记在国王组织名下。
+      faction: 'king', rank: '首领',
       tie: '末日·幽灵船（原著·幽灵船与诺亚方舟）',
       encounter: '雾里先是桅杆，然后是船。船很旧，甲板上站着人，全是背影。' +
         '其中一个转过身：帽檐下没有人脸，只有海。他抬手做了个动作——请你上船。',
@@ -6562,7 +6565,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     lvjun: {
       id: 'lvjun', name: '李军（鬼火）', level: 'A', penalty: 40, person: true,
       tie: '总部·队长（原著·鬼火）',
-      faction: 'org', rank: '成员', meetBase: 0.45, valueNeed: 2,
+      // 第 40 轮（用户定稿）：李军是总部队长
+      faction: 'org', rank: '总部队长', meetBase: 0.45, valueNeed: 2,
       introduces: ['shenlin'],
       introLine: '沈林在大京。你要找他，先把条件想清楚——他不听废话。',
       encounter: '他蹲在烧塌的半边楼里抽烟，烟火不是橘色，是发青的。' +
@@ -6602,7 +6606,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     ahong: {
       id: 'ahong', name: '阿红（鬼妆）', level: 'A', penalty: 38, person: true,
       tie: '总部·队长（原著·鬼妆）',
-      faction: 'org', rank: '成员', meetBase: 0.58, valueNeed: 2,
+      // 第 40 轮（用户定稿）：阿红同样是总部队长
+      faction: 'org', rank: '总部队长', meetBase: 0.58, valueNeed: 2,
       introduces: ['guofan'],
       introLine: '郭凡在后院描牌位。你去的时候，别报自己的真名。',
       encounter: '她背对着你坐在镜子前化妆。镜子里那张脸先转过来看了你一眼，' +
@@ -6804,6 +6809,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     king: {
       id: 'king', name: '国王组织·一位国王', level: 'S', penalty: 62, person: true,
       tie: '国王组织（境外·原著）',
+      // 第 40 轮（用户定稿）：国王组织的老大是幽灵船长（见 captain 条目），"一位国王"是成员
       faction: 'king', rank: '成员', meetBase: 0.35, valueNeed: 3,
       introduces: [],
       introLine: '',
@@ -6831,7 +6837,7 @@ body.story-mode .logwrap{max-height:22vh !important}
       rewards: [{ k: 'flag', key: 'intel', v: 3 }, { k: 'money', key: 'gold', v: 2 }],
       masteryClue: 'kg1',
       persona: {
-        who: '国王组织的一位国王（境外势力），等级相当于总部队长之上的存在。',
+        who: '国王组织的一位国王（境外势力）：战力在总部队长之上，但在这条线上做主的不是他——是那条船上的东西。',
         think: '商人逻辑：一切都可以定价，包括你的拒绝；他对"情绪"没兴趣。',
         speak: '礼貌、慢、带商务腔调；喜欢反问和复述你的话。',
         power: '改写名单、跨境调度、契约级交易。',
@@ -8097,7 +8103,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     },
     king: {
       id: 'king', name: '国王组织', place: '境外', kind: '境外势力',
-      note: '末日篇才浮出水面的境外势力，行事讲契约与价钱，连一个人的"拒绝"他们也要记一笔。',
+      note: '末日篇才浮出水面的境外势力，行事讲契约与价钱，连一个人的"拒绝"他们也要记一笔。' +
+        '（他们叫得出名字的"一位国王"只是成员——真正做主的是幽灵船长。）',
     },
     solo: {
       id: 'solo', name: '民间散人', place: '没有固定地方', kind: '散人',
