@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260925091743">
+<meta name="rs-build" content="v260925095639">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -414,7 +414,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260925091743";</script>
+<script>window.__RS_BUILD = "v260925095639";</script>
 <header>
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
@@ -5114,6 +5114,73 @@ body.story-mode .logwrap{max-height:22vh !important}
         win: { lines: ['你洗了把脸，镜子里的人比昨天像人一点。你不太敢多看里面那个影子。'] },
       },
     ],
+  };
+
+  /* --------------------- 第 36 轮：势力声望（走动关系 / 动用声望）
+   * 这两张场景是**函数**：标签里要带实时读数（声望多少、能换什么），
+   * 数值结算全部在引擎的 repVisit / repSpend 里做。
+   */
+  const FACTION_VISIT_STORY = [
+    '关系是走动出来的：同样的一个人，这个月见过面、递过烟、帮过一次小忙，下个月就肯接你的电话。',
+    '你手上有五条线：总部、灵异论坛、朋友圈、国王组织、还有民间散人。每条线上的人认的东西不一样——',
+    '有的认贡献，有的认帖子，有的只认人情，有的只认货。今天你只够走一条。',
+  ];
+  scenes.rep_visit = {
+    title: '今天去哪条线上走动？',
+    story: FACTION_VISIT_STORY,
+    options: function (s) {
+      const rep = (s && s.rep) || {};
+      const tier = (n) => (n >= 80 ? '说一不二' : n >= 55 ? '有分量' : n >= 30 ? '认得你'
+        : n >= 10 ? '混过脸熟' : n > -10 ? '无名' : n > -30 ? '被记住了' : '敌视');
+      const list = [
+        ['org', '总部', '贡献、任务、配给'],
+        ['forum', '灵异论坛', '帖子、悬赏、情报'],
+        ['circle', '朋友圈', '人手、照应、人情'],
+        ['king', '国王组织', '货、黄金、不问来路'],
+        ['solo', '民间散人', '私活、介绍、互助'],
+      ];
+      return list.map((x) => {
+        const n = Math.max(-50, Math.min(100, Math.round(Number(rep[x[0]]) || 0)));
+        return {
+          id: 'rv_' + x[0],
+          label: '去「' + x[1] + '」那边走动（现在 ' + n + '：' + tier(n) + '）',
+          hint: '花 20 万；越高越难涨',
+          story: [],
+          win: { lines: [] },
+        };
+      });
+    },
+  };
+
+  scenes.rep_spend = {
+    title: '这条线上的人，你能让他们做什么？',
+    story: [
+      '声望不是面子，是能兑现的东西：总部给你开库房、论坛替你挂悬赏、民间替你找活、朋友圈替你出力、',
+      '国王组织给你货——但每用一次，这条线上的人就少欠你一点。',
+      '（每次消耗 12 点；用完还会剩下多少，你自己心里要有数。）',
+    ],
+    // 只列出"攒够了"的那几条线（引擎那边还有一道门禁：伪造选项照样会被拒）
+    options: function (s) {
+      const rep = (s && s.rep) || {};
+      const need = 30;
+      const all = [
+        ['org', 'rs_org', '开一次配给（道具 +2、贡献 +20）'],
+        ['forum', 'rs_forum', '挂一条悬赏（线索 +1、情报 +1）'],
+        ['circle', 'rs_circle', '出一次力（污染 -12、体力 +20）'],
+        ['king', 'rs_king', '买货（黄金 +3kg，总部声望跌）'],
+        ['solo', 'rs_solo', '介绍一份活（现金 +150 万）'],
+      ];
+      const out = all.filter((x) => (Math.round(Number(rep[x[0]]) || 0)) >= need)
+        .map((x) => ({
+          id: x[1],
+          label: '「' + ({ org: '总部', forum: '灵异论坛', circle: '朋友圈', king: '国王组织', solo: '民间散人' })[x[0]] + '」' + x[2],
+          hint: '消耗 12 点（现在 ' + Math.round(Number(rep[x[0]]) || 0) + '）',
+          story: [],
+          win: { lines: [] },
+        }));
+      if (!out.length) out.push({ id: 'rs_none', label: '这条线上还没人肯为你动（先去走动关系）', hint: '', story: [], win: { lines: [] } });
+      return out;
+    },
   };
 
   return { scenes: scenes };
@@ -10397,6 +10464,12 @@ body.story-mode .logwrap{max-height:22vh !important}
     'encRiskToday': [0, 100],
     // 第 35 轮：契约护身（养鬼·驱使线的回报，最多囤 2 层；进账本 → 直接改 state 会被守恒校验抓到）
     'petShield': [0, 2],
+    // 第 36 轮：势力声望（五个阵营各一条；进账本 → 直接改 state 会被守恒校验抓到）
+    'rep.org': [-50, 100],
+    'rep.forum': [-50, 100],
+    'rep.circle': [-50, 100],
+    'rep.king': [-50, 100],
+    'rep.solo': [-50, 100],
     'meta.deaths': [0, 1e6],
     'meta.bestTurn': [0, 1e6],
   };
@@ -10472,6 +10545,10 @@ body.story-mode .logwrap{max-height:22vh !important}
       // 第 35 轮：契约不是勋章——每只鬼单独记默契/复苏/失控状态（养鬼·驱使线）
       pets: {},
       petShield: 0,
+      // 第 36 轮：势力声望（B 段第二件）——五个阵营各记一条，可积累、可消费、可为负
+      rep: { org: 0, forum: 0, circle: 0, king: 0, solo: 0 },
+      repVisitTurn: 0,
+      repSpendTurn: 0,
       clues: [],
       bestiary: {},
       relationships: [],
@@ -11002,7 +11079,9 @@ body.story-mode .logwrap{max-height:22vh !important}
       if (hit) def = Object.assign({}, def, hit);
     }
     if (!def) def = genericScene(state, act);
-    const opts = (def.options || []).map((o) => ({
+    // 第 36 轮：选项列表也可以是函数（按 state 现场给实时读数，如"现在声望 32"）
+    const rawOpts = (typeof def.options === 'function') ? def.options(state, act) : (def.options || []);
+    const opts = (rawOpts || []).map((o) => ({
       id: String(o.id),
       label: String(o.label),
       hint: o.hint || '',
@@ -11048,7 +11127,7 @@ body.story-mode .logwrap{max-height:22vh !important}
       if (hit) def = Object.assign({}, def, hit);
     }
     if (!def) def = genericScene(state, act);
-    const list = def.options || [];
+    const list = (typeof def.options === 'function') ? (def.options(state, act) || []) : (def.options || []);
     const opt = list.filter((o) => String(o.id) === String(optId))[0];
     if (!opt) {
       // 生成项（safe/bold/help）没有在内容表里，现场补上它们的数值
@@ -11800,6 +11879,8 @@ body.story-mode .logwrap{max-height:22vh !important}
         s.chapterPurge = n + 1;
         s.purgeRisk = (s.purgeRisk || 0) + risk;   // 当天遭遇率上升：压劫难要用命换
         const r = purgeCalamity(s, calm, '处置灵异源头（本章第 ' + (n + 1) + ' 次）');
+        repAdd(s, 'org', 1, '处置灵异源头');
+        repAdd(s, 'solo', 2, '处置灵异源头');
         const lines = [
           '你顺着线索摸到那个源头，把它的"规矩"一层层拆开，写进纸上。',
           r.floored
@@ -12001,10 +12082,14 @@ body.story-mode .logwrap{max-height:22vh !important}
             { k: 'stat', key: 'calamity', v: 6 },
             { k: 'stat', key: 'pollution', v: 8 },
           ], '完成总部任务');
-          return { lines: ['任务收尾。总部把报酬打给你，也把「危险等级」记进了档案。'], check: r };
+          const rpOk = repAdd(s, 'org', 4, '完成总部任务');
+          return { lines: ['任务收尾。总部把报酬打给你，也把「危险等级」记进了档案。',
+            '总部声望 +' + rpOk + '（' + repOf(s, 'org') + '：' + repTier(repOf(s, 'org')).label + '）'], check: r };
         }
         applyEffects(s, [{ k: 'stat', key: 'pollution', v: 12 }, { k: 'stat', key: 'stamina', v: -25 }, { k: 'stat', key: 'sanity', v: -8 }], '任务失败');
-        return { lines: ['你什么都没拿到，只带回一身洗不掉的冷意。'], check: r };
+        const rpBad = repAdd(s, 'org', -1, '总部任务失败');
+        return { lines: ['你什么都没拿到，只带回一身洗不掉的冷意。',
+          '总部声望 ' + rpBad + '——交白卷的人在总部那边记得很快。'], check: r };
       },
     });
     add({
@@ -12032,6 +12117,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     add(busAction(state));
     // 第 35 轮：养鬼 / 驱使（B 段第一件）——有契约才出现
     for (const ca of contractActions(state)) add(ca);
+    // 第 36 轮：势力声望（走动关系 / 动用声望）
+    for (const ra of repActions(state)) add(ra);
     // 第 23 轮：立场专属行动（每天一个）
     const stanceAct = stanceAction(state);
     if (stanceAct) add(stanceAct);
@@ -12106,8 +12193,11 @@ body.story-mode .logwrap{max-height:22vh !important}
             addPath(s, 'domain.lv', -1, '封印鬼域节点');
             if (s.domain.zones.length) s.domain.zones.pop();
           }
+          const rpSeal = repAdd(s, 'org', 3, '封印鬼域节点');
+          repAdd(s, 'solo', 2, '封印鬼域节点');
           return { lines: ['节点被压住了。你回头看了一眼：那片地方的边缘往回缩了一小节，' +
-            '街上重新有了鸟叫和喇叭声。', '（鬼域回退一格，本章不会再扩张）'], check: r };
+            '街上重新有了鸟叫和喇叭声。', '（鬼域回退一格，本章不会再扩张）',
+            '总部声望 +' + rpSeal + '（这件事总部会记成战功）'], check: r };
         }
         applyEffects(s, [{ k: 'stat', key: 'stamina', v: -30 }, { k: 'stat', key: 'pollution', v: 14 },
           { k: 'stat', key: 'sanity', v: -8 }], '封印失败');
@@ -12128,8 +12218,11 @@ body.story-mode .logwrap{max-height:22vh !important}
           if (r.refused) return { lines: [r.note], check: r };
           applyEffects(s, [{ k: 'money', key: 'contribution', v: 25 }, { k: 'flag', key: 'intel', v: 1 },
             { k: 'stat', key: 'stealth', v: -3 }], '总部汇报');
+          // 第 36 轮：汇报是总部线最稳的声望来源
+          const rp = repAdd(s, 'org', r.success ? 3 : 2, '向总部汇报');
           return { lines: ['你把这一周的见闻报上去。' + (r.success ? '总部给你记了功，也顺手把你调进了更靠前的序列。'
-            : '接电话的人嗯了两声，把你这通记录归档。')], check: r };
+            : '接电话的人嗯了两声，把你这通记录归档。'),
+            '总部声望 +' + rp + '（' + repOf(s, 'org') + '：' + repTier(repOf(s, 'org')).label + '）'], check: r };
         },
       };
     }
@@ -12139,8 +12232,10 @@ body.story-mode .logwrap{max-height:22vh !important}
         run: (s) => {
           applyEffects(s, [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stealth', v: -8 },
             { k: 'stat', key: 'sanity', v: -3 }], '泡论坛');
+          const rp = repAdd(s, 'forum', 2, '在论坛上活动');
           return { lines: ['论坛上今天有三条帖子在说同一件事，其中一条有图。',
-            '你把 IP 换了一遍，但你知道——看得越久，越容易被反向找到。'] };
+            '你把 IP 换了一遍，但你知道——看得越久，越容易被反向找到。',
+            '论坛声望 +' + rp + '（' + repOf(s, 'forum') + '：' + repTier(repOf(s, 'forum')).label + '）'] };
         },
       };
     }
@@ -12148,17 +12243,22 @@ body.story-mode .logwrap{max-height:22vh !important}
       return {
         id: 'stance_oddjob', label: '接一份私活（钱多、脏、没保障）', tags: ['outlaw'],
         run: (s) => {
-          const r = doCheck(s, 'oddjob', chapterKey(s, 'odd'), 55, [{ name: '民间口碑', v: s.flags.favor ? s.flags.favor * 3 : 0 }]);
+          const r = doCheck(s, 'oddjob', chapterKey(s, 'odd'), 55,
+            [{ name: '民间口碑', v: (s.flags.favor || 0) * 3 }, { name: '民间声望', v: Math.min(15, repOf(s, 'solo')) }]);
           if (r.refused) return { lines: [r.note], check: r };
           if (r.success) {
             const got = gainCash(s, 'cash', 120, '私活报酬');
             applyEffects(s, [{ k: 'stat', key: 'pollution', v: 8 }, { k: 'stat', key: 'stamina', v: -15 }], '私活代价');
+            const rp = repAdd(s, 'solo', 2, '接私活');
             return { lines: ['活干完了，钱到手了——没人问你中间看到了什么。',
-              '（报酬 +' + got.applied + ' 万' + (got.capped ? '，本章收入已达上限' : '') + '）'], check: r };
+              '（报酬 +' + got.applied + ' 万' + (got.capped ? '，本章收入已达上限' : '') + '）',
+              '民间声望 +' + rp + '（' + repOf(s, 'solo') + '）'], check: r };
           }
           applyEffects(s, [{ k: 'stat', key: 'stamina', v: -25 }, { k: 'stat', key: 'pollution', v: 12 },
             { k: 'stat', key: 'sanity', v: -6 }], '私活失败');
-          return { lines: ['活没干完，钱没拿到，还带回来一身冷。'], check: r };
+          const rpBad = repAdd(s, 'solo', -1, '私活没干成');
+          return { lines: ['活没干完，钱没拿到，还带回来一身冷。',
+            '民间声望 ' + rpBad + '——失手的事传得比成事快。'], check: r };
         },
       };
     }
@@ -12170,8 +12270,14 @@ body.story-mode .logwrap{max-height:22vh !important}
         applyEffects(s, [{ k: 'stat', key: 'calamity', v: 6 }, { k: 'stat', key: 'causality', v: 6 },
           { k: 'flag', key: 'intel', v: 1 }], '推进终结计划');
         s.endgamePush = (s.endgamePush || 0) + 1;
+        // 第 36 轮：自己收场这条路，总部与国王组织都不喜欢（两边都在赌"灵异不会结束"）
+        const a = repAdd(s, 'org', -2, '推进终结计划');
+        const b = repAdd(s, 'king', -2, '推进终结计划');
+        void a; void b;
         return { lines: ['你在本子上又划掉一行：这一步走通了，代价是世界推进得更快。',
-          '（终结计划已推进 ' + s.endgamePush + ' 步——它会在结局判定里算进去）'], check: r };
+          '（终结计划已推进 ' + s.endgamePush + ' 步——它会在结局判定里算进去）',
+          '总部声望 ' + repOf(s, 'org') + '、国王组织声望 ' + repOf(s, 'king') +
+          '——你要终结这一切，他们就不算你的同路人。'], check: r };
       },
     };
   }
@@ -12221,7 +12327,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     const f = (CONTENT.factions || {})[id];
     return f ? f.name : '民间散人';
   }
-  /** 你现在能去找的人：同阵营的人 + 别人引荐过的人 */
+  /** 你现在能去找的人：同阵营的人 + 别人引荐过的人 + **声望够了的那个阵营的人**（第 36 轮） */
   function meetableIds(state) {
     const mine = factionOfPlayer(state);
     const known = state.contacts || [];
@@ -12230,7 +12336,9 @@ body.story-mode .logwrap{max-height:22vh !important}
       if (!g) return false;
       if (id === 'yezhen') return mine === 'forum' || known.indexOf(id) >= 0;   // 叶真只在大海市的那条线上
       if (factionOfNpc(g) === mine) return true;
-      return known.indexOf(id) >= 0;
+      if (known.indexOf(id) >= 0) return true;
+      // 第 36 轮：你在对面阵营攒到 45 点声望，那边就会有人愿意认识你（不必靠引荐）
+      return repOf(state, factionOfNpc(g)) >= REP_CROSS_MEET;
     });
     return ids;
   }
@@ -12252,6 +12360,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (sameFaction) chance += 0.12;
     if (by) chance += 0.22;                                  // 有人引荐 = 门槛大降
     chance += Math.min(0.18, favor / 400);                   // 你的人情
+    // 第 36 轮：在对面阵营的名声也算数（声望越高越有人愿意见你；恶名则会被挡）
+    chance += clamp(repOf(state, factionOfNpc(g)) / 500, -0.08, 0.18);
     if (meetValue(state) < need * 2) chance -= 0.25;          // 你还没什么能拿得出手的
     if ((state.stats.erosion || 0) >= 70) chance -= 0.15;     // 快变成鬼的人，同行也不敢见
     chance = Math.max(0.05, Math.min(0.92, chance));
@@ -12282,6 +12392,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     const other = CONTENT.ghosts[to];
     state.contacts.push(to);
     state.introducedBy[to] = gid;
+    // 第 36 轮：替你说话的人，等于用他自己的名声给你做了担保 → 他那一线的声望 +1
+    repAdd(state, factionOfNpc(g), 1, '替你把话说到别处');
     return {
       id: to, name: other.name, faction: factionName(factionOfNpc(other)),
       line: g.introLine || ('「' + other.name + '那边我替你说一句，别说是我让你去的。」'),
@@ -12543,6 +12655,13 @@ body.story-mode .logwrap{max-height:22vh !important}
       t.mirrorTurn = state.turn;
       applyEffects(state, [{ k: 'flag', key: 'favor', v: 1 }], '与' + g.name + '聊出了人情');
       settlement.push('人情 +1（这条线上的同行会听说过你）');
+      // 第 36 轮：跟他聊得来 → 他所在阵营那边会听到你的名字（一天最多一次，跟人情同频）
+      const rp = repAdd(state, factionOfNpc(g), 1, '与' + g.name + '交谈');
+      if (rp) settlement.push('声望·' + factionName(factionOfNpc(g)) + ' +' + rp + '（' + repOf(state, factionOfNpc(g)) + '）');
+    } else if (delta < 0) {
+      // 第 36 轮：把话说过头了，对面阵营也会记一笔（负面也有界：单次 -1）
+      const rpBad = repAdd(state, factionOfNpc(g), -1, '与' + g.name + '闹得不愉快');
+      if (rpBad) settlement.push('声望·' + factionName(factionOfNpc(g)) + ' ' + rpBad + '（' + repOf(state, factionOfNpc(g)) + '）');
     }
     // ③ 记录：说过几句、给过什么（防同一天反复薅同一条）
     t.said += 1;
@@ -12560,6 +12679,181 @@ body.story-mode .logwrap{max-height:22vh !important}
       refused: !!P.refuse,                 // 这次是"被回绝"：话说了，但什么都没拿到
       saidToday: t.saidToday, saidLeft: Math.max(0, TALK_PER_TURN - (t.saidEnc || 0)), name: g.name,
     };
+  }
+
+  /* ------------------------- 第 36 轮：势力声望网（B 段第二件）
+   * 第 30 轮建了"阵营/引荐/拒绝"，但那是**一次性门槛**：能不能见到人只跟你属于哪边有关。
+   * 这一轮把它扩成**可积累**的东西：五个阵营各有一条声望（-50~100），
+   *   · 攒：汇报、泡论坛、接私活、完成任务、处置源头、封印鬼域、见人、聊天、引荐 → 各阵营声望上涨；
+   *   · 花：声望到 30 可以把这条线上的人真正用起来（总部配给 / 论坛悬赏 / 民间活计 / 朋友圈出力 / 国王组织的货），
+   *          每次消耗 12 点，且各自有门槛与代价；
+   *   · 掉：跟人翻脸、威胁辱骂、以及"推进终结计划"会让某些阵营把你记在反面。
+   * 三条硬规矩：① 一天只能"走动关系"一次；② 高声望更难涨（递减）；③ 声望进账本，直接改 state 会被守恒校验抓到。
+   */
+  const REP_MIN = -50;
+  const REP_MAX = 100;
+  const REP_VISIT_MAX_PER_DAY = 1;
+  const REP_SPEND_COST = 12;
+  const REP_SPEND_NEED = 30;
+  const REP_CROSS_MEET = 45;      // 声望到这个数，对面阵营的人也愿意认识你
+
+  const FACTION_IDS = ['org', 'forum', 'circle', 'king', 'solo'];
+
+  function repOf(state, fid) {
+    state.rep = state.rep || {};
+    for (const f of FACTION_IDS) if (typeof state.rep[f] !== 'number') state.rep[f] = 0;
+    return clamp(int(state.rep[fid]) || 0, REP_MIN, REP_MAX);
+  }
+  /** 声望阶梯（界面/笔记都用这一套说法） */
+  function repTier(n) {
+    if (n >= 80) return { label: '说一不二', short: '一方人物' };
+    if (n >= 55) return { label: '有分量', short: '说话有人听' };
+    if (n >= 30) return { label: '认得你', short: '能用这条线' };
+    if (n >= 10) return { label: '混过脸熟', short: '打听得到事' };
+    if (n >= 1) return { label: '刚搭上线', short: '有人记得你的名字' };
+    if (n === 0) return { label: '无名', short: '没人知道你' };
+    if (n > -10) return { label: '有人对你有意见', short: '脸色不太好看' };
+    if (n > -30) return { label: '被记住了', short: '名声不太好' };
+    return { label: '敌视', short: '这条线上有人要找你' };
+  }
+  function repAdd(state, fid, v, reason) {
+    if (FACTION_IDS.indexOf(fid) < 0) return 0;
+    const before = repOf(state, fid);
+    addPath(state, 'rep.' + fid, int(v), reason);
+    return repOf(state, fid) - before;
+  }
+  /** 一条线上的所有势力（界面用）：声望从高到低 */
+  function repBoard(state) {
+    return FACTION_IDS.map((fid) => {
+      const n = repOf(state, fid);
+      const t = repTier(n);
+      return {
+        id: fid, name: factionName(fid), value: n, label: t.label, hint: t.short,
+        mine: factionOfPlayer(state) === fid,
+        text: factionName(fid) + ' ' + n + '（' + t.label + '）',
+      };
+    }).sort((a, b) => b.value - a.value);
+  }
+  /** 面板一行：自己的阵地 + 最高的外人缘 */
+  function repPanelLine(state) {
+    const mine = factionOfPlayer(state);
+    const board = repBoard(state);
+    const own = board.filter((b) => b.id === mine)[0];
+    const other = board.filter((b) => b.id !== mine)[0];
+    const parts = [];
+    if (own) parts.push('本家 ' + own.name + ' ' + own.value + '（' + own.label + '）');
+    if (other && other.value !== 0) parts.push('外线 ' + other.name + ' ' + other.value);
+    const wanted = board.filter((b) => b.value <= -30);
+    if (wanted.length) parts.push('⚠ ' + wanted.map((b) => b.name).join('、') + ' 要找你');
+    return parts.join('　') || '还没人认识你';
+  }
+
+  /** 走动关系：花一个行动点与一笔现金，给某条线攒声望（高声望递减；一天一次） */
+  function repVisit(state, fid) {
+    if (FACTION_IDS.indexOf(fid) < 0) return { ok: false, why: '没有这个阵营。' };
+    if ((state.repVisitTurn || 0) === state.turn) {
+      return { ok: false, why: '今天已经走动过一次了——关系不是一天之内攒出来的。' };
+    }
+    const cost = 20;
+    if ((state.money.cash || 0) < cost) return { ok: false, why: '走动关系要花钱（' + cost + ' 万），你现在拿不出来。' };
+    const cur = repOf(state, fid);
+    // 递减：越往上越难涨（0~29 → +8；30~54 → +5；55~79 → +3；80+ → +1）
+    const gain = cur >= 80 ? 1 : cur >= 55 ? 3 : cur >= 30 ? 5 : 8;
+    applyEffects(state, [{ k: 'money', key: 'cash', v: -cost }], '走动关系（' + factionName(fid) + '）');
+    const got = repAdd(state, fid, gain, '走动关系（' + factionName(fid) + '）');
+    state.repVisitTurn = state.turn;
+    const after = repOf(state, fid);
+    const t = repTier(after);
+    const lines = [REP_VISIT_LINES[fid] || REP_VISIT_LINES.solo];
+    const settlement = ['声望·' + factionName(fid) + '：' + cur + ' → ' + after + '（' + t.label + '）',
+      '现金 −' + cost + ' 万'];
+    if (after < 30 && cur < 30) settlement.push('（到 30 才能动用这条线上的东西）');
+    return { ok: true, lines: lines, settlement: settlement, fid: fid, value: after, tier: t.label };
+  }
+
+  const REP_VISIT_LINES = {
+    org: '你去了一趟总部的联络点：把手上那点东西交上去，陪着坐了半小时，听人抱怨了几句调度。走的时候有人记住了你的名字。',
+    forum: '你在论坛上把那件事写成了帖子，只写过程、不写结论。下面有人追问，你一条一条回。回完你发现自己的 ID 已经被置顶过一次了。',
+    circle: '你拎着两瓶酒去了朋友圈常待的那家馆子。桌上有几张空椅子，是留给还没回来的人。你坐了一会儿，替他们添了茶。',
+    king: '你托人把话带到了那条线上：不谈交情，只谈东西。对方没有回话，但过了两天，有人在你的门口放了一只信封。',
+    solo: '你在几个老地方走了一圈：殡仪馆门口、深夜的诊疗所、卖香烛的那条街。认识的、不认识的，你都递了根烟。',
+  };
+
+  /** 动用声望：把这条线上的人真正用起来（每次消耗 12 点，需要 30 点以上） */
+  function repSpend(state, fid) {
+    if (FACTION_IDS.indexOf(fid) < 0) return { ok: false, why: '没有这个阵营。' };
+    const cur = repOf(state, fid);
+    if (cur < REP_SPEND_NEED) {
+      return { ok: false, why: '声望还不够动用这条线（要 ' + REP_SPEND_NEED + '，你是 ' + cur + '）——先「走动关系」把它攒起来。' };
+    }
+    if ((state.repSpendTurn || 0) === state.turn) return { ok: false, why: '今天已经动用过一次声望了。' };
+    const lines = [];
+    const settlement = [];
+    if (fid === 'org') {
+      const item = CONTENT.items && CONTENT.items['yiwu'] ? 'yiwu' : Object.keys(CONTENT.items || {})[0];
+      applyEffects(state, [{ k: 'itemAdd', id: item, uses: 2 }, { k: 'money', key: 'contribution', v: 20 }], '总部配给');
+      lines.push('你报了一个编号，总部那边的库房给你开了一条口子：两件能挡规律的旧物，算在这个季度的配给里。');
+      settlement.push('道具 +2（' + ((CONTENT.items[item] || {}).name || item) + '）、贡献 +20');
+    } else if (fid === 'forum') {
+      const c = grantClue(state, '论坛悬赏');
+      applyEffects(state, [{ k: 'flag', key: 'intel', v: 1 }], '论坛悬赏');
+      if (c.ok) {
+        lines.push('你把悬赏挂上去，半天就有人回：' + c.text);
+        settlement.push('线索 +1：' + c.text);
+      } else {
+        lines.push('悬赏挂上去了，回来的人说的话你都听过了——' + c.why);
+        settlement.push('这次没换到新东西（' + c.why + '）');
+      }
+      settlement.push('情报 +1');
+    } else if (fid === 'solo') {
+      const got = gainCash(state, 'cash', 150, '民间介绍活');
+      lines.push('一句话递出去，第二天就有人来找你干活：钱干净、来路不干净。');
+      settlement.push('现金 +' + got.applied + ' 万' + (got.capped ? '（本章收入已达上限，' + got.capped + ' 万没落进来）' : ''));
+    } else if (fid === 'circle') {
+      applyEffects(state, [{ k: 'stat', key: 'pollution', v: -12 }, { k: 'stat', key: 'stamina', v: 20 },
+        { k: 'stat', key: 'sanity', v: 6 }], '朋友圈出力');
+      lines.push('你只开了一次口，朋友圈那边来了三个人，把你这几天压着的事一次办完。你自己从头到尾没动手。');
+      settlement.push('污染 -12、体力 +20、理智 +6');
+    } else {
+      applyEffects(state, [{ k: 'money', key: 'gold', v: 3 }], '国王组织的货');
+      const drop = repAdd(state, 'org', -8, '与国王组织做了交易');
+      lines.push('货放在了约定的地方：三块成色极好的金子，没有编号。你把它塞进内袋的时候知道——这条线一沾，总部那边迟早会知道。');
+      settlement.push('黄金 +3kg');
+      if (drop) settlement.push('总部声望 ' + drop + '（他们不喜欢手里有钱又不上报的人）');
+    }
+    const paid = repAdd(state, fid, -REP_SPEND_COST, '动用声望（' + factionName(fid) + '）');
+    state.repSpendTurn = state.turn;
+    const after = repOf(state, fid);
+    settlement.push('声望·' + factionName(fid) + '：−' + Math.abs(paid) + ' → ' + after + '（' + repTier(after).label + '）');
+    return { ok: true, lines: lines, settlement: settlement, fid: fid, value: after };
+  }
+
+  /** 三个"能用声望"的行动：走动关系 / 动用声望（都用函数场景给实时标签） */
+  function repActions(state) {
+    const board = repBoard(state);
+    const usable = board.filter((b) => b.value >= REP_SPEND_NEED);
+    return [
+      {
+        id: 'rep_visit', label: '走动关系（花一个行动点与 20 万，给某条线攒声望）', tags: ['rep_visit'], kind: 'day',
+        run: () => ({ lines: [] }),
+      },
+      usable.length ? {
+        id: 'rep_spend',
+        label: '动用声望（' + usable.map((b) => b.name + ' ' + b.value).join('／') + '：每次花 ' + REP_SPEND_COST + ' 点）',
+        tags: ['rep_spend'], kind: 'day',
+        run: () => ({ lines: [] }),
+      } : null,
+    ].filter(Boolean);
+  }
+  /** 这一次动用/走动的是哪条线（选项 id 形如 rv_org / rs_king，动作 id 形如 rep_visit:org） */
+  function repTargetOf(state, actId, optId) {
+    const cands = [optId, actId, (state.scene && state.scene.actionId)];
+    for (const c of cands) {
+      const parts = String(c === undefined || c === null ? '' : c).split(/[:_]/);
+      const last = parts[parts.length - 1];
+      if (FACTION_IDS.indexOf(last) >= 0) return last;
+    }
+    return factionOfPlayer(state);
   }
 
   /* --------------------- 第 35 轮：养鬼 / 驱使（B 段第一件）
@@ -13174,6 +13468,10 @@ body.story-mode .logwrap{max-height:22vh !important}
         ], '与驭鬼者翻脸');
         lines.push('他翻脸比你想的快。你退出来的时候，身上的样子已经不像刚进门那样了。');
         settlement.push('与人翻脸：体力 -30、污染 +12、侵蚀 +5、理智 -8（不是必死，但很难看）');
+        // 第 36 轮：跟人翻脸他那一线会传开（负声望是会被记住的）
+        const rp = repAdd(state, factionOfNpc(g), -3, '与' + g.name + '翻脸');
+        if (rp) settlement.push('声望·' + factionName(factionOfNpc(g)) + ' ' + rp + '（' + repOf(state, factionOfNpc(g)) + '：' +
+          repTier(repOf(state, factionOfNpc(g))).label + '）');
         state.pending = null;
         state.phase = 'day';
         return { lines: lines, settlement: settlement, dead: false, deadCause: null, ghost: g };
@@ -13670,6 +13968,18 @@ body.story-mode .logwrap{max-height:22vh !important}
             settlement.push('（这一次没做成：' + pr.why + '）');
           }
         }
+        // 第 36 轮：势力声望（走动关系 / 动用声望）——数值都走 addPath / applyEffects
+        if (baseAct === 'rep_visit' || baseAct === 'rep_spend') {
+          const fid = repTargetOf(state, act.id, opt.id);
+          const rr = baseAct === 'rep_visit' ? repVisit(state, fid) : repSpend(state, fid);
+          if (rr.ok) {
+            narrative.push.apply(narrative, rr.lines || []);
+            settlement.push.apply(settlement, rr.settlement || []);
+          } else {
+            narrative.push(rr.why);
+            settlement.push('（这一次没做成：' + rr.why + '）');
+          }
+        }
         // 走唯一写入点：行动点也在账本里，绕过它直接改 state 会被守恒校验抓到
         addPath(state, 'apUsed', 1, '第 ' + state.turn + ' 天·第 ' + ((state.apUsed || 0) + 1) + ' 次行动（' + act.id + '）');
         state.actionTakenToday = true;
@@ -13698,6 +14008,10 @@ body.story-mode .logwrap{max-height:22vh !important}
             if (att.by) {
               narrative.push('（' + (CONTENT.ghosts[att.by] || {}).name + ' 替你说了话，所以他才肯挪出时间。）');
             }
+            // 第 36 轮：见着人本身就是一条线在变熟
+            const fNpc = factionOfNpc(CONTENT.ghosts[att.gid]);
+            const rpMeet = repAdd(state, fNpc, 1, '与' + (CONTENT.ghosts[att.gid] || {}).name + '见了一面');
+            if (rpMeet) settlement.push('声望·' + factionName(fNpc) + ' +' + rpMeet + '（' + repOf(state, fNpc) + '）');
           }
         }
         // 遭遇判定：这一次行动有没有撞上东西（按动作危险权重摊到单次）
@@ -13919,6 +14233,8 @@ body.story-mode .logwrap{max-height:22vh !important}
         if (!pets.length) return '无';
         return pets.map((p) => p.text).join('　');
       })(),
+      // 第 36 轮：势力声望（自己那条线 + 最高的外线 + 有没有人把你记成仇）
+      声望: repPanelLine(state),
       线索: state.clues.length + ' 条',
       安全屋: state.flags.safehouse + ' 级',
       灾厄印记: state.flags.marks,
@@ -13971,6 +14287,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       busTurn: state.busTurn || 0,
       // 第 35 轮：契约的默契与复苏（养鬼·驱使线）
       pets: state.pets || {}, petShield: state.petShield || 0,
+      // 第 36 轮：势力声望
+      rep: state.rep || {}, repVisitTurn: state.repVisitTurn || 0, repSpendTurn: state.repSpendTurn || 0,
       // 第 33 轮：事件卡（存档中途存下也能接着选）
       card: state.card || null, cardLog: state.cardLog || [],
       // 第 34 轮：NPC 对话记录（好感 / 说过几句 / 已经给过什么）
@@ -14031,6 +14349,12 @@ body.story-mode .logwrap{max-height:22vh !important}
       if (CONTENT.ghosts[k] && CONTENT.ghosts[ib[k]]) s.introducedBy[k] = ib[k];
     }
     s.busTurn = Math.max(0, int(obj.p.busTurn));
+    // 第 36 轮：势力声望读回来（结构消毒：只认五个阵营、越界钳制）
+    s.rep = {};
+    const rv = obj.p.rep || {};
+    for (const f of FACTION_IDS) s.rep[f] = clamp(int(rv[f]) || 0, REP_MIN, REP_MAX);
+    s.repVisitTurn = Math.max(0, int(obj.p.repVisitTurn) || 0);
+    s.repSpendTurn = Math.max(0, int(obj.p.repSpendTurn) || 0);
     // 第 35 轮：契约状态读回来（结构消毒：只认自己真的契约、默契/复苏钳制、失控标记可读）
     s.pets = {};
     s.petShield = clamp(int(obj.p.petShield) || 0, 0, PET_SHIELD_MAX);
@@ -14170,6 +14494,11 @@ body.story-mode .logwrap{max-height:22vh !important}
     PET_BOND_MAX: PET_BOND_MAX, PET_REVIVAL_MAX: PET_REVIVAL_MAX,
     PET_ALERT: PET_ALERT, PET_RECOVER: PET_RECOVER, PET_SHIELD_MAX: PET_SHIELD_MAX,
     PET_CARE_PER_DAY: PET_CARE_PER_DAY,
+    // 第 36 轮：势力声望
+    repOf: repOf, repTier: repTier, repAdd: repAdd, repBoard: repBoard, repPanelLine: repPanelLine,
+    repVisit: repVisit, repSpend: repSpend, repActions: repActions, repTargetOf: repTargetOf,
+    FACTION_IDS: FACTION_IDS, REP_SPEND_COST: REP_SPEND_COST, REP_SPEND_NEED: REP_SPEND_NEED,
+    REP_CROSS_MEET: REP_CROSS_MEET, REP_VISIT_LINES: REP_VISIT_LINES,
     BOUNDS: BOUNDS,
     CHAPTER_REDUCTION_CAP: CHAPTER_REDUCTION_CAP,
     CHAPTER_HUMANITY_CAP: CHAPTER_HUMANITY_CAP,
@@ -18472,6 +18801,24 @@ body.story-mode .logwrap{max-height:22vh !important}
           (by && C.ghosts[by] ? '　—　' + C.ghosts[by].name + ' 引荐' : '')));
       }
       body.appendChild(card);
+      // 第 36 轮：势力声望（五条线各到哪一步了 / 能干什么）
+      if (E.repBoard) {
+        const rc = el('div', 'noteCard');
+        rc.appendChild(el('div', 'noteTitle', '势力声望（五条线）'));
+        for (const b of E.repBoard(state)) {
+          rc.appendChild(el('div', 'noteLine', '· ' + b.name + ' ' + b.value + '（' + b.label + '）' +
+            (b.mine ? '　—　你的本家' : '') +
+            (b.value >= 30 ? '　—　可用「动用声望」' : '　—　到 ' + (E.REP_SPEND_NEED || 30) + ' 才能动用') +
+            (b.value >= (E.REP_CROSS_MEET || 45) ? '，对面阵营也愿意见你' : '')));
+        }
+        rc.appendChild(el('div', 'noteLine', '（攒：走动关系、汇报、泡论坛、接私活、完成任务、处置源头、封印鬼域、见人、聊天、引荐。' +
+          '掉：跟人翻脸、威胁辱骂、推进终结计划。今天还能走动 ' +
+          ((state.repVisitTurn === state.turn) ? '0 次（已经走过）' : '1 次') + '。）'));
+        rc.appendChild(el('div', 'noteLine', '（「动用声望」要 ' + (E.REP_SPEND_NEED || 30) + ' 点起（每次花 ' +
+          (E.REP_SPEND_COST || 12) + ' 点）；一条线到 ' + (E.REP_CROSS_MEET || 45) +
+          ' 点，对面阵营的人也会愿意见你。）'));
+        body.appendChild(rc);
+      }
       const chain = state.clueChain;
       if (chain && chain.gid && C.ghosts[chain.gid]) {
         const cc = el('div', 'noteCard');
