@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260925073404">
+<meta name="rs-build" content="v260925082640">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -414,7 +414,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260925073404";</script>
+<script>window.__RS_BUILD = "v260925082640";</script>
 <header>
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
@@ -1981,6 +1981,334 @@ body.story-mode .logwrap{max-height:22vh !important}
       afterglow: AFTERGLOW, endingCategory: ENDING_CATEGORY,
       seeNone: SEE_NONE, seeOne: SEE_ONE, seeMany: SEE_MANY, coda: CODA, filler: FILLER,
     },
+  };
+});
+</script>
+<script>/* ============================================================================
+ * 神秘复苏模拟器 · NPC 对话（第 34 轮：C 段第 ④ 项「NPC 自由对话强化」）
+ * ----------------------------------------------------------------------------
+ * 设计边界（和新闻/尾声同一条底线：**离线优先**）：
+ *   1. 这个文件只负责「话怎么说」——不碰 state、不掷骰、不写数值。
+ *      判定与代价全部在引擎里算好，作为 payload 交进来（引擎是唯一裁判）。
+ *   2. 完全确定性：同一个 ctx 两次调用结果必须完全一致（lint 会断言），
+ *      需要随机感的地方一律用 ctx.pick(arr, salt)（由引擎按 seed 提供）。
+ *   3. 不联网、不用随机数与系统时间 —— 没绑 AI 也要能好好说话。
+ *      （lint 会按源码扫这几个 API：注释里也别把它们写出来，否则会被当成真的用了。）
+ *   4. 接了 AI 时这一层仍然照跑：程序版先出（保证有内容），AI 版只做文风润色。
+ *
+ * 数据来源：每只鬼/每位驭鬼者的 persona（who/think/speak/power/taboo/deal）与 talk 两句，
+ * 以及阵营（archetype）。这些是原著语感已经写好的部分，这里只把它们放到该放的位置。
+ * ==========================================================================*/
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSDialogue = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  /* ------------------------------------------------------------ 意图识别 */
+  /** 关键词 → 意图。按"权重 × 命中次数"打分，平手时按下面的顺序取更靠前的。
+   *  顺序有意为之：威胁/辱骂/撒谎这类会改判定的意图优先于"闲聊"，
+   *  否则玩家说"你再不说话我杀了你"会被当成打招呼。 */
+  const INTENTS = [
+    { id: 'threat', label: '威胁', words: ['杀了你', '弄死', '不客气', '别逼我', '警告你', '后果自负', '打不过', '宰了'] },
+    { id: 'insult', label: '辱骂', words: ['废物', '滚', '垃圾', '白痴', '傻', '蠢', '算什么东西', '没用的东西'] },
+    { id: 'lie', label: '撒谎', words: ['骗你', '编个', '假装', '瞒着', '撒谎', '谎话', '骗他', '骗它'] },
+    { id: 'rule', label: '问规律', words: ['规律', '规矩', '怎么杀人', '杀人条件', '触发', '生路', '弱点', '破法', '怎么破', '条件是什么'] },
+    { id: 'deal', label: '谈条件', words: ['条件', '交易', '交换', '换', '合作', '约个', '契约', '代价', '价格', '多少钱', '买卖'] },
+    { id: 'help', label: '求助', words: ['帮我', '救', '帮忙', '带我', '借我', '求你', '靠你', '罩我'] },
+    { id: 'ask_other', label: '打听别人', words: ['还有谁', '谁还', '引荐', '介绍个', '介绍人', '认识谁', '别的驭鬼者', '同行'] },
+    { id: 'power', label: '问能力', words: ['你能做什么', '会什么', '什么本事', '能力', '本事', '有什么用', '能干嘛', '能做什么'] },
+    { id: 'who', label: '问身份', words: ['你是谁', '你叫什么', '什么人', '来历', '身份', '哪一边', '阵营', '在哪'] },
+    { id: 'flatter', label: '示好', words: ['多谢', '谢谢', '佩服', '厉害', '麻烦您', '劳驾', '敬你', '请'] },
+    { id: 'greet', label: '打招呼', words: ['你好', '您好', '在吗', '嗨', '打扰', '见过', '认识一下', '来了'] },
+    { id: 'chat', label: '闲聊', words: [] },
+  ];
+  const BY_ID = {};
+  INTENTS.forEach((x) => { BY_ID[x.id] = x; });
+
+  function classify(said) {
+    const t = String(said || '').trim();
+    if (!t) return { id: 'chat', label: BY_ID.chat.label, hits: [] };
+    let best = null;
+    let bestScore = 0;
+    const hits = [];
+    for (const it of INTENTS) {
+      if (!it.words.length) continue;
+      let score = 0;
+      const got = [];
+      for (const w of it.words) {
+        if (t.indexOf(w) >= 0) { score += w.length >= 3 ? 2 : 1; got.push(w); }
+      }
+      if (score > 0) hits.push(it.id + ':' + got.join('/'));
+      if (score > bestScore) { bestScore = score; best = it; }
+    }
+    if (!best) return { id: 'chat', label: BY_ID.chat.label, hits: hits };
+    return { id: best.id, label: best.label, hits: hits };
+  }
+
+  /* -------------------------------------------------------------- 语气层 */
+  /* 六种腔调：总部（org）/灵异论坛（forum）/朋友圈（circle）/国王组织（king）/
+     民间散人（solo）/智慧级厉鬼（ghost）。同一个意思，六种人说法完全不同。 */
+  const ARCH_VOICE = {
+    org: {
+      greet: '他抬了下下巴，示意你说下去。',
+      chat: '他不接闲话：「说正事。」',
+      hard: '他把手上的东西放下，看了你两秒：「这话你说一次就够了。」',
+      soft: '他点了下头，没笑，但也没走。',
+      deal: '他拿笔在本子上记了一行：「条件要能落地。」',
+      wait: '他没有立刻回答。',
+    },
+    forum: {
+      greet: '他先笑了一声：「论坛上那个号，是你吧。」',
+      chat: '他随口接了两句，眼睛还在看手机上的帖子。',
+      hard: '他笑没变，手指却把桌沿按白了：「话别这么说。」',
+      soft: '他递给你一根烟：「行，我记你一个人情。」',
+      deal: '他翻出手机备忘录：「明码标价，别跟我谈感情。」',
+      wait: '他低头刷着帖，像在等你把话说完。',
+    },
+    circle: {
+      greet: '他把凳子往你这边挪了半寸：「坐。」',
+      chat: '他给你倒了杯水，听你把话说完。',
+      hard: '他脸上的表情没动：「在我这儿，狠话就是狠话。」',
+      soft: '他拍了拍你的肩：「自己人，不用绕。」',
+      deal: '他把手一比：「你出什么、我出什么，先说清楚。」',
+      wait: '他给你续了半杯水。',
+    },
+    king: {
+      greet: '他没抬头，只把杯子往你这边推了一点。',
+      chat: '他没接你的话，像没听见。',
+      hard: '周围忽然安静下来。他抬眼：「刚才那句，再说一遍。」',
+      soft: '他终于看了你一眼，算是把你记住了。',
+      deal: '「代价呢。」他只说了三个字。',
+      wait: '他等你先开口。',
+    },
+    solo: {
+      greet: '他往门框上一靠：「说吧，我听着。」',
+      chat: '他嗯了一声，算是回你。',
+      hard: '他手已经搭在门上了：「我这儿不接待来闹的。」',
+      soft: '他让开半步，让你进屋说话。',
+      deal: '「你能拿出来什么？」他问得很直。',
+      wait: '他手插在兜里，没动。',
+    },
+    ghost: {
+      greet: '它没有嘴。你听见的是自己的念头，用它的语气响了一遍。',
+      chat: '它不接闲话。周围的空气凉了一层。',
+      hard: '这句话落地的一瞬间，你体内的东西动了一下——它在数你还能撑多久。',
+      soft: '它在你意识深处安静下去了一点。',
+      deal: '「先说你让出什么。」它只给结论。',
+      wait: '它不说话。那种安静本身像是回答。',
+    },
+  };
+  const ARCHS = Object.keys(ARCH_VOICE);
+
+  /** 开场白：见到它/他时，对方先说的那一句（离线也要有，不能只有"遭遇文本"） */
+  const OPEN_LINES = {
+    org: '「来了。坐吧，别站着说话。」',
+    forum: '「你先别急着自我介绍，我看过你的帖子。」',
+    circle: '「进来再说。门口风大，风里带的东西比风冷。」',
+    king: '「说。」',
+    solo: '「你找的人是我。行，你有三分钟。」',
+    ghost: '「我们见过。你不记得，我记得。」',
+  };
+
+  /** help 成功时给的"能用的一句话"（情报 +1 是数值，具体内容在这里） */
+  const INTEL_LINES = [
+    '「最近三天别走城西那条隧道——那边的规矩换了。」',
+    '「遇到不说话的，先看它的脚：走了几十年的人，脚底下有灰。」',
+    '「有人敲门别急着开，先看猫眼是不是雾的。」',
+    '「镜子照不出影子的地方，别站在正中间。」',
+    '「听见有人喊你名字，先数一遍你今天说过的谎。」',
+    '「楼上有人搬东西的声音，如果只有一个方向，那不是人在搬。」',
+    '「电梯里数楼层，别数按钮，数灯。」',
+    '「凌晨三点醒过来别翻身，先听自己心跳跟外面是不是一个拍子。」',
+  ];
+
+  /* ------------------------------------------------------------ 拼句子 */
+  function clip(s, n) {
+    const t = String(s === undefined || s === null ? '' : s).replace(/\s+/g, ' ').trim();
+    const max = n || 80;
+    return t.length > max ? t.slice(0, max - 1) + '…' : t;
+  }
+  function isGhost(ctx) { return (ctx.npc && ctx.npc.kind) === 'ghost'; }
+  function archOf(ctx) { return (ctx.npc && ARCH_VOICE[ctx.npc.archetype]) ? ctx.npc.archetype : 'solo'; }
+  function V(ctx) { return ARCH_VOICE[archOf(ctx)]; }
+  function who(ctx) { return (ctx.npc && ctx.npc.name) ? String(ctx.npc.name) : '对方'; }
+  /** 对方"怎么称呼自己这边"：鬼用"它"，人用"他" */
+  function TA(ctx) { return isGhost(ctx) ? '它' : '他'; }
+
+  /** 开场叙述：你说了什么（一句话交代，随后才是对方的回应）
+   *  注意：这个函数不能叫 opening——本文件里另有一个导出的 opening(ctx) 是"见面时对方先开口"，
+   *  同名函数声明会互相覆盖（曾经因此每条回复都重复了见面台词）。 */
+  function narrLine(it, ctx) {
+    const g = isGhost(ctx);
+    switch (it) {
+      case 'greet': return '你先开了口。';
+      case 'who': return g ? '你问它是什么。它没有立刻回答。' : '你问他是什么人。他把手里的东西放下了。';
+      case 'power': return g ? '你问它能做什么。' : '你问他手上有什么。';
+      case 'rule': return g ? '你把话题引到"规矩"上。' : '你把话题引到"规矩"上——这是同行之间最贵的货。';
+      case 'deal': return '你把条件摆到桌面上。' + V(ctx).deal;
+      case 'help': return g ? '你开口求它。' : '你开口求他搭把手。';
+      case 'threat': return '你把话说重了。';
+      case 'insult': return '你把话说过了头。';
+      case 'lie': return '你编了一句半真半假的话。';
+      case 'ask_other': return g ? '你问它还认识谁。' : '你问他还有谁搭得上线。';
+      case 'flatter': return '你顺着' + TA(ctx) + '的话接了一句。';
+      default: return V(ctx).wait + '你没话找话。';
+    }
+  }
+
+  /** 正文：对方到底"说了什么"——尽量引用这只鬼/这个人自己已有的设定与语气 */
+  function body(it, ctx, P, pick) {
+    const npc = ctx.npc || {};
+    const per = npc.persona || {};
+    const g = isGhost(ctx);
+    switch (it) {
+      case 'who': {
+        const base = per.who || (g ? '它没有名字，只有一副 ' + (npc.level || '?') + ' 级的形状。'
+          : '这人只说自己是同行，不肯报名字。');
+        // 鬼没有阵营，别把"民间散人"这种玩家侧标签贴到它头上；人是给人阵营 + 职务。
+        const extra = g
+          ? '（' + (npc.level || '?') + ' 级·听得懂人话' + (npc.name ? '' : '') + '）'
+          : (npc.factionName ? '（' + npc.factionName + (npc.rank ? '·' + npc.rank : '') + '）' : '');
+        return '「' + clip(base, 84) + '」' + extra;
+      }
+      case 'power': {
+        const ab = (npc.abilities || []).slice(0, 4);
+        const head = per.power ? clip(per.power, 60) : '';
+        if (!ab.length && !head) return g ? '它不解释自己会什么。' : '他没说自己有什么本事。';
+        return '「' + head + '」' + (ab.length ? '（' + ab.join('、') + '）' : '');
+      }
+      case 'rule': {
+        if (P.clueText) {
+          return g
+            ? '它把话说了一半，剩下那半你自己接上了：' + clip(P.clueText, 90)
+            : '他讲得很干，一句废话都没有：' + clip(P.clueText, 90);
+        }
+        return P.refuse || '最值钱的那部分，' + TA(ctx) + '没打算白给。';
+      }
+      case 'deal': {
+        const raw = per.deal ? String(per.deal).trim() : '';
+        // persona.deal 有的是第一人称条件（"它可以和你订约…"）也有的是第三人称说明，
+        // 加引号前先看一眼：本来就带引号/括号的直接用，第三人称的当叙述，其余才当他说的话。
+        let d = '';
+        if (raw) {
+          if (/^[「（(]/.test(raw)) d = clip(raw, 74);
+          else if (/^[他她它]/.test(raw)) d = '（' + clip(raw, 72) + '）';
+          else d = '「' + clip(raw, 70) + '」';
+        }
+        return d + (P.term ? '　' + clip(P.term, 60) : '');
+      }
+      case 'help': {
+        if (P.intelText) return '他还是帮了：' + clip(P.intelText, 80);
+        return P.refuse || '「我为什么要帮你。」';
+      }
+      case 'threat':
+      case 'insult': {
+        if (P.taboo) return '（你踩到了' + TA(ctx) + '最不能碰的那一条）' + clip(per.taboo || '', 70);
+        return V(ctx).hard;
+      }
+      case 'lie': {
+        return P.caught
+          ? '「你刚才那句话，后半段是编的。」' + TA(ctx) + '说得很平静——平静比发火难对付。'
+          : '你说的那半句假话被咽下去了。' + TA(ctx) + '没听出来。';
+      }
+      case 'flatter': {
+        const cold = (archOf(ctx) === 'org' || archOf(ctx) === 'king');
+        return cold ? (g ? '它不受这一套。' : '他不吃这一套：「有事说事。」') : V(ctx).soft;
+      }
+      case 'ask_other': {
+        if (P.introLine) return '「' + clip(P.introLine, 84) + '」';
+        return P.refuse || '「我认识的人，不一定愿意见你。」';
+      }
+      case 'chat': {
+        const tl = (npc.talk || []).slice(0, 3);
+        const line = tl.length ? pick(tl, 'chat:' + (ctx.talk ? ctx.talk.said : 0)) : null;
+        return V(ctx).chat + (line ? '　「' + clip(line, 60) + '」' : '');
+      }
+      default: return V(ctx).greet;
+    }
+  }
+
+  /** 收尾：态度变化与代价（数值结算由引擎另行给出，这里只写"读得出来的那部分"） */
+  function tail(it, ctx, P, mood) {
+    if (P.costText) return '（这一趟的代价：' + clip(P.costText, 50) + '）';
+    if (mood === 'reject') return isGhost(ctx) ? '它记住了你这句话。' : '门在你背后合上之前，他停了一下——是让你记住这一次。';
+    if (mood === 'ally') return isGhost(ctx) ? '它收回你体内的一角，像是把门给你留了条缝。' : '他把你送到门口，多说了一句「路上小心」。';
+    if (mood === 'warm') return isGhost(ctx) ? '它对你的态度松了一点。' : '他的语气比刚才软了一点。';
+    if (mood === 'cold') return isGhost(ctx) ? '它退回你视线之外。' : '他收回视线，不再看你。';
+    return null;
+  }
+
+  function moodOf(ctx, P) {
+    const f = (ctx.talk && typeof ctx.talk.favor === 'number') ? ctx.talk.favor : 0;
+    if (P.mood) return P.mood;
+    if (f >= 4) return 'ally';
+    if (f >= 2) return 'warm';
+    if (f <= -3) return 'reject';
+    if (f <= -1) return 'cold';
+    return 'neutral';
+  }
+
+  /**
+   * 主入口：把"对方会怎么回你"拼出来。
+   * ctx = {
+   *   npc: { id, name, kind:'ghost'|'person', level, archetype, factionName, rank,
+   *          persona:{who,think,speak,power,taboo,deal}, abilities:[], talk:[两句] },
+   *   talk: { favor, said, met },          // 你们聊到哪一步了（只读）
+   *   said: '玩家原话',
+   *   intent: { id, label },               // 由 classify() 给出
+   *   payload: { clueText, refuse, term, intelText, costText, caught, taboo, introLine, mood },
+   *   facts: { turn, city, era, clues, contractCount, godLayers, erosion, stance },
+   *   pick: (arr, salt) => any             // 确定性取一条（引擎按 seed 提供）
+   * }
+   * 返回 { lines:[≤3], mood, intent }
+   */
+  function reply(ctx) {
+    const c = ctx || {};
+    const pick = (typeof c.pick === 'function') ? c.pick : function (a) { return (a && a.length) ? a[0] : null; };
+    const it = (c.intent && BY_ID[c.intent.id]) ? c.intent.id : 'chat';
+    const P = c.payload || {};
+    const lines = [];
+    lines.push(narrLine(it, c));
+    const b = body(it, c, P, pick);
+    if (b) lines.push(b);
+    const mood = moodOf(c, P);
+    const t = tail(it, c, P, mood);
+    if (t) lines.push(t);
+    return { lines: lines.filter(Boolean).map((x) => clip(x, 200)), mood: mood, intent: it };
+  }
+
+  /** 见到面时对方先开口的那一句（离线也要有内容） */
+  function opening(ctx) {
+    const c = ctx || {};
+    const pick = (typeof c.pick === 'function') ? c.pick : function (a) { return (a && a.length) ? a[0] : null; };
+    const npc = c.npc || {};
+    const tl = (npc.talk || []).filter(Boolean);
+    const arch = archOf(c);
+    // 原著/设定里写好的那两句优先，没有才用按腔调的通用开场
+    if (tl.length) {
+      const line = pick(tl, 'open:' + (c.facts && c.facts.turn ? c.facts.turn : 0) + ':' + (npc.id || ''));
+      // 有些角色的台词本身就是"动作/氛围说明"（写成括号），那就别加引号，免得像它在念旁白
+      if (/^[（(]/.test(String(line).trim())) return clip(line, 90);
+      return isGhost(c)
+        ? '（它先说了话——不是用嘴。）「' + clip(line, 70) + '」'
+        : '他先开了口：「' + clip(line, 70) + '」';
+    }
+    return (isGhost(c) ? '' : '') + (OPEN_LINES[arch] || OPEN_LINES.solo);
+  }
+
+  function stats() {
+    let words = 0;
+    for (const it of INTENTS) words += it.words.length;
+    return {
+      intents: INTENTS.length, keywords: words, archetypes: ARCHS.length,
+      openLines: Object.keys(OPEN_LINES).length, intelLines: INTEL_LINES.length,
+    };
+  }
+
+  return {
+    INTENTS: INTENTS, ARCHS: ARCHS, INTEL_LINES: INTEL_LINES,
+    classify: classify, reply: reply, opening: opening, stats: stats,
   };
 });
 </script>
@@ -9922,11 +10250,11 @@ body.story-mode .logwrap{max-height:22vh !important}
  * ==========================================================================*/
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory(require('./content.js'), require('./mechanics.js'));
+    module.exports = factory(require('./content.js'), require('./mechanics.js'), require('./dialogue.js'));
   } else {
-    root.RSEngine = factory(root.RSContent, root.RSMechanics);
+    root.RSEngine = factory(root.RSContent, root.RSMechanics, root.RSDialogue);
   }
-})(typeof self !== 'undefined' ? self : this, function (CONTENT, MECH) {
+})(typeof self !== 'undefined' ? self : this, function (CONTENT, MECH, DIA) {
   'use strict';
 
   /* ---------------------------------------------------------------- 工具 */
@@ -10088,6 +10416,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       contacts: [],          // 已经被引荐、可以约见的驭鬼者 id
       introducedBy: {},      // 谁把你引荐给谁的（{ 目标id: 引荐人id }）
       busTurn: 0,            // 最近一次在灵异公交车上待着的天数（压制窗口 3 天）
+      // 第 34 轮：NPC 对话（与每只鬼/每位驭鬼者聊到哪一步了：好感、说过的次数、给过的信息）
+      talks: {},
       worldAdvance: 0,
       calamityEscapes: 0,
       // 第 26 轮：鬼域扩张
@@ -11854,6 +12184,280 @@ body.story-mode .logwrap{max-height:22vh !important}
     };
   }
 
+  /* --------------------- 第 34 轮：NPC 对话（离线优先，AI 只润色语气）
+   * 用户要求「NPC 自由对话强化」：没绑 AI 也要能好好说话，而且说的话得**有分量**——
+   * 但绝不能变成刷资源的入口。所以这里立了四条硬规矩：
+   *   ① 只有"听得懂人话"的对手（智慧级厉鬼 / 驭鬼者）能对话，别的东西一律拒绝；
+   *   ② 一个遭遇里最多说 3 句有效的话，第 4 句起只给氛围、不结算（防刷好感）；
+   *   ③ 好感的单次变化 ≤ ±2、累计钳在 [-6, 6]，只有正向的"人情"才镜像到全局 flags.favor（一天最多 +1）；
+   *   ④ 线索走统一入口 grantClue（受"今天最多挖几条"限制），情报走 grantIntel，
+   *      副作用（把对方惹毛了 → 今天更容易被找上门）走 addPath —— 全部进账本，红队可查。
+   */
+  const TALK_PER_TURN = 3;      // 一个遭遇里最多说 3 句有效的话（第 4 句起只给氛围、不结算）
+  const TALK_PER_DAY = 6;       // 一天加起来最多 6 句：一天跑好几个遭遇也不能无限刷
+  const FAVOR_MIN = -6;
+  const FAVOR_MAX = 6;
+
+  function npcArchetype(g) {
+    if (!g) return 'solo';
+    if (g.smart) return 'ghost';
+    const f = factionOfNpc(g);
+    if (f === 'org') return 'org';
+    if (f === 'forum') return 'forum';
+    if (f === 'circle') return 'circle';
+    if (f === 'king') return 'king';
+    return 'solo';
+  }
+
+  function talkOf(state, gid) {
+    state.talks = state.talks || {};
+    let t = state.talks[gid];
+    if (!t) { t = { favor: 0, said: 0, told: [], lastTurn: -99, saidTurn: -99, saidToday: 0, mirrorTurn: -99, encKey: '', saidEnc: 0 }; state.talks[gid] = t; }
+    if (!Array.isArray(t.told)) t.told = [];
+    t.favor = clamp(int(t.favor) || 0, FAVOR_MIN, FAVOR_MAX);
+    t.said = Math.max(0, int(t.said) || 0);
+    return t;
+  }
+
+  /** 界面用：他对你的态度（只读，不改状态） */
+  function npcAttitude(state, gid) {
+    const t = talkOf(state, gid);
+    const f = t.favor;
+    const label = f >= 4 ? '自己人' : f >= 2 ? '有点交情' : f >= 0 ? '平常' : f >= -2 ? '冷淡' : '敌意';
+    return { favor: f, label: label, said: t.said, favorText: (f > 0 ? '+' : '') + f };
+  }
+
+  /** 只读的事实包：交给对话模块（它不许碰 state） */
+  function talkCtx(state, gid, said, payload) {
+    const g = CONTENT.ghosts[gid] || {};
+    const t = talkOf(state, gid);
+    const seed = state.seedInt || hashStr(state.seed);
+    return {
+      npc: {
+        id: gid, name: g.name, level: g.level,
+        kind: g.person ? 'person' : 'ghost',
+        archetype: npcArchetype(g),
+        factionName: factionName(factionOfNpc(g)),
+        rank: g.rank || '',
+        persona: g.persona || {},
+        abilities: (g.abilities || []).slice(0, 6),
+        talk: (g.talk || []).slice(0, 3),
+      },
+      talk: { favor: t.favor, said: t.said, met: 1 },
+      said: String(said || ''),
+      intent: (DIA && DIA.classify) ? DIA.classify(said) : { id: 'chat', label: '闲聊' },
+      payload: payload || {},
+      facts: {
+        turn: state.turn,
+        city: (cityOf(state) || {}).name || '',
+        era: (eraOf(state) || {}).name || '',
+        clues: (state.clues || []).length,
+        contractCount: (state.contracts || []).length,
+        godLayers: state.godLayers || 0,
+        erosion: state.stats.erosion,
+        stance: state.stance || '',
+      },
+      pick: function (arr, salt) { return pickFrom(arr, seed, 'talk:' + gid + ':' + (salt || '')); },
+    };
+  }
+
+  /** 见面时对方先开口的那一句（离线也要有，不能只有遭遇正文） */
+  function npcOpening(state) {
+    const enc = state.pending;
+    if (!enc || !(enc.smart || enc.person)) return null;
+    const g = CONTENT.ghosts[enc.ghost];
+    if (!g || !(g.person || g.smart) || !DIA || !DIA.opening) return null;
+    const line = DIA.opening(talkCtx(state, enc.ghost, '', {}));
+    return line ? { ghost: enc.ghost, name: g.name, line: String(line) } : null;
+  }
+
+  /**
+   * 计划这次对话的"代价与收获"（**只读**，不写任何状态）。
+   * 真正落账在 sayTo 里，这样"被拒绝"的路径不会留下半截副作用。
+   */
+  function planTalk(state, gid, said) {
+    const g = CONTENT.ghosts[gid] || {};
+    const t = talkOf(state, gid);
+    const intent = (DIA && DIA.classify) ? DIA.classify(said) : { id: 'chat', label: '闲聊' };
+    const P = { intent: intent.id, intentLabel: intent.label, favorDelta: 0, mood: null, taboo: false };
+    const dayKey = 'd' + state.turn + ':';
+    const saidLow = String(said || '');
+    // 禁忌：鬼"不接受命令式对话"、人"别拿救人道德绑架"——踩了就掉好感
+    const commandTone = /(马上|立刻|给我|必须|听我的|不许|闭嘴)/.test(saidLow);
+    switch (intent.id) {
+      case 'flatter':
+        P.favorDelta = t.told.indexOf(dayKey + 'flatter') >= 0 ? 0 : 1;
+        if (P.favorDelta) P.toldKey = dayKey + 'flatter';
+        break;
+      case 'help':
+        if (t.favor >= 2) {
+          if (t.told.indexOf(dayKey + 'help') >= 0) { P.refuse = '「同一个忙，一天只帮一次。」'; break; }
+          P.intel = 1;
+          P.intelText = DIA ? DIA.INTEL_LINES[(hashStr(state.seed + ':' + gid + ':' + state.turn + ':intel') % DIA.INTEL_LINES.length)] : null;
+          P.favorDelta = -1;                 // 人情是要还的
+          P.toldKey = dayKey + 'help';
+        } else {
+          P.refuse = '「我为什么要帮你。」' + (intent.id === 'help' && t.favor < 2 ? '（你还没有跟' + (g.person ? '他' : '它') + '熟到这个份上）' : '');
+        }
+        break;
+      case 'deal': {
+        const cost = 200;
+        if (t.told.indexOf(dayKey + 'deal') >= 0) { P.refuse = '「今天不谈了，条件我都记着。」'; break; }
+        if ((state.money.cash || 0) < cost) {
+          P.refuse = '「你连定金都拿不出来。」';
+          P.term = '他要现金 ' + cost + '（你现在 ' + Math.floor(state.money.cash || 0) + '）';
+          break;
+        }
+        P.money = -cost;
+        P.intel = 1;
+        P.intelText = DIA ? DIA.INTEL_LINES[(hashStr(state.seed + ':' + gid + ':' + state.turn + ':deal') % DIA.INTEL_LINES.length)] : null;
+        P.favorDelta = 1;
+        P.term = '按这个价：现金 −' + cost + '，换一条能用的情报（人情 +1）';
+        P.toldKey = dayKey + 'deal';
+        break;
+      }
+      case 'rule': {
+        if (t.told.indexOf(dayKey + 'rule') >= 0) { P.refuse = '「规矩我今天已经跟你讲过了。」'; break; }
+        const cap = clueDailyCap(state);
+        if ((state.clueGainsToday || 0) >= cap) {
+          P.refuse = '今天的线索已经挖到 ' + cap + ' 条了——脑子需要时间把东西记住。';
+          break;
+        }
+        // 代价按"对方是什么"和你手里有什么来定：
+        // 鬼不要钱（要你的身体/人情），人要钱；两样都拿不出来时，就只能让它在你身上留个记号。
+        if (!g.person && t.favor < 1) { P.pollution = 6; P.costText = '让它在身上留个记号（污染 +6）'; }
+        else if (!g.person) { P.favorDelta = -1; P.costText = '你欠的人情 1 点'; }
+        else if ((state.money.cash || 0) >= 300) { P.money = -300; P.costText = '现金 300'; }
+        else if (t.favor >= 1) { P.favorDelta = -1; P.costText = '你欠的人情 1 点'; }
+        else { P.pollution = 6; P.costText = '让他看了一眼你的底（污染 +6）'; }
+        P.wantClue = true;
+        P.toldKey = dayKey + 'rule';
+        break;
+      }
+      case 'ask_other': {
+        const can = (g.introduces || []).length && t.favor >= 1;
+        if (t.told.indexOf(dayKey + 'ask') >= 0) { P.refuse = '「名单我说过一次了。」'; break; }
+        if (can) { P.introLine = g.introLine || ('「' + (CONTENT.ghosts[g.introduces[0]] || {}).name + '那边我可以替你说一句。」'); P.toldKey = dayKey + 'ask'; }
+        else P.refuse = t.favor >= 1 ? '「我这条线上，暂时没人适合见你。」' : '「先把你自己混出个样子来，再问名单。」';
+        break;
+      }
+      case 'threat':
+        P.favorDelta = commandTone ? -2 : -1;
+        P.taboo = !!((g.persona || {}).taboo);
+        P.mood = 'reject';
+        P.risk = 15;                          // 把对方惹毛了：今天更容易被找上门
+        break;
+      case 'insult':
+        P.favorDelta = -2;
+        P.taboo = !!((g.persona || {}).taboo);
+        P.mood = 'reject';
+        P.risk = g.smart ? 20 : 10;
+        break;
+      case 'lie': {
+        const sharp = !!g.smart || /读|预知|看穿|闻|听/.test((g.abilities || []).join(''));
+        P.caught = sharp ? (roll01(state, 'lie:' + gid, 0) <= 0.6) : (roll01(state, 'lie:' + gid, 0) <= 0.25);
+        if (P.caught) { P.favorDelta = -1; P.mood = 'cold'; }
+        break;
+      }
+      case 'who':
+      case 'power':
+      case 'greet':
+      case 'chat':
+      default:
+        break;
+    }
+    if (commandTone && (intent.id === 'help' || intent.id === 'deal' || intent.id === 'ask_other') && (g.persona || {}).taboo) {
+      P.taboo = true;                         // 命令式求人 → 也算踩禁忌（鬼的 persona 里明写了"不接受命令式对话"）
+      if (P.favorDelta > 0) P.favorDelta = 0;
+      else P.favorDelta = Math.min(P.favorDelta, -1);
+    }
+    return P;
+  }
+
+  /**
+   * 对面前这个人/这只鬼说一句话。
+   * 返回 { ok, lines, intent, favor, favorDelta, settlement, mood, attitude } 或 { error }
+   */
+  function sayTo(state, said) {
+    const enc = state.pending;
+    if (!enc) return { error: '现在没有人在你面前。' };
+    const g0 = CONTENT.ghosts[enc.ghost];
+    // 能不能说话以**内容表**为准，不看 pending 上的标记（pending 会进存档、可能被改过）
+    const canTalk = !!(g0 && (g0.person || g0.smart));
+    if (!canTalk) return { error: '这东西听不懂人话——对它说话没有意义。' };
+    if (!enc.smart && !enc.person) return { error: '这东西听不懂人话——对它说话没有意义。' };
+    const gid = enc.ghost;
+    const g = CONTENT.ghosts[gid];
+    if (!g) return { error: '对方已经不在名单里了。' };
+    const text = String(said || '').trim();
+    if (!text) return { error: '你什么也没说。' };
+    if (text.length > 120) return { error: '话说太长了——挑最要紧的一句说。（一句话别超过 120 字）' };
+    const t = talkOf(state, gid);
+    // 语数配额：一是"这一场最多说 3 句"，二是"一天加起来最多 6 句"（一天跑好几个遭遇也不能无限刷）
+    const encKey = state.turn + ':' + (state.apUsed || 0) + ':' + gid;
+    if (t.encKey !== encKey) { t.encKey = encKey; t.saidEnc = 0; }
+    if (t.saidTurn !== state.turn) { t.saidTurn = state.turn; t.saidToday = 0; }
+    if (t.saidEnc >= TALK_PER_TURN) {
+      return {
+        error: '你已经说了 ' + TALK_PER_TURN + ' 句——再说下去也不值钱了。（要走近还是退开，从下面挑一步。）',
+        attitude: npcAttitude(state, gid),
+      };
+    }
+    if (t.saidToday >= TALK_PER_DAY) {
+      return { error: '今天跟人说够了 ' + TALK_PER_DAY + ' 句，脑子该歇一会儿了。', attitude: npcAttitude(state, gid) };
+    }
+    const P = planTalk(state, gid, text);
+    const settlement = [];
+    // ① 先给「要钱/要情报线索」的部分落账（线索走统一入口，受当天上限约束）
+    if (P.wantClue) {
+      const cr = grantClue(state, '向' + g.name + '打听规矩');
+      if (cr.ok) {
+        P.clueText = cr.text;
+        settlement.push('线索 +1：' + cr.text);
+        if (cr.text2) settlement.push('（顺着问下去，又带出：' + cr.text2 + '）');
+      } else {
+        P.refuse = cr.why;
+        P.wantClue = false;
+        P.money = 0; P.favorDelta = 0; P.pollution = 0; P.costText = null;
+      }
+    }
+    const eff = [];
+    if (P.money) eff.push({ k: 'money', key: 'cash', v: P.money });
+    if (P.pollution) eff.push({ k: 'stat', key: 'pollution', v: P.pollution });
+    if (P.intel) eff.push({ k: 'flag', key: 'intel', v: P.intel });
+    if (eff.length) applyEffects(state, eff, '与' + g.name + '说话·' + P.intentLabel);
+    if (P.intel) settlement.push('情报 +' + P.intel + '（' + String(P.intelText || '').replace(/[「」]/g, '') + '）');
+    if (P.money) settlement.push('现金 ' + P.money);
+    if (P.pollution) settlement.push('污染 +' + P.pollution + '（' + (g.person ? '他没白给' : '它不是白给的') + '）');
+    if (P.risk) addPath(state, 'encRiskToday', P.risk, '把' + g.name + '惹毛了');
+    // ② 好感：单次 ±2、累计钳制；正向的"人情"一天最多镜像 1 点进全局（约见/引荐会用上）
+    const before = t.favor;
+    t.favor = clamp(t.favor + (int(P.favorDelta) || 0), FAVOR_MIN, FAVOR_MAX);
+    const delta = t.favor - before;
+    if (delta !== 0) settlement.push('好感 ' + (delta > 0 ? '+' : '') + delta + '（' + npcAttitude(state, gid).label + '）');
+    if (delta > 0 && t.mirrorTurn !== state.turn) {
+      t.mirrorTurn = state.turn;
+      applyEffects(state, [{ k: 'flag', key: 'favor', v: 1 }], '与' + g.name + '聊出了人情');
+      settlement.push('人情 +1（这条线上的同行会听说过你）');
+    }
+    // ③ 记录：说过几句、给过什么（防同一天反复薅同一条）
+    t.said += 1;
+    t.saidEnc = (t.saidEnc || 0) + 1;
+    t.saidToday += 1;
+    t.lastTurn = state.turn;
+    if (P.toldKey) { t.told.push(P.toldKey); if (t.told.length > 24) t.told = t.told.slice(-24); }
+    if (state.events.done.indexOf('talk:' + gid + ':' + P.intent) < 0) state.events.done.push('talk:' + gid + ':' + P.intent);
+    // ④ 出话（程序版一定出；接了 AI 时界面再拿这一段去润色语气）
+    const rep = (DIA && DIA.reply) ? DIA.reply(talkCtx(state, gid, text, P)) : { lines: ['（他没接话。）'], mood: 'neutral', intent: P.intent };
+    if (P.risk) settlement.push('今天更容易被找上门（遭遇率 +' + P.risk + '%）');
+    return {
+      ok: true, lines: rep.lines, intent: P.intent, intentLabel: P.intentLabel, mood: rep.mood,
+      favor: t.favor, favorDelta: delta, settlement: settlement, attitude: npcAttitude(state, gid),
+      refused: !!P.refuse,                 // 这次是"被回绝"：话说了，但什么都没拿到
+      saidToday: t.saidToday, saidLeft: Math.max(0, TALK_PER_TURN - (t.saidEnc || 0)), name: g.name,
+    };
+  }
+
   /* --------------------- 第 30 轮：灵异公交车（复苏度过高时的避难所）
    * 原著设定：车内鬼不超过 35 只时可以压制车上鬼的杀人规律；能撞到厉鬼死机；
    * 座位里的折叠男尸是车本体、具备压制厉鬼复苏的作用；行驶中会熄火，引发集体下车的大危机；
@@ -12964,6 +13568,10 @@ body.story-mode .logwrap{max-height:22vh !important}
       busTurn: state.busTurn || 0,
       // 第 33 轮：事件卡（存档中途存下也能接着选）
       card: state.card || null, cardLog: state.cardLog || [],
+      // 第 34 轮：NPC 对话记录（好感 / 说过几句 / 已经给过什么）
+      talks: state.talks || {},
+      // 第 34 轮：NPC 对话记录（好感 / 说过几句 / 已经给过什么）
+      talks: state.talks || {},
       domain: state.domain,                       // 第 26 轮：鬼域扩张进度（必须进存档）
       domainSealUsed: state.domainSealUsed || 0,
       relationships: state.relationships,
@@ -13018,6 +13626,24 @@ body.story-mode .logwrap{max-height:22vh !important}
       if (CONTENT.ghosts[k] && CONTENT.ghosts[ib[k]]) s.introducedBy[k] = ib[k];
     }
     s.busTurn = Math.max(0, int(obj.p.busTurn));
+    // 第 34 轮：对话记录要读回来（结构消毒：只认内容表里真有的人，好感钳在 ±6）
+    s.talks = {};
+    const tk = obj.p.talks || {};
+    for (const k of Object.keys(tk)) {
+      if (!CONTENT.ghosts[k]) continue;
+      const v = tk[k] || {};
+      s.talks[k] = {
+        favor: clamp(int(v.favor) || 0, FAVOR_MIN, FAVOR_MAX),
+        said: Math.max(0, int(v.said) || 0),
+        told: (Array.isArray(v.told) ? v.told.filter((x) => typeof x === 'string') : []).slice(-24),
+        lastTurn: int(v.lastTurn) || -99,
+        saidTurn: int(v.saidTurn) || -99,
+        saidToday: clamp(int(v.saidToday) || 0, 0, TALK_PER_DAY),
+        mirrorTurn: int(v.mirrorTurn) || -99,
+        encKey: typeof v.encKey === 'string' ? v.encKey.slice(0, 40) : '',
+        saidEnc: clamp(int(v.saidEnc) || 0, 0, TALK_PER_TURN),
+      };
+    }
     // 第 33 轮：事件卡要能读回来（结构消毒：只认内容表里真实存在的卡与选项）
     s.card = null;
     s.cardLog = (Array.isArray(obj.p.cardLog) ? obj.p.cardLog : []).filter((id) => cardDefs().some((e) => e.id === id)).slice(-8);
@@ -13108,6 +13734,10 @@ body.story-mode .logwrap{max-height:22vh !important}
     applyMechanic: applyMechanic,
     actionPool: actionPool,
     buildEncounter: buildEncounter,
+    // 第 34 轮：NPC 对话
+    sayTo: sayTo, talkCtx: talkCtx, npcOpening: npcOpening, npcAttitude: npcAttitude,
+    npcArchetype: npcArchetype, talkOf: talkOf, planTalk: planTalk,
+    TALK_PER_TURN: TALK_PER_TURN, TALK_PER_DAY: TALK_PER_DAY, TALK_FAVOR_BOUNDS: [FAVOR_MIN, FAVOR_MAX],
     BOUNDS: BOUNDS,
     CHAPTER_REDUCTION_CAP: CHAPTER_REDUCTION_CAP,
     CHAPTER_HUMANITY_CAP: CHAPTER_HUMANITY_CAP,
@@ -14458,6 +15088,31 @@ body.story-mode .logwrap{max-height:22vh !important}
         const txt2 = j2 && j2.choices && j2.choices[0] && j2.choices[0].message ? j2.choices[0].message.content : '';
         return txt2 || null;
       }
+      // 第 34 轮：对话（离线优先）——程序版先出，AI 只做同义润色（不许增删事实）
+      if (payload.kind === 'dialogue') {
+        sys = '你在给一段对话做语言润色。给你的是"这个人/这只鬼已经说过的话"，' +
+          '你的任务是把它改写成更贴这个角色语感的说法。\n' +
+          '角色：' + (payload.npcWho || '') + '\n' +
+          '它的说话方式（必须严格照这个语感）：' + (payload.npcSpeak || '') + '\n' +
+          '硬性约束：① 只改文风，不得增删事实、不得改变意思、不得新增设定或新信息；' +
+          '② 不得输出任何数值、状态、选项或提示；③ 不许替玩家说话、不许替玩家做决定；' +
+          '④ 句数必须和给出的一致（几句就还几句），每句不超过 80 字。';
+        const u3 = JSON.stringify({ 原来这几句: payload.facts, 世界: payload.world, 要求: '按上面的语感改写这几句，句数不变。' });
+        const res3 = await fetch(this.endpoint, {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' },
+            this.apiKey ? { Authorization: 'Bearer ' + this.apiKey } : {}),
+          body: JSON.stringify({
+            model: this.model || 'deepseek-chat',
+            messages: [{ role: 'system', content: sys }, { role: 'user', content: u3 }],
+            temperature: 0.8,
+          }),
+        });
+        if (!res3.ok) throw new Error('AI 接口返回 ' + res3.status);
+        const j3 = await res3.json();
+        const txt3 = j3 && j3.choices && j3.choices[0] && j3.choices[0].message ? j3.choices[0].message.content : '';
+        return txt3 || null;
+      }
       // 第 21 轮：智慧级厉鬼——AI 要扮演它本人（思维、说话方式、能力），而不是旁白
       if (payload.ghost) {
         const g = payload.ghost;
@@ -14645,11 +15300,12 @@ body.story-mode .logwrap{max-height:22vh !important}
       Promise.resolve(p).then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
     });
   }
-  async function worldText(kind, procLines) {
+  async function worldText(kind, procLines, extra) {
     if (!procLines || !procLines.length) return [];
     if (!aiReady() || !aiExtraOn()) return procLines;
     try {
-      const txt = await withTimeout(window.RS_AI.narrate({ kind: kind, facts: procLines, world: C.meta.title }), 15000);
+      const req = Object.assign({ kind: kind, facts: procLines, world: C.meta.title }, extra || {});
+      const txt = await withTimeout(window.RS_AI.narrate(req), 15000);
       const clean = String(txt || '').trim();
       if (!clean) return procLines;
       const parts = clean.split(/\n+/).map((x) => x.trim()).filter(Boolean);
@@ -14952,19 +15608,25 @@ body.story-mode .logwrap{max-height:22vh !important}
         (state.pending.introducedBy && C.ghosts[state.pending.introducedBy]
           ? '　（由 ' + C.ghosts[state.pending.introducedBy].name + ' 引荐，他才肯见你）' : ''));
       addLog('muted', '对方也是驭鬼者：可以直接和他谈。' +
-        (enc0 && enc0.persona ? '（接了 AI 时，他会用自己的性格和语气回你；判定仍归引擎。）' : ''));
-      const tl = (enc0 && enc0.talk) || [];
-      if (tl.length) addLog('say ghost', '【' + state.pending.name + '】' + tl[0]);
-      if (aiReady() && enc0 && enc0.persona) aiGhostSpeak(state.pending, '');
+        (aiReady() && enc0 && enc0.persona ? '（接了 AI 时，他会用自己的性格和语气回你；判定仍归引擎。）' : ''));
     }
-    if (state.pending.smart) {
-      addLog('warn', '它有智慧：听得懂人话，会跟你谈条件。你可以直接在下面输入框里对它说话——' +
-        '它会用自己的思维与说话方式回应你（AI 扮演），但判定仍归引擎。');
-      // 让它先开口（AI 扮演）；接口没接上就退回到它的兜底台词
-      const g = C.ghosts[state.pending.ghost];
-      const tl = (g && g.talk) || [];
-      if (tl.length) addLog('say ghost', '【' + state.pending.name + '】' + tl[0]);
-      if (aiReady()) aiGhostSpeak(state.pending, '');       // 异步补一句更贴人设的开场
+    // 第 34 轮：能说话的对手一律给"它/他先开口的那一句" + 当前态度 + 对话规则
+    if (state.pending.person || state.pending.smart) {
+      const who = state.pending.person ? '他' : '它';
+      const att = E.npcAttitude ? E.npcAttitude(state, state.pending.ghost) : null;
+      const op = E.npcOpening ? E.npcOpening(state) : null;
+      if (op && !aiReady()) addLog('say ghost', '【' + state.pending.name + '】' + op.line);
+      else if (op && aiReady() && enc0 && enc0.talk && enc0.talk.length) addLog('say ghost', '【' + state.pending.name + '】' + enc0.talk[0]);
+      if (state.pending.smart && !aiReady()) {
+        addLog('muted', '它有智慧：听得懂人话，也会跟你谈条件。');
+      }
+      if (att) {
+        addLog('muted', '（' + who + '现在对你的态度：' + att.label + '　好感 ' + att.favorText +
+          '）下面的输入框可以直接对' + who + '说话：一场最多说 ' + (E.TALK_PER_TURN || 3) +
+          ' 句，一天最多 ' + (E.TALK_PER_DAY || 6) + ' 句——问规矩能问出线索、谈条件要付钱、' +
+          '示好能攒人情，说难听了' + who + '会记住。话说得再多，也改不了规矩本身。');
+      }
+      if (aiReady() && enc0 && enc0.persona) aiGhostSpeak(state.pending, '');
     }
     if (N) {
       // 第 20 轮：先两段成段叙事（读感），再补短句细节（信息）
@@ -15061,9 +15723,37 @@ body.story-mode .logwrap{max-height:22vh !important}
     }
     // 只把"过程"部分交给 AI 叙事（避免它照着玩家写的结过去写）
     const perSpeech = (E.stripOutcome ? E.stripOutcome(customText) : customText) || customText;
-    // 智慧级遭遇：玩家说了话，先让"它"用自己的口吻回一句（AI 扮演），再走引擎判定
-    const smartTalk = isSmartPending(state) && id === '__custom__' ? String(perSpeech || '') : null;
-    if (smartTalk) await aiGhostSpeak(state.pending, smartTalk);
+    /* 第 34 轮：NPC 对话（离线优先）。
+     * 顺序：引擎先算"这一句话带来了什么"（好感/线索/情报/代价，全走唯一写入点）→ 出程序版的回话
+     * → 接了 AI 再用它自己的性格与语气补一句（AI 只改语气，数值以引擎为准）→ 最后才去对应选项。
+     * 说话本身**不会**结算遭遇：要走近/退开，仍然得从下面挑一步。 */
+    const talkable = isSmartPending(state) || isPersonPending(state);
+    const talkSpeech = talkable && id === '__custom__' ? String(perSpeech || '') : null;
+    let talkRep = null;
+    if (talkSpeech) {
+      if (talkSpeech.length > 120) {
+        addLog('warn', '【话说太长了】挑最要紧的一句说——一口气别超过 120 字。');
+        renderNow();
+        return;
+      }
+      talkRep = E.sayTo ? E.sayTo(state, talkSpeech) : null;
+      if (talkRep && talkRep.error) {
+        addLog('warn', '【说不上话】' + talkRep.error);
+        renderNow();
+        return;
+      }
+      if (talkRep && talkRep.settlement && talkRep.settlement.length) {
+        addLog('set', talkRep.settlement.map((s) => '▸ ' + s));
+      }
+      if (talkRep) {
+        // 程序版一定出；接了 AI 只把这几句改得更贴他的语感（不改事实、不改数值）
+        const persona = ((C.ghosts[state.pending.ghost] || {}).persona) || {};
+        const lines = await worldText('dialogue', talkRep.lines || [], { npcWho: persona.who || '', npcSpeak: persona.speak || '' });
+        addLog('say ghost', '【' + state.pending.name + '】' + (lines || []).join(''));
+        if (aiReady() && aiExtraOn()) addLog('muted', '（这一段话由 AI 按' + (isPersonPending(state) ? '他' : '它') + '的性格润色；数值与判定以引擎为准。）');
+      }
+      renderNow();
+    }
     // 自由输入：先尝试识别成"真实行动"（不接 AI 也能有自由度）
     let realId = id;
     let intent = null;
@@ -15076,10 +15766,9 @@ body.story-mode .logwrap{max-height:22vh !important}
           const kindName = { exit: '生路', neutral: '中性', trap: '陷阱' }[ei.kind] || ei.kind;
           intent = { label: '[' + kindName + '] ' + ei.label, via: '你写的那句话' };
         } else {
-          if (isSmartPending(state) || isPersonPending(state)) {
-            addLog('muted', '（对方听完了你的话。不过你"真的要做什么"，仍然要从下面这些选项里挑一步——' +
-              '说话能影响它、影响不了规则。）');
-            addLog('muted', '提示：谈条件要落在选项上；人比鬼好说话，但人也会记仇。）');
+          if (talkable) {
+            addLog('muted', '（话说完了。真要走近、退开或者动手，仍然要从下面挑一步——' +
+              '说话改变的是' + (isPersonPending(state) ? '他' : '它') + '对你的态度，改不了规矩本身。）');
             renderNow();
             return;
           }
@@ -17342,8 +18031,12 @@ body.story-mode .logwrap{max-height:22vh !important}
         const g = C.ghosts[gid];
         if (!g) continue;
         const by = (state.introducedBy || {})[gid];
+        // 第 34 轮：把"他/它现在对你的态度"写进笔记（聊过天的人才有）
+        const talk = state.talks ? state.talks[gid] : null;
+        const att = (E.npcAttitude && talk) ? E.npcAttitude(state, gid) : null;
         card.appendChild(el('div', 'noteLine', '· ' + g.name + '（' +
           (E.factionName ? E.factionName(E.factionOfNpc(g)) : '') + (g.rank ? '·' + g.rank : '') + '）' +
+          (att ? '　—　态度：' + att.label + '（好感 ' + att.favorText + '，说过 ' + att.said + ' 句）' : '') +
           (by && C.ghosts[by] ? '　—　' + C.ghosts[by].name + ' 引荐' : '')));
       }
       body.appendChild(card);
