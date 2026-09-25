@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260925063555">
+<meta name="rs-build" content="v260925073404">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -414,7 +414,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260925063555";</script>
+<script>window.__RS_BUILD = "v260925073404";</script>
 <header>
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
@@ -1982,6 +1982,832 @@ body.story-mode .logwrap{max-height:22vh !important}
       seeNone: SEE_NONE, seeOne: SEE_ONE, seeMany: SEE_MANY, coda: CODA, filler: FILLER,
     },
   };
+});
+</script>
+<script>/**
+ * 动态事件卡（第 33 轮）：每天开场有概率出现的小事件，玩家选一个做法，得到短叙事 + 轻量效果。
+ *
+ * ============================== 契约（引擎只吃这些字段） ==============================
+ * 一张卡：
+ *   {
+ *     id: 'ev_xxx',                  // 全局唯一，英文小写下划线
+ *     kind: 'trouble'|'boon'|'flavor',   // 缺省 trouble（只影响统计与配比）
+ *     title: '楼道里的鞋',            // ≤12 字
+ *     weight: 1,                     // 可选，出现权重 1~3
+ *     when: (ctx) => bool,           // 可选，触发条件；不写=任何时候都可能
+ *     text: ['…'] | (ctx) => ['…'],  // 1~3 段场景
+ *     options: [                     // ≥2 个做法
+ *       { id: 'take', label: '…', hint: '…', lines: ['…'], effects: [ … ] },
+ *     ],
+ *   }
+ *
+ * ctx（引擎传入的纯数据，**只读**）：
+ *   { turn, chapter, era, eraName, city, cityName, stance, stanceName,
+ *     calamity, domainLv, erosion, clues, contracts, cash, gold, safehouse, stealth,
+ *     sanity, stamina, humanity, lastGhostName, seed, pick(arr, salt) }
+ *   · pick(arr, salt) 是确定性抽取：同 seed + 同 salt 必得同一项。
+ *   · 禁止 Math.random / Date / fetch —— lint 会检查（离线确定性）。
+ *
+ * effects 白名单（引擎统一钳制与记账）：
+ *   { k:'stat',  key:'sanity'|'stamina'|'humanity'|'erosion'|'calamity'|'stealth'|'pollution'|'causality'|'ghostEye', v:±n }
+ *   { k:'money', key:'cash'|'deposit'|'gold'|'contribution', v:±n }
+ *   { k:'flag',  key:'intel'|'favor'|'marks'|'safehouse'|'disguise', v:±n }
+ *   幅度：这是"小事件"，单项 |v| ≤ 8；不要负侵蚀、不要直接给线索/道具/契约、不要写死亡。
+ *
+ * 文案要求：只写过程与细节，**不写结果性宣告**（"你成功了/你逃出来了/你拿到线索了"一律不许）。
+ * ==================================================================================
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSEvents = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  /* ctx.pick 缺省时的兜底：同 salt 必得同一项（内容表不该因为拿不到 pick 就崩） */
+  function pickOf(ctx, arr, salt) {
+    var list = arr || [];
+    if (!list.length) return '';
+    if (ctx && typeof ctx.pick === 'function') {
+      var v = ctx.pick(list, salt);
+      if (v !== undefined && v !== null && v !== '') return v;
+    }
+    var h = 2166136261;
+    var key = String(salt == null ? '' : salt);
+    for (var i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return list[(h >>> 0) % list.length];
+  }
+
+  /* ============================ 事件卡内容表 ============================
+   * 每张卡：至少一个"看着诱人但有代价"的做法，和一个"稳妥但会错过"的做法。
+   * 幅度一律轻：这是每天开场的小插曲，不是遭遇战。
+   * =================================================================== */
+  const events = [
+    /* ---------------- 一、日常麻烦（不限时期，任何一天都可能撞上） ---------------- */
+    {
+      id: 'ev_hallway_shoes',
+      kind: 'trouble',
+      title: '楼道里的鞋',
+      weight: 1,
+      text: [
+        '你回家时在楼道里看见一双鞋，鞋尖朝着你家门，摆得很正。',
+        '鞋底是湿的，从楼梯口拖出一串浅浅的水印，到你家门口就断了。',
+      ],
+      options: [
+        {
+          id: 'carry', label: '把鞋拎到楼梯口的窗台', hint: '挪开眼里那一样东西',
+          lines: ['你把鞋拎到楼梯口，鞋底的水顺着指缝往下滴。搁上窗台时你回了一次头，自家门口那一小片水泥已经干了。'],
+          effects: [{ k: 'stat', key: 'sanity', v: -3 }],
+        },
+        {
+          id: 'ignore', label: '当没看见，开门进屋', hint: '省事，它还会在那',
+          lines: ['你掏出钥匙开门，反手把门带上。换鞋的时候，楼道里有脚步经过，在你门口轻了一下，又走了。'],
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 'ev_upstairs_knock',
+      kind: 'trouble',
+      title: '楼上的敲击声',
+      weight: 1,
+      text: ['楼上又在敲，一下，两下，停半分钟，再一下。你住的这栋一共只有六层。'],
+      options: [
+        {
+          id: 'go_up', label: '上楼看看是谁在敲', hint: '可能撞上不该见的',
+          lines: ['你上到天台那层，楼道灯没亮。声音还在响，从你脚底下的天花板里传上来，节奏和你在屋里听见的一模一样。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'sanity', v: -4 }],
+        },
+        {
+          id: 'knock_back', label: '拿扫帚柄敲回去', hint: '应了，就等于答应',
+          lines: ['你朝天花板顶了三下。对面安静了很久，后半夜没再响，你睡得很浅，醒了两回。'],
+          effects: [{ k: 'stat', key: 'erosion', v: 1 }, { k: 'stat', key: 'stamina', v: -3 }],
+        },
+        {
+          id: 'plug_ears', label: '塞上耳塞，翻个身', hint: '不问，就不会知道',
+          lines: ['你把耳塞按紧，听见的是自己血流的声音。第二天早上，天花板上多了一块浅浅的黄渍。'],
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 'ev_parcel_box',
+      kind: 'trouble',
+      title: '门口的纸箱',
+      weight: 1,
+      text: [
+        '门口放着一个纸箱，胶带绕了三圈，单子上收件人的名字被水洇开了。',
+        '箱子不重，晃起来里面有东西在滑动。',
+      ],
+      options: [
+        {
+          id: 'open_it', label: '拆开看里面是什么', hint: '别人的东西也是消息',
+          lines: ['你划开胶带，里面是一个空相框和半包没抽完的烟。相框背面贴着纸条，字迹被水泡得只剩两个笔画。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stealth', v: -3 }],
+        },
+        {
+          id: 'hand_in', label: '搬到楼下值班室去', hint: '交出去，也交出麻烦',
+          lines: ['你抱着箱子下楼，值班的人翻了两页登记本，说这一户前年就搬空了，让你先搁在门后。'],
+          effects: [{ k: 'stat', key: 'stamina', v: -3 }, { k: 'flag', key: 'favor', v: 1 }],
+        },
+        {
+          id: 'kick_aside', label: '踢到消防栓旁边', hint: '不碰，就不会沾上',
+          lines: ['你用脚尖把箱子推到消防栓旁边。第二天出门，它还在那儿，胶带上多了一道新的划痕。'],
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 'ev_last_bus',
+      kind: 'trouble',
+      title: '末班公交',
+      weight: 1,
+      text: function (ctx) {
+        var stop = pickOf(ctx, ['槐安路', '南环桥', '旧货市场', '干部学院'], 'card:bus:stop');
+        return [
+          '末班车上只有你和抱着纸袋的一个人。',
+          '车过了一站，报站的声音念的是' + stop + '，你在这一带住了几年，没有听过这个站名。',
+        ];
+      },
+      options: [
+        {
+          id: 'stay', label: '坐着不动，看它停在哪', hint: '多坐一站，多知道一点',
+          lines: ['你没有起身。车又走了一段，路边的树比记忆里密。抱纸袋的人在下一站下了车，袋子留在座位上。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'sanity', v: -4 }],
+        },
+        {
+          id: 'ring_off', label: '按铃，马上下来', hint: '夜里走路总比坐着强',
+          lines: ['你按了铃，车门在路灯下面开。下车后你回头看，车没有立刻走，停了一会儿才滑出去，尾灯拐进一条你没有见过的岔口。'],
+          effects: [{ k: 'stat', key: 'stamina', v: -3 }],
+        },
+      ],
+    },
+    {
+      id: 'ev_lift_floor13',
+      kind: 'trouble',
+      title: '电梯十三层',
+      weight: 1,
+      text: [
+        '电梯里的楼层按钮只有十二个，你按的是一，上行灯却一盏一盏亮过去。',
+        '轿厢的镜面把你照得比平时薄。',
+      ],
+      options: [
+        {
+          id: 'count_lights', label: '盯着灯数它停几次', hint: '数清楚，代价是头疼',
+          lines: ['你数着那些灯。十三次之后灯全暗了，门在你按的那一层开。走出轿厢时，你后颈有一层细汗。'],
+          effects: [{ k: 'stat', key: 'sanity', v: -4 }, { k: 'flag', key: 'intel', v: 1 }],
+        },
+        {
+          id: 'press_all', label: '把所有楼层都按一遍', hint: '抢在它前面把灯按满',
+          lines: ['你一路按过去，指尖按得发麻。灯亮成一片，轿厢轻轻震了一下，门在两层之间开开合合了几回。'],
+          effects: [{ k: 'stat', key: 'stamina', v: -4 }, { k: 'stat', key: 'erosion', v: 1 }],
+        },
+        {
+          id: 'take_stairs', label: '退出来走楼梯', hint: '腿会酸，脚下踏实',
+          lines: ['你退出去，防火门在身后合上。楼梯间的声控灯一层层亮起来，你走到一半，听见楼上有人在按电梯按钮。'],
+          effects: [{ k: 'stat', key: 'stamina', v: -5 }],
+        },
+      ],
+    },
+    {
+      id: 'ev_wrong_takeout',
+      kind: 'trouble',
+      title: '送错的外卖',
+      weight: 1,
+      text: [
+        '外卖单上的地址不是你家，门牌号差一位，菜还是热的。',
+        '骑手在电话里说已经走远了，让你自己看着办。',
+      ],
+      options: [
+        {
+          id: 'eat_it', label: '吃了，把单子留下', hint: '白得一餐，单子留味',
+          lines: ['你吃了，饭是温的，汤面上浮着一层薄油。单子你压在桌角，第二天早上纸面洇出一圈指印，比你的手小一圈。'],
+          effects: [{ k: 'stat', key: 'stamina', v: 3 }, { k: 'stat', key: 'sanity', v: -3 }],
+        },
+        {
+          id: 'send_over', label: '照着单子送过去', hint: '多跑一趟，能看清那户',
+          lines: ['你拎着袋子下楼，隔壁单元同一层。门口没有灯，脚垫下面露出半张纸。你放下袋子，敲了两下就退开了。'],
+          effects: [{ k: 'stat', key: 'stamina', v: -4 }, { k: 'flag', key: 'intel', v: 1 }],
+        },
+        {
+          id: 'hang_door', label: '挂门把上，谁拿谁拿', hint: '不沾这件事',
+          lines: ['你把袋子挂在门把上，进屋洗手。半夜有塑料袋摩擦的声音，早上袋子不在了。'],
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 'ev_mirror_fog',
+      kind: 'trouble',
+      title: '镜上的水汽',
+      weight: 1,
+      text: ['洗完澡镜子上全是雾，你伸手抹开一道，雾气重新合上的那一块比别处慢。'],
+      options: [
+        {
+          id: 'wipe_all', label: '整面抹干净看到底', hint: '看清了才好判断',
+          lines: ['你抹了两遍。镜子里的你比你先停手，指尖还停在玻璃上。你把手放下，它也放下了。'],
+          effects: [{ k: 'stat', key: 'sanity', v: -4 }, { k: 'stat', key: 'stamina', v: -3 }],
+        },
+        {
+          id: 'step_out', label: '不看，出来穿衣服', hint: '不照它，它也照你',
+          lines: ['你拉开门出来，水汽跟着你出去又散掉。毛巾搭在椅背上，你听见浴室里还有水在滴。'],
+          effects: [{ k: 'stat', key: 'stealth', v: 2 }],
+        },
+      ],
+    },
+    {
+      id: 'ev_voice_lamp',
+      kind: 'trouble',
+      title: '声控灯不亮',
+      weight: 2,
+      text: [
+        '楼道的声控灯坏了半层，你走了两级，灯没亮。',
+        '黑的那半层里，有人比你先咳了一声。',
+      ],
+      options: [
+        {
+          id: 'answer', label: '应一声，报个名', hint: '出声就等于报位置',
+          lines: ['你说了一句我回来了。灯亮了，那半层楼道里站着的人已经不在，消防栓箱上的玻璃蒙着灰。'],
+          effects: [{ k: 'stat', key: 'sanity', v: -4 }, { k: 'flag', key: 'intel', v: 1 }],
+        },
+        {
+          id: 'phone_light', label: '用手机照着走上去', hint: '慢一点，看得见脚下',
+          lines: ['你开了手电，一步一级踩实。光照到二楼转角时停了一下，电量掉了一格，你又站了一会儿才继续。'],
+          effects: [{ k: 'stat', key: 'stamina', v: -3 }],
+        },
+        {
+          id: 'stand_wait', label: '站在亮处等它再响', hint: '等下去，灯不一定先亮',
+          lines: ['你站住不动。又一声咳，比刚才远。你数到三十的时候，灯自己亮了，楼道里没有别人。'],
+          effects: [{ k: 'stat', key: 'stamina', v: -3 }, { k: 'stat', key: 'stealth', v: -2 }],
+        },
+      ],
+    },
+    {
+      id: 'ev_old_phone',
+      kind: 'trouble',
+      title: '抽屉里的旧手机',
+      weight: 1,
+      text: ['抽屉里那部旧手机充上电以后亮了，屏幕上是你早就删掉的号码，未接来电三次。'],
+      options: [
+        {
+          id: 'call_back', label: '按回拨，听一会儿', hint: '通了，也不一定是人接',
+          lines: ['你按下回拨，忙音持续了很久，然后是一段很轻的呼吸，末尾带着金属摩擦的声响。你把手机拿在耳边站着。'],
+          effects: [{ k: 'stat', key: 'sanity', v: -5 }, { k: 'flag', key: 'intel', v: 1 }],
+        },
+        {
+          id: 'copy_log', label: '抄下那三个时间', hint: '拿得住时间，拿不住安稳',
+          lines: ['记录里是连续七个夜里同一分钟。你把时间抄在便签上，贴到冰箱门。夜里那部手机在抽屉里又亮了一次。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'sanity', v: -3 }, { k: 'stat', key: 'stealth', v: -2 }],
+        },
+        {
+          id: 'pull_battery', label: '抠下电池，收回抽屉', hint: '不看，省一场惊吓',
+          lines: ['你把后盖抠开，电池卸下来搁在一边。抽屉关上的时候，那块屏幕自己闪了一下。'],
+          effects: [],
+        },
+      ],
+    },
+
+    /* ---------------- 二、机会（捡到的东西、愿意搭话的人、摊子） ---------------- */
+    {
+      id: 'ev_keyring',
+      kind: 'boon',
+      title: '捡到的钥匙串',
+      weight: 2,
+      text: ['你在小区门口的减速带上踢到一串钥匙，五六把，没有挂件，铜色还很新。'],
+      options: [
+        {
+          id: 'keep_it', label: '收起来，回头再打听', hint: '钥匙能开的门你也想知道',
+          lines: ['你把钥匙揣进外套内袋。晚上整理时你拿自己家的锁试了试，都塞不进去，齿型却和楼下那家差不多少。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stealth', v: -2 }],
+        },
+        {
+          id: 'hand_guard', label: '交给门卫登记', hint: '留个脸熟，也算还回去',
+          lines: ['门卫翻出一本卷了角的本子，把日期和钥匙数量写上去，抬头问你住几号楼。'],
+          effects: [{ k: 'flag', key: 'favor', v: 1 }],
+        },
+      ],
+    },
+    {
+      id: 'ev_talkative',
+      kind: 'boon',
+      title: '愿意搭话的人',
+      weight: 1,
+      text: [
+        '早点摊上有人坐到你对面，碗里还剩一半，先开口的是他。',
+        '他问你最近这片夜里有没有听见运货的车，声音压得很低。',
+      ],
+      options: [
+        {
+          id: 'honest', label: '把听过的都说了', hint: '说得越多，被记得越多',
+          lines: ['你把这几天夜里听见的都讲了，包括几点、从哪边来。他听着，把油条掰成两截，走的时候留下了自己那份钱。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'flag', key: 'favor', v: 1 }, { k: 'stat', key: 'stealth', v: -4 }],
+        },
+        {
+          id: 'vague', label: '含含糊糊应两句', hint: '不多说，也不得罪',
+          lines: ['你说自己睡得早。他笑了一下，把碗推远一点，说这条街上的事最好别都记在心里。'],
+          effects: [{ k: 'flag', key: 'favor', v: 1 }],
+        },
+        {
+          id: 'move_away', label: '端碗挪到别的桌', hint: '不吃这顿饭的人情',
+          lines: ['你端着碗换到靠门的位置。他坐了一会儿才走，出门时鞋跟磕在台阶上，很响。'],
+          effects: [],
+        },
+      ],
+    },
+
+    /* ---------------- 三、纯氛围（只有一段细节，没有数值） ---------------- */
+    {
+      id: 'ev_shadow_corner',
+      kind: 'flavor',
+      title: '墙角的影子',
+      weight: 2,
+      text: ['巷子拐角的地上有块影子，比墙上的树影浓一点，随风晃的是树，不是它。'],
+      options: [
+        {
+          id: 'stand_in', label: '走过去站进那块影子', hint: '凉一下，就一下',
+          lines: ['你走过去站定。影子里的地面是干的，脚背上一点太阳的温度都没有。'],
+          effects: [],
+        },
+        {
+          id: 'walk_around', label: '贴着墙绕过去', hint: '不占它的地方',
+          lines: ['你侧身绕开，肩膀蹭到墙皮。走远了再回头，那块影子还在原处，形状没变。'],
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 'ev_staring_cat',
+      kind: 'flavor',
+      title: '盯着你的猫',
+      weight: 2,
+      text: ['楼下那只猫蹲在电动车座上，你走近了它也不动，眼睛跟着你转，一直转到你背后。'],
+      options: [
+        {
+          id: 'look_back', label: '回头看看它在看什么', hint: '好奇起得最快',
+          lines: ['你回过头，背后只有垃圾桶和一根电线杆。再看猫，它已经在舔爪子了。'],
+          effects: [],
+        },
+        {
+          id: 'keep_walking', label: '不停脚，直接进楼', hint: '它看它的',
+          lines: ['你进了单元门，玻璃上还留着那只猫的轮廓。上到三楼时，楼下的猫叫了一声。'],
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 'ev_stopped_rain',
+      kind: 'flavor',
+      title: '停在半空的雨',
+      weight: 2,
+      text: [
+        '雨下到一半停了，不是渐渐小下去的那种停。',
+        '你抬头，天上有很细的一层水停在原处，落不下来。',
+      ],
+      options: [
+        {
+          id: 'hold_hand', label: '伸手往上接一会儿', hint: '手会湿，别的不会',
+          lines: ['你把手举起来，湿意只停在指尖，手背是干的。你把手指并拢又张开，那点湿就散开了。'],
+          effects: [],
+        },
+        {
+          id: 'open_umbrella', label: '撑开伞照常走', hint: '该走的路还得走',
+          lines: ['你撑开伞走了一段，伞面没有响。路边积水面上，一圈一圈的涟漪还在往外推。'],
+          effects: [],
+        },
+      ],
+    },
+
+    /* ---------------- 四、与世界状态挂钩（劫难高 / 鬼域扩张） ---------------- */
+    {
+      id: 'ev_cordon_line',
+      kind: 'trouble',
+      title: '黄色的警戒线',
+      weight: 1,
+      when: function (ctx) { return ctx.calamity >= 40; },
+      text: function (ctx) {
+        var street = pickOf(ctx, ['解放路', '环城东路', '老市场口', '西桥头'], 'card:cordon:street');
+        return [
+          '常走的那条' + street + '拉了黄带子，塑料布上印的字被雨打得只剩半边。',
+          '带子里面停着一辆车，车门开着。',
+        ];
+      },
+      options: [
+        {
+          id: 'ask_officer', label: '问守带子的人', hint: '问得出话，也留下话',
+          lines: ['你问他什么时候能过。他看了看你手里的袋子，说绕东边那条走，别在这儿停。他没说什么时候撤。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stealth', v: -2 }],
+        },
+        {
+          id: 'peek_inside', label: '沿带子往里看两眼', hint: '看清了，夜里会想起来',
+          lines: ['你贴着带子走了一段。车里的座垫上有暗色的一摊，副驾驶还插着钥匙。有人在你身后咳了一声，你才走开。'],
+          effects: [{ k: 'stat', key: 'sanity', v: -4 }, { k: 'flag', key: 'intel', v: 1 }],
+        },
+        {
+          id: 'detour', label: '绕远路，不打听', hint: '多走两站，少一件事',
+          lines: ['你按他指的方向绕过去，多走了两条街。回头看时，带子那一段站了三个人，都朝里。'],
+          effects: [{ k: 'stat', key: 'stamina', v: -4 }],
+        },
+      ],
+    },
+    {
+      id: 'ev_temp_shelter',
+      kind: 'trouble',
+      title: '临时安置点',
+      weight: 1,
+      when: function (ctx) { return ctx.calamity >= 45; },
+      text: ['体育馆门口支起几张桌子，白纸上写着登记两个字，队伍沿台阶排到马路上。'],
+      options: [
+        {
+          id: 'queue_up', label: '跟着排队登记', hint: '登了记，就上了册子',
+          lines: ['你排了四十分钟。桌上的人问你原来住哪一栋，写下来，又划掉，改成另一个编号，让你明天再来一次。'],
+          effects: [{ k: 'stat', key: 'stamina', v: -5 }, { k: 'flag', key: 'favor', v: 1 }],
+        },
+        {
+          id: 'watch_queue', label: '在旁边看队伍里的人', hint: '看人比看纸清楚',
+          lines: ['你靠着栏杆站了一会儿。队伍里有几个人不填表，只在门口来回走，见到熟脸就点头。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stealth', v: -2 }],
+        },
+        {
+          id: 'go_home', label: '不排，回家去', hint: '册子上没名字最省事',
+          lines: ['你从队伍旁边走过去。走了半条街，登记的桌子后面有人喊了一声名单上的名字，不是你的。'],
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 'ev_street_broadcast',
+      kind: 'trouble',
+      title: '街口的广播',
+      weight: 1,
+      when: function (ctx) { return ctx.calamity >= 55; },
+      text: function (ctx) {
+        var pace = pickOf(ctx, [
+          '一遍比一遍慢',
+          '念到一半停住，再从头念',
+          '中间插了一句听不懂的方言',
+        ], 'card:broadcast');
+        return [
+          '街口的喇叭在念一串地址，' + pace + '。',
+          '念到第三个门牌号时，马路对面有人把卷帘门放了下来。',
+        ];
+      },
+      options: [
+        {
+          id: 'listen_all', label: '站在电线杆旁听完', hint: '听完这段，耳朵会嗡',
+          lines: ['你把整段听完了。喇叭停下来的时候，路边有两个人还站着没动，过一会儿才各走各的。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'sanity', v: -4 }],
+        },
+        {
+          id: 'record_it', label: '拿手机录一段', hint: '录下来慢慢对，也留痕',
+          lines: ['你举着手机录了半分钟。放回兜里时屏幕是黑的，刚才那段没了，存储里多了一个空文件。'],
+          effects: [{ k: 'stat', key: 'sanity', v: -3 }, { k: 'stat', key: 'stamina', v: -3 }],
+        },
+        {
+          id: 'keep_off', label: '不停脚，顺路走开', hint: '喇叭念的不是你',
+          lines: ['你沿人行道走开，声音在背后变小。走到第二个路口时，喇叭停了，路口的车都没动。'],
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 'ev_slow_clock',
+      kind: 'trouble',
+      title: '慢两分钟的钟',
+      weight: 1,
+      when: function (ctx) { return ctx.domainLv >= 2; },
+      text: ['楼下那面钟慢了两分钟，前台的挂钟也是慢两分钟，你的手机是准的。'],
+      options: [
+        {
+          id: 'ask_guard', label: '问一句，看谁的时间准', hint: '问出口，答案会跟着你',
+          lines: ['你问了保安，他说自己的手机也是慢的。你让他看了一眼你的屏幕，他看了很久，说还是别看这个了。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stealth', v: -3 }],
+        },
+        {
+          id: 'match_it', label: '把自己的表也调慢两格', hint: '顺着它，日子会顺一点',
+          lines: ['你把表往后拨了两格。那天的会你迟到了，进门的时候所有人都已经坐好，没人看你。'],
+          effects: [{ k: 'stat', key: 'stealth', v: 3 }, { k: 'stat', key: 'sanity', v: -3 }],
+        },
+      ],
+    },
+    {
+      id: 'ev_extra_street',
+      kind: 'trouble',
+      title: '多出一条街',
+      weight: 1,
+      when: function (ctx) { return ctx.domainLv >= 3; },
+      text: [
+        '地图上有一条你从没走过的街，夹在两栋你天天路过的大楼中间。',
+        '导航把它标成灰色，你放大看，街名只有两个字。',
+      ],
+      options: [
+        {
+          id: 'walk_it', label: '按着图走过去', hint: '走过去，还得走回来',
+          lines: ['你在两栋楼之间找到一条窄口，往里走了几十步，脚下的砖是新的，两侧没有门牌。走到一半，你听见身后也有人走。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stamina', v: -5 }, { k: 'stat', key: 'sanity', v: -3 }],
+        },
+        {
+          id: 'send_map', label: '把图转给别人，让人先走', hint: '别人先走，你先知道',
+          lines: ['你把截图发出去。对方回了一句这地方封了，后面还有一句，没有发出来。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'flag', key: 'favor', v: -1 }],
+        },
+        {
+          id: 'drop_map', label: '删了图，照老路走', hint: '少一条街，也少一桩事',
+          lines: ['你删掉截图，按平时那条路回家。洗漱的时候你想起来，楼下的快递柜今天多了一格。'],
+          effects: [],
+        },
+      ],
+    },
+
+    /* ---------------- 五、时期专属：古代 ---------------- */
+    {
+      id: 'ev_watchman',
+      kind: 'trouble',
+      title: '更夫的梆子',
+      weight: 1,
+      when: function (ctx) { return ctx.era === 'ancient'; },
+      text: [
+        '打更的走到你这条巷子口，梆子敲了三下就停了。',
+        '按规矩，这时候该是他出声的时候。',
+      ],
+      options: [
+        {
+          id: 'open_door', label: '开门看他在不在', hint: '开门的人会被记下脸',
+          lines: ['你把门开了一条缝。巷口没有人，梆子搁在石阶上，穗子是湿的。'],
+          effects: [{ k: 'stat', key: 'sanity', v: -4 }, { k: 'flag', key: 'intel', v: 1 }],
+        },
+        {
+          id: 'listen_behind', label: '在门后听着不动', hint: '不出声，就当家里没人',
+          lines: ['你贴着门板听。过了很久，梆子又响了一下，从更近的地方。'],
+          effects: [{ k: 'stat', key: 'sanity', v: -3 }, { k: 'stat', key: 'stealth', v: 2 }],
+        },
+        {
+          id: 'blow_lamp', label: '把灯吹熄，装睡', hint: '黑着好过亮着',
+          lines: ['你吹熄了灯。巷子里安静下来，隔壁的门一扇一扇开了，又关上。'],
+          effects: [{ k: 'stat', key: 'stealth', v: 3 }],
+        },
+      ],
+    },
+    {
+      id: 'ev_yizhuang',
+      kind: 'trouble',
+      title: '义庄的门',
+      weight: 1,
+      when: function (ctx) { return ctx.era === 'ancient'; },
+      text: [
+        '义庄的门虚掩着，里头点着一盏油灯，火苗不晃。',
+        '管事的今晚不在，门上挂着的木牌写着别人的名字。',
+      ],
+      options: [
+        {
+          id: 'go_in', label: '推门进去看一眼', hint: '看到什么，都得自己带着',
+          lines: ['你推门进去，里头停着三副薄棺，盖都合着。靠门那副的盖沿上搁着一双鞋，鞋底沾的是新泥。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'sanity', v: -5 }],
+        },
+        {
+          id: 'tell_lizhang', label: '去找里正说一声', hint: '说出去，事情归别人管',
+          lines: ['你绕到里正家敲门，把话说了。里正披衣出来，让你先回去，别在门口站着。'],
+          effects: [{ k: 'flag', key: 'favor', v: 1 }, { k: 'stat', key: 'stamina', v: -3 }],
+        },
+        {
+          id: 'walk_past', label: '低头快走过去', hint: '今晚就当没路过',
+          lines: ['你贴着墙根走过义庄。走出一段回头看，那盏灯还在原处，门缝比刚才窄了。'],
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 'ev_market_stall',
+      kind: 'boon',
+      title: '赶集日的旧摊',
+      weight: 1,
+      when: function (ctx) { return ctx.era === 'ancient'; },
+      text: [
+        '集上有卖旧物的摊子，摊主不吆喝，只把东西一件件摆正。',
+        '最里头压着一面巴掌大的铜镜，镜背的字磨掉了一半。',
+      ],
+      options: [
+        {
+          id: 'buy_mirror', label: '拿钱换那面铜镜', hint: '东西旧，来路也旧',
+          lines: ['你付了钱，摊主用旧布包了两层递过来。铜镜贴着掌心那一面，比外头的天还凉。'],
+          effects: [{ k: 'money', key: 'cash', v: -3 }, { k: 'stat', key: 'stealth', v: 3 }],
+        },
+        {
+          id: 'ask_origin', label: '问摊主东西哪来的', hint: '问了，他就记住你了',
+          lines: ['摊主把布收回去，说都是从南边一处塌了半边的屋里抬出来的。他没说是哪一年塌的。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }],
+        },
+        {
+          id: 'pass_by', label: '看过就走，不还价', hint: '光看不买最省钱',
+          lines: ['你沿着摊子走过去，回头时摊主正把铜镜翻过来，用袖子擦背面。'],
+          effects: [],
+        },
+      ],
+    },
+
+    /* ---------------- 六、时期专属：民国 ---------------- */
+    {
+      id: 'ev_typeset',
+      kind: 'trouble',
+      title: '缺字的版',
+      weight: 1,
+      when: function (ctx) { return ctx.era === 'minguo'; },
+      text: [
+        '报馆的排字房少了一个字，师傅让你在字盘里替它找出来。',
+        '你要排的那条稿子只有一行：昨夜三时，南市。',
+      ],
+      options: [
+        {
+          id: 'find_word', label: '翻遍字盘找那个字', hint: '找着了，也得担下这条稿',
+          lines: ['你一个格子一个格子翻过去，手上全是铅灰的味道。那个字是在脚边的地上找着的，正面朝下。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stamina', v: -4 }],
+        },
+        {
+          id: 'swap_word', label: '换个意思相近的字', hint: '铅字压下去，意思就变了',
+          lines: ['你用另一个字填进去，版面上那一行看着没什么两样。第二天报纸出来，那一行的地名和原稿差了一个偏旁。'],
+          effects: [{ k: 'stat', key: 'sanity', v: -4 }, { k: 'stat', key: 'stealth', v: -2 }],
+        },
+        {
+          id: 'tell_master', label: '跟师傅说少了字', hint: '说清楚，稿子就排不成',
+          lines: ['师傅把稿子收回去，让你先排后面的。那一行没有上版，位置空着。'],
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 'ev_bathhouse',
+      kind: 'trouble',
+      title: '混堂的空位',
+      weight: 1,
+      when: function (ctx) { return ctx.era === 'minguo'; },
+      text: ['混堂里水汽很重，池子边空着一个位置，木牌却搭在沿上，说明有人。'],
+      options: [
+        {
+          id: 'take_seat', label: '坐进那个位置', hint: '空着的位置最省力',
+          lines: ['你坐下去，水比别处凉。搓背的师傅过来看了一眼牌子，问你叫什么名字，说了才肯动手。'],
+          effects: [{ k: 'stat', key: 'stamina', v: 3 }, { k: 'stat', key: 'sanity', v: -3 }],
+        },
+        {
+          id: 'wait_seat', label: '站旁边等别的位子', hint: '多等一刻钟，少一件事',
+          lines: ['你靠着柱子等了很久，池子里的人来了又走。那个位置一直没有人来。'],
+          effects: [{ k: 'stat', key: 'stamina', v: 3 }, { k: 'stat', key: 'stealth', v: 2 }],
+        },
+      ],
+    },
+    {
+      id: 'ev_telegram',
+      kind: 'trouble',
+      title: '电报房的回音',
+      weight: 1,
+      when: function (ctx) { return ctx.era === 'minguo'; },
+      text: [
+        '电报房的人把一张纸条推给你，说这封没人认领，搁了半个月。',
+        '纸上是五个数字一组，抄了三行。',
+      ],
+      options: [
+        {
+          id: 'decode', label: '照着码本对一对', hint: '对出来，纸上的东西跟上你',
+          lines: ['你借了码本，把前两行对着看，拼出来的是几个地名。第三行你没有对完，管事的就把本子收回去了。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'sanity', v: -3 }],
+        },
+        {
+          id: 'push_back', label: '推回去，说不认', hint: '不认，就不必知道',
+          lines: ['你把纸条推回柜台。他收下时说了一句已经来过三个人了，随手把它夹进本子。'],
+          effects: [{ k: 'stat', key: 'stealth', v: 2 }],
+        },
+      ],
+    },
+
+    /* ---------------- 七、时期专属：末日 ---------------- */
+    {
+      id: 'ev_ration_queue',
+      kind: 'trouble',
+      title: '配给队',
+      weight: 1,
+      when: function (ctx) { return ctx.era === 'doomsday'; },
+      text: [
+        '配给队在街口摆开桌子，一人一份，凭本子领。',
+        '队伍里有人的本子边角被剪过，也能领。',
+      ],
+      options: [
+        {
+          id: 'use_cut', label: '拿剪过的本子去试', hint: '领得到，也留了底',
+          lines: ['你把本子递上去。发东西的人翻了两页，抬眼看你，又低头把那一份放上桌。'],
+          effects: [{ k: 'stat', key: 'stamina', v: 3 }, { k: 'flag', key: 'marks', v: 1 }],
+        },
+        {
+          id: 'queue_fair', label: '拿本子老实排队', hint: '慢，但没人多看你一眼',
+          lines: ['你排在队尾，等到日头偏西。发到还剩两份的时候，桌上的人说没有你的名字，让你明天早点来。'],
+          effects: [{ k: 'stat', key: 'stamina', v: -5 }, { k: 'stat', key: 'stealth', v: 3 }],
+        },
+        {
+          id: 'skip_ration', label: '不领了，回去翻存粮', hint: '省一趟队，少一顿饭',
+          lines: ['你从队伍边上走开。回到住处翻柜子，只剩下小半袋米，袋口扎得很紧。'],
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 'ev_zone_register',
+      kind: 'trouble',
+      title: '防区登记',
+      weight: 1,
+      when: function (ctx) { return ctx.era === 'doomsday'; },
+      text: ['防区登记点设在原来的邮局里，门口挂着牌子：入区登记，出区报备。'],
+      options: [
+        {
+          id: 'register', label: '进去登记一个名字', hint: '有了名字，也有了位置',
+          lines: ['窗口后面的人在本子上写下你报的名字，问你原来做什么的。写完他把本子转过来，让你按了个手印。'],
+          effects: [{ k: 'flag', key: 'favor', v: 1 }, { k: 'stat', key: 'stealth', v: -3 }],
+        },
+        {
+          id: 'use_alias', label: '报一个别人的名字', hint: '假的撑着，撑不了太久',
+          lines: ['你报了一个别人的名字。写字的人笔尖顿了一下，还是写下去了，末了把本子往回翻了一页。'],
+          effects: [{ k: 'stat', key: 'stealth', v: 4 }, { k: 'flag', key: 'marks', v: 1 }],
+        },
+        {
+          id: 'turn_back', label: '不登记，往回走', hint: '不进这区，也没有口粮',
+          lines: ['你在门口站了一会儿，转身往回走。路对面告示栏上贴着前几天的名单，边角被人撕掉了一块。'],
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 'ev_wood_fence',
+      kind: 'trouble',
+      title: '栅栏外的脚印',
+      weight: 1,
+      when: function (ctx) { return ctx.era === 'doomsday'; },
+      text: [
+        '区界上的木栅栏是新钉的，板缝里还夹着木屑。',
+        '栅栏外面一行脚印，从路口走到这里就断了，方向是朝里。',
+      ],
+      options: [
+        {
+          id: 'follow_prints', label: '顺脚印往里走一段', hint: '脚印进得来，缝就在',
+          lines: ['你沿着脚印走了十几步，栅栏内侧有块板子比别处松。你伸手推了推，钉子转了一下。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stamina', v: -4 }, { k: 'stat', key: 'stealth', v: -2 }],
+        },
+        {
+          id: 'hammer_it', label: '捡块石头把板钉紧', hint: '钉紧今晚，明晚还会松',
+          lines: ['你捡了块石头，把那颗钉子敲回去，敲到木头吃住为止。手上沾了松脂的味道。'],
+          effects: [{ k: 'stat', key: 'stamina', v: -5 }, { k: 'flag', key: 'favor', v: 1 }],
+        },
+        {
+          id: 'leave_fence', label: '走开，不碰这排栅栏', hint: '少管一段，少一处眼',
+          lines: ['你从栅栏边走过去。走了很远，还能听见风吹板子发出的那种咔哒声。'],
+          effects: [],
+        },
+      ],
+    },
+
+    /* ---------------- 八、时期专属：六十年后 ---------------- */
+    {
+      id: 'ev_new_city_archive',
+      kind: 'boon',
+      title: '新城的档案处',
+      weight: 1,
+      when: function (ctx) { return ctx.era === 'after60'; },
+      text: ['新城的档案处对外开放半天，架子上的卷宗按年份码着，最前面一层空了一格。'],
+      options: [
+        {
+          id: 'read_gap', label: '查空格前后的编号', hint: '查得越细，名字越对得上',
+          lines: ['你把前后两卷的编号抄下来，中间差着一卷。管档的人过来看了你一眼，把那两卷往边上挪了挪。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'sanity', v: -3 }],
+        },
+        {
+          id: 'ask_clerk', label: '问那一格去哪儿了', hint: '问了，就有人查你',
+          lines: ['管档的人说送去修了，什么时候回来没定。你走的时候，他在登记本上添了一行。'],
+          effects: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stealth', v: -3 }],
+        },
+        {
+          id: 'sit_down', label: '在长凳上坐一会儿', hint: '什么也不问，也不留名',
+          lines: ['你坐在长凳上，看窗外的人走过去。椅背上刻着两个名字，都被磨得只剩竖画。'],
+          effects: [{ k: 'stat', key: 'stamina', v: 3 }],
+        },
+      ],
+    },
+    {
+      id: 'ev_wall_names',
+      kind: 'flavor',
+      title: '墙上的名字',
+      weight: 2,
+      when: function (ctx) { return ctx.era === 'after60'; },
+      text: ['拆到一半的那面墙上，还剩一排用粉笔写的名字，最后一个写了一半就断了。'],
+      options: [
+        {
+          id: 'touch_it', label: '伸手碰一下那道粉笔', hint: '手上会沾粉，别的不会',
+          lines: ['你碰了碰，指腹上是白的。收回手的时候，那一竖比刚才长了一点。'],
+          effects: [],
+        },
+        {
+          id: 'take_photo', label: '拿手机拍一张', hint: '拍下来，回头再看',
+          lines: ['你拍了两张。回到住处翻相册，照片里那半边墙上只剩一个名字，其他位置是空的。'],
+          effects: [],
+        },
+      ],
+    },
+  ];
+
+  return { events: events };
 });
 </script>
 <script>/**
@@ -3894,15 +4720,17 @@ body.story-mode .logwrap{max-height:22vh !important}
  *  - 所有引用的道具/线索/厉鬼 id 必须存在
  * ==========================================================================*/
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./scenes.js'), require('./scenes-a.js'), require('./scenes-b.js'));
-  else root.RSContent = factory(root.RSScenes, root.RSScenesA, root.RSScenesB);
-})(typeof self !== 'undefined' ? self : this, function (SC1, SC2, SC3) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./scenes.js'), require('./scenes-a.js'), require('./scenes-b.js'), require('./events.js'));
+  else root.RSContent = factory(root.RSScenes, root.RSScenesA, root.RSScenesB, root.RSEvents);
+})(typeof self !== 'undefined' ? self : this, function (SC1, SC2, SC3, EV) {
   'use strict';
   // 第 29 轮：子场景内容表（三个文件按动作分组，这里合并成一张 scenes 表）
   //   scenes.js   —— 契约说明 + 样板（调查/休整）
   //   scenes-a.js —— 日常与成长（工作/社交/训练/安全屋/治疗/补给/地点探索/城市专属）
   //   scenes-b.js —— 风险与力量（处置/死机/驾驭/任务/赌局/鬼域/会见/立场四线）
   const scenes = Object.assign({}, (SC1 && SC1.scenes) || {}, (SC2 && SC2.scenes) || {}, (SC3 && SC3.scenes) || {});
+  // 第 33 轮：动态事件卡（每天开场可能撞上的小事件；内容在 events.js）
+  const events = (EV && EV.events) || [];
 
   /* ------------------------------------------------------------- 道具库 */
   const items = {
@@ -7383,6 +8211,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     dimLabel: DIM_LABEL,
     narrative: narrative,
     scenes: scenes,          // 第 29 轮：子场景表（每个动作"先故事、再选去哪/做什么"）
+    events: events,          // 第 33 轮：动态事件卡（每天开场可能撞上的小事件）
+    eventsMeta: { file: 'events.js', count: events.length },
     scenesMeta: { files: ['scenes.js', 'scenes-a.js', 'scenes-b.js'], count: Object.keys(scenes).length },
     meta: { title: '灵异复苏 · 通用互动剧情模板', version: 'v3.1', engine: 'program-host' },
   };
@@ -10034,6 +10864,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     for (const p of Object.keys(BOUNDS)) state.ledgerStart[p] = getPath(state, p);
     state.phase = 'day';
     state.pending = null;
+    // 第 33 轮：新的一天可能开场撞上一张事件卡（抽不到就照常开始）
+    state.card = drawCard(state);
+    if (state.card) state.phase = 'card';
   }
 
   /** 结束一天：守恒校验 → 结局判定 → 自然恢复 → 世界推进 → 阈值 → 进入下一天 */
@@ -11494,6 +12327,12 @@ body.story-mode .logwrap{max-height:22vh !important}
   /* ------------------------------------------------------------ 公开 API */
   function availableActions(state) {
     if (state.over) return [];
+    // 第 33 轮：事件卡——只有这张卡里的做法可选（伪造的选项会被 resolveCard 拒绝）
+    if (state.phase === 'card' && state.card) {
+      return (state.card.options || []).map((o) => ({
+        id: o.id, label: o.label, kind: 'card', note: o.hint ? '（' + o.hint + '）' : '',
+      }));
+    }
     if (state.phase === 'encounter' && state.pending) {
       return state.pending.options.map((o) => ({
         id: o.id, label: o.label, kind: 'encounter', note: o.kind === 'exit' ? '（生路）' : '',
@@ -11652,8 +12491,91 @@ body.story-mode .logwrap{max-height:22vh !important}
     };
   }
 
-  /** 结局/流程用的保留 id：只在对应用途的阶段里有效，别处一律拒绝 */
-  const RESERVED_IDS = {
+  /* ------------------------- 第 33 轮：动态事件卡（每天开场可能撞上的小事件） -------------------------
+   * 设计要点（与目标口径一致）：
+   *  · 离线优先：事件卡是**内容表 + 确定性抽取**，不需要任何接口；
+   *  · 一切效果仍走 applyEffects（唯一写入点 + 账本），所以守恒校验照样管得住；
+   *  · 频率可控：默认约每 2~3 天一张，且一天最多一张；老存档没有 card 字段也不受影响。
+   */
+  const CARD_FIRE = 0.4;        // 每天开场触发事件卡的概率
+  function cardCtx(state) {
+    const city = cityOf(state), era = eraOf(state), st = stanceOf(state);
+    const seed = state.seedInt || hashStr(state.seed);
+    return {
+      turn: state.turn, chapter: state.chapter,
+      era: state.era, eraName: era.short || era.name,
+      city: state.city, cityName: city.name,
+      stance: state.stance, stanceName: st ? st.name : '民间驭鬼者',
+      calamity: state.stats.calamity, domainLv: domainLv(state), erosion: state.stats.erosion,
+      clues: (state.clues || []).length, contracts: (state.contracts || []).length,
+      cash: state.money.cash, gold: state.money.gold,
+      safehouse: (state.flags && state.flags.safehouse) || 0,
+      stealth: state.stats.stealth, sanity: state.stats.sanity, stamina: state.stats.stamina,
+      humanity: state.stats.humanity,
+      lastGhostName: state.lastGhost && CONTENT.ghosts[state.lastGhost] ? CONTENT.ghosts[state.lastGhost].name : null,
+      seed: seed,
+      pick: function (arr, salt) { return pickFrom(arr, seed, salt); },
+    };
+  }
+  /** 这一张卡的所有可选项定义（引擎只认内容表里的 id，伪造的选项一律拒绝） */
+  function cardDefs() {
+    if (!CONTENT.events || !CONTENT.events.length) return [];
+    return CONTENT.events.filter((e) => e && e.id && e.options && e.options.length >= 2);
+  }
+  /** 开局/新的一天：抽一张卡（抽不到就返回 null） */
+  function drawCard(state) {
+    const defs = cardDefs();
+    if (!defs.length) return null;
+    if (state.turn < 2) return null;                       // 第 1 天不插卡，先把开场读完
+    if (roll01(state, 'cardFire', 0) > CARD_FIRE) return null;
+    const ctx = cardCtx(state);
+    const pool = [];
+    for (const e of defs) {
+      let ok = true;
+      if (typeof e.when === 'function') {
+        try { ok = !!e.when(ctx); } catch (err) { ok = false; }
+      }
+      if (ok) pool.push(e);
+    }
+    if (!pool.length) return null;
+    // 最近出过的卡短期内不重复（读感）
+    const recent = state.cardLog || [];
+    const fresh = pool.filter((e) => recent.indexOf(e.id) < 0);
+    const use = fresh.length ? fresh : pool;
+    // 第 33 轮：按 weight 加权（内容表里 flavor 类给 2、麻烦类给 1，让氛围卡不至于被淹没）
+    const bag = [];
+    for (const e of use) {
+      const w = clamp(int(e.weight) || 1, 1, 3);
+      for (let i = 0; i < w; i++) bag.push(e);
+    }
+    const picked = pickFrom(bag, state.seedInt || hashStr(state.seed), 'card:' + state.turn);
+    if (!picked) return null;
+    const story = (typeof picked.text === 'function') ? picked.text(ctx) : picked.text;
+    return {
+      id: picked.id, kind: picked.kind || 'trouble', title: String(picked.title || ''),
+      text: (story || []).slice(0, 3).map((x) => String(x)),
+      options: picked.options.map((o) => ({ id: String(o.id), label: String(o.label), hint: o.hint ? String(o.hint) : '' })),
+    };
+  }
+  /** 结算一张事件卡的选项：叙事 + 轻量效果（走 applyEffects，受钳制与账本约束） */
+  function resolveCard(state, optId) {
+    const card = state.card;
+    if (!card) return { error: '现在没有事件要处理' };
+    const def = cardDefs().filter((e) => e.id === card.id)[0];
+    if (!def) return { error: '这张事件卡已经失效了' };
+    const opt = (def.options || []).filter((o) => String(o.id) === String(optId))[0];
+    if (!opt) return { error: '这不是这张卡里的选项' };
+    const ctx = cardCtx(state);
+    const lines = ((typeof opt.lines === 'function') ? opt.lines(ctx) : opt.lines) || [];
+    if (opt.effects && opt.effects.length) applyEffects(state, opt.effects, '事件卡·' + def.title + '·' + opt.label);
+    state.card = null;
+    state.phase = 'day';
+    state.cardLog = (state.cardLog || []).concat([def.id]).slice(-8);
+    state.events.done.push('card:' + def.id + ':' + opt.id);
+    return { lines: lines.map((x) => String(x)), title: String(def.title || ''), kind: def.kind || 'trouble' };
+  }
+
+  /** 结局/流程用的保留 id：只在对应用途的阶段里有效，别处一律拒绝 */  const RESERVED_IDS = {
     end_day: '今天的行动菜单（白天）',
     scene_stop: '子场景里',
     scene_back: '子场景里',
@@ -11668,6 +12590,23 @@ body.story-mode .logwrap{max-height:22vh !important}
     let fatalEnding = null;
     let fatalCause = null;
     let lastVariant = null;   // 供界面取"行动结果变体句"
+
+    // 第 33 轮：事件卡——选一个做法，拿短叙事与轻量效果；不消耗行动点（它是"开场就发生的事"）
+    if (state.phase === 'card' && state.card) {
+      const r = resolveCard(state, choiceId);
+      if (r.error) return { error: r.error, choices: availableActions(state) };
+      narrative.push('【' + r.title + '】');
+      narrative.push.apply(narrative, r.lines);
+      settlement.push('事件卡「' + r.title + '」：' + (r.kind === 'boon' ? '机会' : r.kind === 'flavor' ? '无事' : '麻烦') +
+        '　（不看行动点）');
+      return {
+        narrative: narrative.concat(state.notes ? state.notes.splice(0) : []),
+        actionVariant: null, settlement: settlement.concat(state.lastMechLines || []),
+        choices: availableActions(state), panel: panelOf(state), over: state.over,
+        dayContinues: true, apLeft: apLeft(state), apMax: state.apMax || apMaxOf(state),
+        turn: state.turn, integrity: state.integrity.slice(-5),
+      };
+    }
 
     if (state.phase === 'encounter' && state.pending) {
       // 第 27 轮：把结果写进输入 = 这次过程不成立（不消耗、不结算）
@@ -12023,6 +12962,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       // 第 30 轮：阵营与引荐（谁认识谁会影响"能不能约到人"）
       contacts: state.contacts || [], introducedBy: state.introducedBy || {},
       busTurn: state.busTurn || 0,
+      // 第 33 轮：事件卡（存档中途存下也能接着选）
+      card: state.card || null, cardLog: state.cardLog || [],
       domain: state.domain,                       // 第 26 轮：鬼域扩张进度（必须进存档）
       domainSealUsed: state.domainSealUsed || 0,
       relationships: state.relationships,
@@ -12077,12 +13018,27 @@ body.story-mode .logwrap{max-height:22vh !important}
       if (CONTENT.ghosts[k] && CONTENT.ghosts[ib[k]]) s.introducedBy[k] = ib[k];
     }
     s.busTurn = Math.max(0, int(obj.p.busTurn));
+    // 第 33 轮：事件卡要能读回来（结构消毒：只认内容表里真实存在的卡与选项）
+    s.card = null;
+    s.cardLog = (Array.isArray(obj.p.cardLog) ? obj.p.cardLog : []).filter((id) => cardDefs().some((e) => e.id === id)).slice(-8);
+    if (obj.p.card && obj.p.card.id) {
+      const def = cardDefs().filter((e) => e.id === obj.p.card.id)[0];
+      if (def) {
+        const ctx2 = cardCtx(s);
+        const story = (typeof def.text === 'function') ? def.text(ctx2) : def.text;
+        s.card = {
+          id: def.id, kind: def.kind || 'trouble', title: String(def.title || ''),
+          text: (story || []).slice(0, 3).map((x) => String(x)),
+          options: def.options.map((o) => ({ id: String(o.id), label: String(o.label), hint: o.hint ? String(o.hint) : '' })),
+        };
+      }
+    }
     s.scene = null;
     if (obj.p.scene && obj.p.scene.actionId) {
       const act = actionPool(s).find((a) => a.id === obj.p.scene.actionId);
       s.scene = act ? sceneFor(s, act) : null;
     }
-    s.phase = s.over ? 'over' : (s.pending ? 'encounter' : (s.scene ? 'scene' : 'day'));
+    s.phase = s.over ? 'over' : (s.pending ? 'encounter' : (s.scene ? 'scene' : (s.card ? 'card' : 'day')));
     for (const k of Object.keys(BOUNDS)) s.ledgerStart[k] = getPath(s, k);
     return { state: s };
   }
@@ -12126,6 +13082,12 @@ body.story-mode .logwrap{max-height:22vh !important}
     newsCtx: newsCtx,
     epilogueCtx: epilogueCtx,
     pickFrom: pickFrom,
+    // 第 33 轮：动态事件卡
+    cardCtx: cardCtx,
+    drawCard: drawCard,
+    resolveCard: resolveCard,
+    cardDefs: cardDefs,
+    CARD_FIRE: CARD_FIRE,
     JOURNAL_MAX_DAYS: JOURNAL_MAX_DAYS,
     sceneFor: sceneFor,                // 第 29 轮：取某个动作的子场景（测试/界面用）
     sceneOptionDef: sceneOptionDef,
@@ -13911,12 +14873,15 @@ body.story-mode .logwrap{max-height:22vh !important}
     // 标题：明确这里是"要你选一个"，否则一排按钮看起来像不明所以的文字块
     const inEnc = !!(state && state.pending);
     const inScene = !!(state && state.phase === 'scene' && state.scene);
+    const inCard = !!(state && state.phase === 'card' && state.card);
     const smart = isSmartPending(state);
     const person = isPersonPending(state);
+    if (inCard) ensureCardLogged();
     box.appendChild(el('div', 'choicesHead',
       inEnc ? (smart ? '你有智慧级厉鬼在你面前 —— 可以直接对它说话，也可以从下面选一步'
                      : (person ? '对面也是驭鬼者 —— 可以和他谈，也可以从下面选一步'
                                : '你必须做出选择 —— 点下面任意一行（生路要线索支撑，陷阱会死人）'))
+      : inCard ? ('开场的一件小事：' + state.card.title + '　—— 选一个做法（不占用今天的行动）')
       : inScene ? ('你决定做「' + state.scene.actionLabel.replace(/（.*?）/g, '') + '」——' + state.scene.title)
       : ('第 ' + state.turn + ' 天·' + apSlotLabel() + '　今天还能行动 ' + apLeftNow() + ' 次 —— 选一件事做')));
     if (state.pending) {
@@ -13938,6 +14903,9 @@ body.story-mode .logwrap{max-height:22vh !important}
       box.appendChild(el('div', 'choicesSub',
         '同一个目的有好几种做法：稳妥的、下狠手的、找人搭把手的，代价和结果都不一样。' +
         '　（这一件做完，今天还剩 ' + apLeftNow() + ' 次行动；不想做也可以直接收手。）'));
+    } else if (inCard) {
+      box.appendChild(el('div', 'choicesSub',
+        '这件事不占今天的行动点——它只是今天开场就撞上的。选一个做法，然后照常安排今天。'));
     }
     choices.forEach((c, i) => {
       /* 第 30 轮：默认**不标生路**（用户："生路不要太明显""有一个直接生路两个字在选项后面"）。
@@ -14238,6 +15206,21 @@ body.story-mode .logwrap{max-height:22vh !important}
     const last = String(lastPickLabel || '').replace(/（.*?）/g, '').trim();
     if (last) return last.slice(0, 16);
     return String(id).slice(0, 20);
+  }
+
+  /** 第 33 轮：事件卡的开场（标题 + 场景描写）只写一次；同一张卡不重复刷屏 */
+  let lastCardShown = null;
+  function ensureCardLogged() {
+    if (!state || !state.card) return;
+    const key = state.turn + ':' + state.card.id;
+    if (lastCardShown === key) return;
+    lastCardShown = key;
+    addLog('event', '【今天开场的一件事】' + state.card.title);
+    if (state.card.text && state.card.text.length) addLog('scene', state.card.text);
+    if (E.journalAdd) {
+      E.journalAdd(state, { t: state.turn, slot: apSlotLabel(), key: ['【事件】' + state.card.title + '：' + (state.card.text || [])[0]] });
+    }
+    renderNow();
   }
 
   /** 第 32 轮：当天的灵异新闻（世界在运转的那一层；离线也一定有内容） */
