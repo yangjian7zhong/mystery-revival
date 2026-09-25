@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260925133842">
+<meta name="rs-build" content="v260925151329">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -417,7 +417,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260925133842";</script>
+<script>window.__RS_BUILD = "v260925151329";</script>
 <header>
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
@@ -10872,6 +10872,12 @@ body.story-mode .logwrap{max-height:22vh !important}
       ledgerStart: {},
       integrity: [],
       logs: [],
+      /* 第 42 轮：行动日志——**存档只记"你是怎么玩的"，不记"你玩成了什么样"**。
+       * 每一步玩家的输入（resolve / sayTo）都按顺序记在这里；读档时从种子重放这条日志，
+       * 所有数值与判定结果都是算出来的，不是从文件里读出来的。
+       * 于是：改存档里的数字没有意义（读档会被重放覆盖），凭空加一个"没发生过的动作"
+       * 也会在重放时被判非法而整档拒绝。 */
+      log: [],
     };
     state.pending = null;
     state.peakGold = stats.gold || 0;
@@ -10904,6 +10910,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     state.calamityFloor = Math.max(0, state.stats.calamity - 5);
 
     // 第 37 轮：多周目轮回记忆（选了「上一世的记忆」才会带过来；限量、走唯一写入点）
+    // 第 42 轮：顺手把这局带入的记忆**原样冻结**在 state 上——读档要用同一份输入重放，
+    // 不能去读实时档案（档案会在别处变，重放结果就会跟着漂）。
+    state.memIn = sanitizeMemoryIn(opts.memory);
     if (opts.memory) applyMemory(state, opts.memory);
 
     startTurn(state);        // 进入第 1 天
@@ -12949,8 +12958,17 @@ body.story-mode .logwrap{max-height:22vh !important}
   /**
    * 对面前这个人/这只鬼说一句话。
    * 返回 { ok, lines, intent, favor, favorDelta, settlement, mood, attitude } 或 { error }
+   * 第 42 轮：外面再包一层，把"说了什么"记进行动日志（说辞会影响对方怎么答，必须原样记下）。
    */
   function sayTo(state, said) {
+    const wasOver = !!(state && state.over);
+    const r = sayToCore(state, said);
+    const txt = said ? String(said) : '';
+    recordInput(state, { o: 's', s: txt }, r, wasOver);
+    return r;
+  }
+
+  function sayToCore(state, said) {
     const enc = state.pending;
     if (!enc) return { error: '现在没有人在你面前。' };
     const g0 = CONTENT.ghosts[enc.ghost];
@@ -13236,6 +13254,26 @@ body.story-mode .logwrap{max-height:22vh !important}
   const MEM_PEOPLE_MAX = 3;
   const MEM_REP_DIV = 4;
   const MEM_REP_CAP = 8;
+
+  /** 第 42 轮：把开局的"上一世记忆"整理成一份**可重放的输入**（只留 applyMemory 真正会读的字段）。
+   *  为什么不能直接把 memoryCarried 存回去：那是"已经缩过水"的结果（rep 已被 /4），
+   *  再喂回去会被二次缩水。必须存玩家当次真正递进来的那份。 */
+  function sanitizeMemoryIn(mem) {
+    if (!mem || typeof mem !== 'object') return null;
+    const out = { clues: [], people: {}, rep: {}, killer: '', cycle: int(mem.cycle) || 1,
+      ending: String(mem.ending || '').slice(0, 40), turn: int(mem.turn) || 0 };
+    if (Array.isArray(mem.clues)) {
+      for (const c of mem.clues) { if (out.clues.length >= 12) break; if (typeof c === 'string') out.clues.push(c.slice(0, 60)); }
+    }
+    if (mem.people && typeof mem.people === 'object') {
+      let n = 0;
+      for (const k of Object.keys(mem.people)) { if (n >= 12) break; out.people[k.slice(0, 40)] = true; n += 1; }
+    }
+    if (mem.rep && typeof mem.rep === 'object') {
+      for (const f of FACTION_IDS) { const v = int(mem.rep[f]) || 0; if (v) out.rep[f] = clamp(v, REP_MIN, REP_MAX); }
+    }
+    return out;
+  }
 
   /** 把上一世的记忆带进这一局（只在新开局时调用一次；全部走唯一写入点） */
   function applyMemory(state, mem) {
@@ -14524,8 +14562,33 @@ body.story-mode .logwrap{max-height:22vh !important}
     scene_back: '子场景里',
   };
 
-  /** 结算一次玩家选择；返回可渲染的报告。引擎是唯一裁判。 */
+  /* 第 42 轮：resolve / sayTo 变成"记录 + 转发"。
+   * 只有引擎真正接受了这一步（没有返回 error，而且动手之前这局还没结束）才写进行动日志——
+   * 被拒绝的输入本来就没发生，记下来只会让重放对不上。 */
+  const LOG_MAX = 20000;                // 一局最多记 20000 步（正常一局几百步，远到不了）
+  function recordInput(state, entry, r, wasOver) {
+    if (!r || r.error || wasOver) return;
+    if (!state || !Array.isArray(state.log)) return;
+    if (state.log.length >= LOG_MAX) {
+      /* 日志溢出（实际上走不到这里）：一旦记不全，重放就不再可信 —— 这一局退回旧格式存，
+       * 宁可弱一点，也不能存出一个读不回来的档。 */
+      state.legacySave = true;
+      return;
+    }
+    state.log.push(entry);
+  }
   function resolve(state, choiceId, customText) {
+    const wasOver = !!(state && state.over);
+    const r = resolveCore(state, choiceId, customText);
+    const txt = customText ? String(customText) : '';
+    const entry = { o: 'r', id: String(choiceId == null ? '' : choiceId) };
+    if (txt) entry.t = txt;
+    recordInput(state, entry, r, wasOver);
+    return r;
+  }
+
+  /** 结算一次玩家选择；返回可渲染的报告。引擎是唯一裁判。 */
+  function resolveCore(state, choiceId, customText) {
     if (state.over) return { over: state.over, narrative: [], settlement: [], choices: [] };
     const narrative = [];
     const settlement = [];
@@ -14927,7 +14990,56 @@ body.story-mode .logwrap{max-height:22vh !important}
     const h = hashStr(JSON.stringify(obj) + SALT);
     return ('00000000' + h.toString(16)).slice(-8);
   }
+
+  /* ------------------------------------------------- 第 42 轮：可重放存档
+   * 老格式的病根：文件里装的是**结果**（线索几条、钱多少、声望多少），
+   * 而校验和用的是写在这个文件里的盐和算法——会写代码的人改完数字自己重算一遍就过了。
+   * 新格式把文件换成**过程**：开局参数 + 一串"玩家当时点了什么"。
+   *   · 载入 = 用种子重建第 1 天 → 按顺序重放这串输入 → 所有数值/判定都是算出来的；
+   *   · 改文件里的数字 → 没有数字可改（文件里根本没存）；
+   *   · 往里塞一个没发生过的动作 → 重放时被引擎判非法（前置不满足/选项不存在）→ 整档拒绝；
+   *   · 重签校验和 → 签的是"一串动作"，签得再合法也变不出一条凭空生出来的线索。
+   * 于是"改档"这件事从"能改"变成"改了没用"。
+   */
+  const SAVE_VERSION = 2;
+
+  /* 旧格式（第 41 轮及以前）还读不读：
+   *   true  = 老存档不作废，能接着玩；但它装的是"结果"，改过看不出来（越界数值会被钳制在界内）。
+   *   false = 彻底断开这条路，只认新格式；老存档会收到一句明确的拒绝说明。
+   * 想彻底关掉这个口子，把这一行改成 false 即可。 */
+  const ALLOW_V1 = true;
+
+  /** 重建这一局需要的全部开局参数（必须都从 state 上取，且与 createGame 的入参一一对应） */
+  function saveOptsOf(state) {
+    return {
+      seed: state.seed, pack: state.pack, difficulty: state.difficulty, custom: state.custom || null,
+      contentLevel: state.contentLevel || 'A',
+      city: state.cityRandom ? 'random' : state.city,
+      era: state.eraRandom ? 'random' : state.era,
+      stance: state.stance || 'civilian',
+      legacy: state.legacy || null,
+      memory: state.memIn || null,
+    };
+  }
+
+  /** 写档：只写"过程"（加上日记这类纯文本；它不影响任何判定） */
   function serialize(state) {
+    // 旧格式读进来的局没有完整行动记录，重放不出正确进度 → 它继续按旧格式存，并在界面上标"未验证"
+    if (state && state.legacySave) return serializeV1(state);
+    const payload = {
+      opts: saveOptsOf(state),
+      log: (state.log || []).slice(-LOG_MAX),
+      journal: state.journal || [],
+      meta: state.meta || null,
+      eng: (CONTENT.meta && CONTENT.meta.version) || '',
+      turn: state.turn || 0,        // 下面两个只为"不载入也能看出这是哪一天的档"，载入时一律被重放结果覆盖
+      over: state.over || null,
+    };
+    return JSON.stringify({ v: SAVE_VERSION, p: payload, c: checksum(payload) });
+  }
+
+  /** 第 41 轮及以前的老格式：把**结果**全量写进文件（改没改过看不出来，只能靠校验和挡手抖） */
+  function serializeV1(state) {
     const payload = {
       v: state.v, seed: state.seed, turn: state.turn, difficulty: state.difficulty,
       pack: state.pack, custom: state.custom, tuning: state.tuning, legacy: state.legacy,
@@ -14989,7 +15101,71 @@ body.story-mode .logwrap{max-height:22vh !important}
     }
     if (!obj || !obj.p || !obj.c) return { error: '存档结构不完整' };
     if (checksum(obj.p) !== obj.c) return { error: '存档校验和不匹配（文件被修改过）' };
-    if (obj.p.v !== 1) return { error: '存档版本不兼容' };
+    // 第 42 轮：新格式（只装种子 + 行动日志）走"重放"；旧格式（装的是结果）走老路径并标记出来
+    if (obj.v === SAVE_VERSION) return deserializeV2(obj.p);
+    if (obj.p.v === 1) {
+      if (!ALLOW_V1) return { error: '这是旧格式存档（不含行动记录，无法验证改没改过），本版已停止读取' };
+      return deserializeV1(obj);
+    }
+    return { error: '存档版本不兼容' };
+  }
+
+  /** 把存档里的日记做体积与结构消毒（存档可能被改过：这几行只影响玩家自己的笔记） */
+  function sanitizeJournal(raw) {
+    return (Array.isArray(raw) ? raw : []).slice(-JOURNAL_MAX_DAYS).map((e) => ({
+      t: Math.max(0, int(e && e.t)),
+      slot: String((e && e.slot) || '').slice(0, 10),
+      head: String((e && e.head) || '').slice(0, 90),
+      acts: (Array.isArray(e && e.acts) ? e.acts : []).slice(0, 8).map((x) => String(x).slice(0, 32)),
+      key: (Array.isArray(e && e.key) ? e.key : []).slice(0, JOURNAL_KEY_MAX).map((x) => String(x).slice(0, JOURNAL_LINE_MAX)),
+      marks: (Array.isArray(e && e.marks) ? e.marks : []).slice(0, JOURNAL_MARK_MAX).map((x) => String(x).slice(0, JOURNAL_LINE_MAX)),
+    }));
+  }
+
+  /** 第 42 轮：新格式载入 = 重建开局 → 重放行动日志。**结果只由重放决定**。 */
+  function deserializeV2(p) {
+    const o = (p && p.opts) || {};
+    let s;
+    try {
+      s = createGame({
+        seed: o.seed, pack: o.pack, difficulty: o.difficulty, custom: o.custom || null,
+        contentLevel: o.contentLevel, city: o.city, era: o.era,
+        stance: o.stance, legacy: o.legacy || null, memory: o.memory || null,
+      });
+    } catch (e) {
+      return { error: '存档里的开局参数不对（' + ((e && e.message) || e) + '）' };
+    }
+    const log = Array.isArray(p.log) ? p.log : [];
+    let steps = 0;
+    for (let i = 0; i < log.length; i++) {
+      const e = log[i] || {};
+      let r;
+      if (e.o === 'r') r = resolve(s, String(e.id == null ? '' : e.id), e.t ? String(e.t) : undefined);
+      else if (e.o === 's') r = sayTo(s, String(e.s || ''));
+      else return { error: '行动记录第 ' + (i + 1) + ' 步不是有效输入' };
+      if (!r || r.error) {
+        return { error: '行动记录走不通（第 ' + (i + 1) + ' 步「' + (String(e.id || e.s || '') || '空输入') + '」）：' +
+          ((r && r.error) || '引擎拒绝了这一步') };
+      }
+      steps += 1;
+      if (s.over) break;    // 一局结束之后不该还有输入：多出来的尾巴一律忽略（伪造的尾巴进不来）
+    }
+    // 日记与统计以文件为准：这两样改了只影响你自己的记录，动不了任何判定与数值
+    s.journal = sanitizeJournal(p.journal);
+    if (p.meta && typeof p.meta === 'object') {
+      const m = { deaths: Math.max(0, int(p.meta.deaths) || 0), bestTurn: Math.max(0, int(p.meta.bestTurn) || 0), stance: s.stance };
+      if (p.meta.endingsSeen != null) m.endingsSeen = Math.max(0, int(p.meta.endingsSeen) || 0);
+      s.meta = m;
+    }
+    s.replayed = steps;
+    // 规则改过之后读老档：数值会按**现在的规则**重算——把旧的引擎版本号带出来给界面提示
+    s.engineDrift = (p.eng && CONTENT.meta && String(p.eng) !== String(CONTENT.meta.version)) ? String(p.eng) : '';
+    for (const k of Object.keys(BOUNDS)) s.ledgerStart[k] = getPath(s, k);
+    return { state: s, replayed: steps };
+  }
+
+  /** 旧格式（第 41 轮及以前）：文件里装的是结果，改没改过看不出来。只做兼容读取。 */
+  function deserializeV1(obj) {
     const s = createGame({
       seed: obj.p.seed, pack: obj.p.pack, difficulty: obj.p.difficulty, custom: obj.p.custom,
       // 老存档没有 city/era 字段（本功能上线前存的档）：固定回退到 2018·复苏初期 + 大昌市，
@@ -15119,7 +15295,11 @@ body.story-mode .logwrap{max-height:22vh !important}
     }
     s.phase = s.over ? 'over' : (s.pending ? 'encounter' : (s.scene ? 'scene' : (s.card ? 'card' : 'day')));
     for (const k of Object.keys(BOUNDS)) s.ledgerStart[k] = getPath(s, k);
-    return { state: s };
+    // 第 42 轮：标成"旧档"——它没有完整行动记录，重放不出正确进度，所以继续按旧格式存；
+    // 界面上会明说一句"这份档改过也看不出来"。想进可验证的那条线，重开一局即可。
+    s.legacySave = true;
+    s.replayed = 0;
+    return { state: s, legacy: true };
   }
 
   return {
@@ -15130,6 +15310,10 @@ body.story-mode .logwrap{max-height:22vh !important}
     serialize: serialize,
     deserialize: deserialize,
     checksum: checksum,        // 供测试构造合法校验和的"老存档"（缺 city/era）
+    // 第 42 轮：可重放存档
+    SAVE_VERSION: SAVE_VERSION,
+    serializeV1: serializeV1,  // 供测试构造"旧格式存档"，验证兼容读取与标记
+    logOf: function (state) { return (state && Array.isArray(state.log)) ? state.log.slice() : []; },
     parseIntent: parseIntent,  // 自由行动：把玩家写的话映射成真实行动
     parseEncounterIntent: parseEncounterIntent,  // 遭遇中的自由输入 → 映射到现有选项
     assertsOutcome: assertsOutcome,   // 第 27 轮：这段输入是不是在写"结果"（写结果 = 过程作废）
@@ -19073,12 +19257,33 @@ body.story-mode .logwrap{max-height:22vh !important}
     addLog('', '【读档】' + (label ? label + '　' : '') + '第 ' + state.turn + ' 天（第 ' + state.chapter + ' 章），难度：' +
       (state.difficulty === 'hard' ? '极难' : (state.tuning ? state.tuning.name : '标准')) +
       '，立场：' + ((C.stances && C.stances[state.stance]) ? C.stances[state.stance].name : '民间驭鬼者'));
+    /* 第 42 轮：这份档是怎么来的，直接说清楚。
+     * 新格式（可重放）：文件里只有"你点了什么"，进度是重放算的 —— 改数字没用。
+     * 旧格式：文件里装的是结果，改没改过看不出来。 */
+    if (r.legacy) {
+      addLog('warn', '【旧格式存档】这份档存的是"结果"不是"过程"：被人改过也看不出来。');
+      addLog('muted', '它还能接着玩，但这一局存出去的仍是旧格式。新开一局存档就会带上"行动记录"，从此改不动。');
+    } else {
+      addLog('muted', '（已按行动记录重放 ' + (r.replayed || 0) + ' 步——读档后的每个数字都是引擎照你的操作重算出来的，' +
+        '文件里被改过的数值一律不作数。）');
+      if (state.engineDrift) {
+        addLog('warn', '【规则已更新】这份档来自引擎 ' + state.engineDrift + '，现在按新规则重算过一遍，' +
+          '数值可能与上次存档时有出入。');
+      }
+    }
     if (state.over) renderOver();
     renderPanel();
     lastSceneTurn = 0;
     if (state.pending) { renderEncounterPreview(); renderChoices(E.availableActions(state)); }
     else { renderScene(true); renderSceneArt(state); renderChoices(E.availableActions(state)); }
     return true;
+  }
+
+  /** 第 42 轮：设置面板里那一行"存档格式"的文案 */
+  function saveFormatLine() {
+    if (!state) return '—';
+    if (state.legacySave) return '旧格式（存"结果"，改过看不出来）';
+    return '可验证（存"过程"，读档按行动记录重放 ' + ((state.log || []).length) + ' 步）';
   }
 
   /* ------------------------------------------------------------ 开局页 */
@@ -19508,6 +19713,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       rowOf('落地 / 时期', p['落地'] + ' / ' + p['时期']);
       rowOf('种子', state.seed);
       rowOf('日记', (E.journalOf ? E.journalOf(state).length : 0) + ' 天（最多留 ' + (E.JOURNAL_MAX_DAYS || 40) + ' 天）');
+      // 第 42 轮：这份档是怎么装的——旧格式（存结果）还是新格式（存过程）
+      rowOf('存档格式', saveFormatLine());
       card.appendChild(kv);
       wrap.appendChild(card);
     }
