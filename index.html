@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260925095639">
+<meta name="rs-build" content="v260925102634">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -414,7 +414,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260925095639";</script>
+<script>window.__RS_BUILD = "v260925102634";</script>
 <header>
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
@@ -8586,6 +8586,12 @@ body.story-mode .logwrap{max-height:22vh !important}
         { k: 'stat', key: 'calamity', v: -3 },
       ],
     },
+    // 第 37 轮：多周目轮回记忆——把"上一世记得的东西"带过来（不是数值加成）
+    remember: {
+      id: 'remember', name: '上一世的记忆', cost: 1,
+      desc: '你记得上一世的几件事：几条规律、认得的人、以及那边听说过你的名字。',
+      effects: [],
+    },
   };
 
   /** 把档位 + 旋钮合成一份完整的手感参数 */
@@ -10623,6 +10629,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     // 而"初始值"指的是玩家真正拿到手的那个数。原来在应用时代/城市加成之前就固定了，
     // 于是像末日（劫难 +15）这种时期会白送 15 点可反复压低的余量，底线被悄悄放宽。
     state.calamityFloor = Math.max(0, state.stats.calamity - 5);
+
+    // 第 37 轮：多周目轮回记忆（选了「上一世的记忆」才会带过来；限量、走唯一写入点）
+    if (opts.memory) applyMemory(state, opts.memory);
 
     startTurn(state);        // 进入第 1 天
     // 第 25 轮：自定义难度开「厉鬼游荡 / 自动补齐拼图」时，开局就把规则说清楚（用户要求"记得给提示"）
@@ -12681,7 +12690,105 @@ body.story-mode .logwrap{max-height:22vh !important}
     };
   }
 
-  /* ------------------------- 第 36 轮：势力声望网（B 段第二件）
+  /* --------------------- 第 37 轮：多周目轮回记忆（B 段第三件）
+   * 原来的"二周目继承"只是三条数值加成（情报+2、一件道具、安全屋+1）。
+   * 这一轮让上一局**留下记忆**：你记得几条规律、认得几个人、在哪条线上混过脸、以及上一世是怎么死的。
+   * 三条硬规矩（防止轮回变成刷资源）：
+   *   ① 带过来的东西一律限量：规律 ≤2 条、旧识 ≤3 人、名声每条线 ≤±8、死过的那只鬼只多记它 1 条；
+   *   ② 全部走唯一写入点（applyEffects / addPath），记忆自带漂移——名声按 1/4 缩水，人情不会全额继承；
+   *   ③ 记忆只在你**主动选「上一世的记忆」**这条继承时才生效（要花周目点数），不带就是普通开局。
+   */
+  const MEM_CLUE_MAX = 2;
+  const MEM_PEOPLE_MAX = 3;
+  const MEM_REP_DIV = 4;
+  const MEM_REP_CAP = 8;
+
+  /** 把上一世的记忆带进这一局（只在新开局时调用一次；全部走唯一写入点） */
+  function applyMemory(state, mem) {
+    if (!mem || typeof mem !== 'object') return null;
+    const lines = [];
+    const carried = { clues: [], people: [], rep: {}, killer: '', cycle: int(mem.cycle) || 1, ending: String(mem.ending || ''), turn: int(mem.turn) || 0 };
+    // ① 规律：记得的那几条（只认内容表里真实存在的线索；最多 2 条）
+    const allClues = {};
+    for (const gid of Object.keys(CONTENT.ghosts || {})) {
+      for (const c of (CONTENT.ghosts[gid].clues || [])) allClues[c.id] = gid;
+    }
+    let got = 0;
+    for (const cid of (Array.isArray(mem.clues) ? mem.clues : [])) {
+      if (got >= MEM_CLUE_MAX) break;
+      if (!allClues[cid] || (state.clues || []).indexOf(cid) >= 0) continue;
+      applyEffects(state, [{ k: 'clue', id: cid }, { k: 'bestiary', id: allClues[cid], clues: 1 }], '轮回记忆·记得的规律');
+      carried.clues.push(cid);
+      got += 1;
+    }
+    // ② 旧识：交情深一点的那几个人，这一世你还认得（不用别人引荐）
+    let met = 0;
+    const ppl = (mem.people && typeof mem.people === 'object') ? mem.people : {};
+    for (const gid of Object.keys(ppl)) {
+      if (met >= MEM_PEOPLE_MAX) break;
+      if (!CONTENT.ghosts[gid] || !CONTENT.ghosts[gid].person) continue;
+      if ((state.contacts || []).indexOf(gid) >= 0) continue;
+      state.contacts.push(gid);
+      carried.people.push(gid);
+      met += 1;
+    }
+    // ③ 名声：你在哪条线上混过脸（按 1/4 缩水、每条线 ≤±8）——记忆会淡，但不会归零
+    const rep = (mem.rep && typeof mem.rep === 'object') ? mem.rep : {};
+    for (const fid of FACTION_IDS) {
+      const v = int(rep[fid]) || 0;
+      const scaled = clamp(Math.trunc(v / MEM_REP_DIV), -MEM_REP_CAP, MEM_REP_CAP);
+      if (!scaled) continue;
+      repAdd(state, fid, scaled, '轮回记忆·上一世的名声');
+      carried.rep[fid] = scaled;
+    }
+    // ④ 死法：上一世死在谁手里——这一世你多记得它一条规律，而且图鉴里它是"见过"的
+    const killer = String(mem.killer || '');
+    if (killer && CONTENT.ghosts[killer]) {
+      const g = CONTENT.ghosts[killer];
+      state.bestiary[killer] = state.bestiary[killer] || { clues: 0 };
+      if (state.events.done.indexOf('enc:' + killer) < 0) state.events.done.push('enc:' + killer);
+      carried.killer = killer;
+      const pool = (g.clues || []).filter((c) => (state.clues || []).indexOf(c.id) < 0);
+      if (pool.length) {
+        applyEffects(state, [{ k: 'clue', id: pool[0].id }, { k: 'bestiary', id: killer, clues: 1 }], '轮回记忆·上一世死在它手里');
+        carried.killerClue = pool[0].id;
+      }
+    }
+    state.memoryCarried = carried;
+    // ⑤ 给玩家看的几句话（第 37 轮：开局第一屏就该让人知道"你记得什么"）
+    if (carried.cycle > 1) lines.push('这是第 ' + carried.cycle + ' 周目。');
+    if (carried.clues.length) {
+      const names = carried.clues.map((cid) => {
+        const gid = allClues[cid];
+        return (CONTENT.ghosts[gid] ? CONTENT.ghosts[gid].name : '') + '：' +
+          ((CONTENT.ghosts[gid].clues.filter((c) => c.id === cid)[0] || {}).text || '');
+      });
+      lines.push('你记得几条规律（上一世用命换来的）：' + names.join('　'));
+    }
+    if (carried.people.length) {
+      lines.push('这一世你还认得他们（不用别人引荐）：' + carried.people.map((gid) => CONTENT.ghosts[gid].name).join('、'));
+    }
+    const rp = Object.keys(carried.rep);
+    if (rp.length) {
+      lines.push('那边有人听说过你的名字：' + rp.map((fid) => factionName(fid) + ' ' +
+        (carried.rep[fid] > 0 ? '+' : '') + carried.rep[fid]).join('、') + '（记忆会淡，只有上一世的一小半）');
+    }
+    if (carried.killer && CONTENT.ghosts[carried.killer]) {
+      lines.push('上一世你就是死在「' + CONTENT.ghosts[carried.killer].name + '」手里——这一次你还记得它的一条规矩。');
+    }
+    if (!lines.length) lines.push('你什么都没记住，只留下一点说不清的不安。');
+    carried.lines = lines;
+    state.notes = state.notes || [];
+    for (const l of lines) state.notes.push('【上一世的记忆】' + l);
+    return carried;
+  }
+
+  /** 界面用：这一局带过来的记忆（没有就返回 null） */
+  function memoryCarried(state) {
+    return state && state.memoryCarried ? state.memoryCarried : null;
+  }
+
+  /* --------------------- 第 36 轮：势力声望网（B 段第二件）
    * 第 30 轮建了"阵营/引荐/拒绝"，但那是**一次性门槛**：能不能见到人只跟你属于哪边有关。
    * 这一轮把它扩成**可积累**的东西：五个阵营各有一条声望（-50~100），
    *   · 攒：汇报、泡论坛、接私活、完成任务、处置源头、封印鬼域、见人、聊天、引荐 → 各阵营声望上涨；
@@ -14499,6 +14606,10 @@ body.story-mode .logwrap{max-height:22vh !important}
     repVisit: repVisit, repSpend: repSpend, repActions: repActions, repTargetOf: repTargetOf,
     FACTION_IDS: FACTION_IDS, REP_SPEND_COST: REP_SPEND_COST, REP_SPEND_NEED: REP_SPEND_NEED,
     REP_CROSS_MEET: REP_CROSS_MEET, REP_VISIT_LINES: REP_VISIT_LINES,
+    // 第 37 轮：多周目轮回记忆
+    applyMemory: applyMemory, memoryCarried: memoryCarried,
+    MEM_CLUE_MAX: MEM_CLUE_MAX, MEM_PEOPLE_MAX: MEM_PEOPLE_MAX,
+    MEM_REP_DIV: MEM_REP_DIV, MEM_REP_CAP: MEM_REP_CAP,
     BOUNDS: BOUNDS,
     CHAPTER_REDUCTION_CAP: CHAPTER_REDUCTION_CAP,
     CHAPTER_HUMANITY_CAP: CHAPTER_HUMANITY_CAP,
@@ -14548,6 +14659,9 @@ body.story-mode .logwrap{max-height:22vh !important}
       faced: {},                 // 图鉴：遭遇过的厉鬼 id → true（跨局累积）
       knownClues: {},            // 图鉴：掌握过的规律线索 id → true
       escaped: {},               // 图鉴：从这只鬼手里走生路存活的次数
+      // 第 37 轮：多周目轮回记忆——上一世"记得"的东西（下一次开局可以带过来）
+      cycle: 0,                  // 已经轮回了几次
+      memory: null,              // 上一世的记忆快照（见 snapshotMemory）
     };
   }
 
@@ -14581,7 +14695,43 @@ body.story-mode .logwrap{max-height:22vh !important}
       p.runs.died = clampInt(p.runs.died, 0, 1e9);
     }
     if (p.best) p.best.turn = clampInt(p.best.turn, 0, 1e9);
+    // 第 37 轮：记忆快照也要消毒（伪造一份"记得 500 条线索"的档案不该被接受）
+    p.cycle = clampInt(p.cycle, 0, 1e9);
+    p.memory = sanitizeMemory(p.memory);
     return { profile: p };
+  }
+
+  /** 记忆消毒：只留认识的字段、数值钳制、数组限量 */
+  function sanitizeMemory(mem) {
+    if (!mem || typeof mem !== 'object') return null;
+    const strArr = (v, n) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.length <= 64).slice(0, n) : []);
+    const out = {
+      cycle: clampInt(mem.cycle, 0, 1e9),
+      ending: typeof mem.ending === 'string' ? mem.ending.slice(0, 32) : 'unfinished',
+      turn: clampInt(mem.turn, 0, 1e6),
+      cause: typeof mem.cause === 'string' ? mem.cause.slice(0, 32) : '',
+      pack: typeof mem.pack === 'string' ? mem.pack.slice(0, 32) : '',
+      city: typeof mem.city === 'string' ? mem.city.slice(0, 32) : '',
+      era: typeof mem.era === 'string' ? mem.era.slice(0, 32) : '',
+      stance: typeof mem.stance === 'string' ? mem.stance.slice(0, 32) : '',
+      clues: strArr(mem.clues, 20),
+      ghosts: strArr(mem.ghosts, 12),
+      contracts: strArr(mem.contracts, 6),
+      killer: typeof mem.killer === 'string' ? mem.killer.slice(0, 32) : '',
+      people: {},
+      rep: {},
+    };
+    const ppl = mem.people && typeof mem.people === 'object' ? mem.people : {};
+    for (const k of Object.keys(ppl).slice(0, 12)) {
+      if (typeof k !== 'string' || k.length > 32) continue;
+      out.people[k] = clampInt(ppl[k], -10, 10);
+    }
+    const rep = mem.rep && typeof mem.rep === 'object' ? mem.rep : {};
+    for (const k of ['org', 'forum', 'circle', 'king', 'solo']) {
+      if (rep[k] === undefined) continue;
+      out.rep[k] = Math.max(-100, Math.min(100, Math.round(num(rep[k]))));
+    }
+    return out;
   }
   /** 非负整数钳制（档案只接受这一种数值形态） */
   function clampInt(x, lo, hi) {
@@ -14753,6 +14903,67 @@ body.story-mode .logwrap{max-height:22vh !important}
     };
   }
 
+  /**
+   * 第 37 轮：把这一局压缩成一份"记忆"（下一次开局可以带过来）。
+   * 带走的都是**你能记住的东西**：规律线索、见过的人、那边听说过你的名字、
+   * 以及"上一世是怎么死的"。数值一律限量（见 engine.applyMemory 的上限），
+   * 免得轮回变成刷资源。
+   */
+  function snapshotMemory(state, run) {
+    const s = state || {};
+    const mem = {
+      cycle: 1,
+      ending: (run && run.ending) || 'unfinished',
+      turn: (run && run.turn) || 0,
+      cause: (s.over && s.over.cause) || '',
+      pack: s.pack || 'ordinary',
+      city: s.cityId || s.city || '',
+      era: s.eraId || s.era || '',
+      stance: s.stance || 'civilian',
+      clues: (s.clues || []).filter((x) => typeof x === 'string').slice(0, 20),
+      ghosts: Object.keys(s.bestiary || {}).slice(0, 12),
+      // 见过的人：只记交情深一点的那几个（好感 ≥2）
+      people: (function () {
+        const out = {};
+        const talks = s.talks || {};
+        for (const gid of Object.keys(talks)) {
+          const f = num(talks[gid] && talks[gid].favor);
+          if (f >= 2) out[gid] = Math.floor(f);
+        }
+        return out;
+      })(),
+      // 那边的名声：你在哪条线上混过脸（记得的是"名声"，不是全额的声望）
+      rep: (function () {
+        const out = {};
+        const rep = s.rep || {};
+        for (const fid of ['org', 'forum', 'circle', 'king', 'solo']) {
+          const v = num(rep[fid]);
+          if (v !== 0) out[fid] = Math.round(v);
+        }
+        return out;
+      })(),
+      contracts: (s.contracts || []).filter((x) => typeof x === 'string').slice(0, 6),
+      killer: '',
+    };
+    // 死因里带鬼 id 的（encounter-trap / encounter-resist 都记在 lastGhost 上）
+    if (mem.ending === 'dead' || mem.ending === 'p_fuxi') mem.killer = String(s.lastGhost || '');
+    return mem;
+  }
+
+  /** 给界面看的一句话摘要（不算"记忆"本身，纯渲染） */
+  function memorySummary(mem) {
+    if (!mem) return [];
+    const out = [];
+    out.push('第 ' + (num(mem.cycle) || 1) + ' 周目：' + (mem.turn || 0) + ' 天，结局「' + (mem.ending || 'unfinished') + '」' +
+      (mem.cause ? '（' + mem.cause + '）' : ''));
+    if ((mem.clues || []).length) out.push('还记得 ' + mem.clues.length + ' 条规律');
+    if ((mem.people || {}) && Object.keys(mem.people).length) out.push('认得 ' + Object.keys(mem.people).length + ' 个人');
+    const reps = Object.keys(mem.rep || {});
+    if (reps.length) out.push(reps.map((k) => k + ' ' + mem.rep[k]).join('、'));
+    if (mem.killer) out.push('死在「' + mem.killer + '」手里');
+    return out;
+  }
+
   /** 周目点数：存活天数 + 结局质量 + 难度系数（跨局成长的唯一来源） */
   function pointsFor(run) {
     const base = Math.floor(run.turn / 10);                     // 每活 10 天 1 点
@@ -14800,6 +15011,11 @@ body.story-mode .logwrap{max-height:22vh !important}
     const pts = pointsFor(run);
     p.points = Math.max(0, num(p.points)) + pts;
     p.earned = Math.max(p.points, num(p.earned) + pts);
+
+    // 第 37 轮：存下"上一世的记忆"（下一次开局可以带过来；不带也不影响其它继承）
+    p.cycle = clampInt(p.cycle, 0, 1e9) + 1;
+    p.memory = snapshotMemory(state, run);
+    p.memory.cycle = p.cycle;
 
     const unlocked = [];
     const ctx = { state: state, profile: p, run: run, ending: eid };
@@ -14871,6 +15087,10 @@ body.story-mode .logwrap{max-height:22vh !important}
     runSummary: runSummary,
     pointsFor: pointsFor,
     settle: settle,
+    // 第 37 轮：多周目轮回记忆
+    snapshotMemory: snapshotMemory,
+    memorySummary: memorySummary,
+    sanitizeMemory: sanitizeMemory,
     achievementProgress: achievementProgress,
     loadProfile: loadProfile,
     saveProfile: saveProfile,
@@ -16429,6 +16649,15 @@ body.story-mode .logwrap{max-height:22vh !important}
         r.run.turn + ' 天｜生路存活 ' + r.run.escapes + ' 次｜触发玩法 ' + r.run.mechCount + ' 条');
       if (r.unlocked.length) {
         addLog('over', '【解锁成就】' + r.unlocked.map((a) => a.name + '（' + a.desc + '）').join('；'));
+      }
+      // 第 37 轮：把"下一局你会记得什么"说清楚（选了「上一世的记忆」就能带过去）
+      if (profile.memory && P.memorySummary) {
+        const ms = P.memorySummary(profile.memory);
+        if (ms.length) {
+          addLog('mem', '【这一世留下的记忆】' + ms.join('　｜　'));
+          addLog('muted', '下一局在开局菜单里选「上一世的记忆」，就能把这些带过去（最多 ' +
+            (E.MEM_CLUE_MAX || 2) + ' 条规律、' + (E.MEM_PEOPLE_MAX || 3) + ' 个旧识；名声只有一小半）。');
+        }
       }
       const prog = P.achievementProgress(profile);
       addLog('muted', '成就进度 ' + prog.unlocked + '/' + prog.total + '　结局收集 ' +
@@ -18445,6 +18674,18 @@ body.story-mode .logwrap{max-height:22vh !important}
           body.appendChild(row);
           const cur = selected.legacy && C.legacyOptions[selected.legacy];
           body.appendChild(el('div', 'hint', cur ? cur.desc : '继承只影响开局初始值，不参与任何判定公式。'));
+          // 第 37 轮：上一世的记忆——把"还记得什么"直接摆出来，别让玩家选一个不知道内容的继承
+          if (profile.memory && P && P.memorySummary) {
+            const lines = P.memorySummary(profile.memory);
+            if (lines.length) {
+              const memBox = el('div', 'hint', '上一世的记忆：' + lines.join('　｜　'));
+              body.appendChild(memBox);
+              if (selected.legacy === 'remember') {
+                body.appendChild(el('div', 'hint', '（选它开局时：最多带 ' + (E.MEM_CLUE_MAX || 2) + ' 条规律、' +
+                  (E.MEM_PEOPLE_MAX || 3) + ' 个旧识，名声只有上一世的一小半。）'));
+              }
+            }
+          }
         }
       } else {
         const gallery = LS.get('rs_gallery', {});
@@ -18502,6 +18743,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       city: selected.city, era: selected.era,
       stance: selected.stance,
       legacy: legacy,
+      // 第 37 轮：只有选了「上一世的记忆」才把记忆带过来（要花周目点数）
+      memory: (legacy === 'remember' && profile && profile.memory) ? profile.memory : null,
     });
     $('panel').style.display = '';
     clear($('log'));
@@ -18519,6 +18762,14 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (legacy) {
       addLog('', '【二周目继承】' + C.legacyOptions[legacy].name + '：' + C.legacyOptions[legacy].desc +
         '（已消耗 ' + C.legacyOptions[legacy].cost + ' 点，剩余 ' + (profile ? profile.points : 0) + ' 点）');
+    }
+    // 第 37 轮：上一世的记忆——开局第一屏就说清楚"你记得什么"（说完就从 notes 里取走，避免重复）
+    const mem = E.memoryCarried ? E.memoryCarried(state) : null;
+    if (mem && mem.lines && mem.lines.length) {
+      for (const l of mem.lines) addLog('mem', '【上一世的记忆】' + l);
+      if (state.notes && state.notes.length) {
+        state.notes = state.notes.filter((x) => String(x).indexOf('【上一世的记忆】') !== 0);
+      }
     }
     addLog('muted', '规则引擎 ' + C.meta.version + '　种子：' + state.seed + '　难度：' + (state.tuning ? state.tuning.name : '标准') +
       '　内容分级：' + ({ A: 'A 影视级', B: 'B 写实级', C: 'C 无限制' }[state.contentLevel] || 'A') +
@@ -18820,6 +19071,19 @@ body.story-mode .logwrap{max-height:22vh !important}
         body.appendChild(rc);
       }
       const chain = state.clueChain;
+      // 第 37 轮：这一局带着的记忆（没有就不显示）
+      const memC = (E.memoryCarried ? E.memoryCarried(state) : null);
+      if (memC) {
+        const mc = el('div', 'noteCard');
+        mc.appendChild(el('div', 'noteTitle', '上一世的记忆（第 ' + (memC.cycle || 1) + ' 周目带过来的）'));
+        for (const l of (memC.lines || [])) mc.appendChild(el('div', 'noteLine', '· ' + l));
+        const repTxt = Object.keys(memC.rep || {}).length
+          ? Object.keys(memC.rep).map((f) => f + ' ' + memC.rep[f]).join('、') : '无';
+        const killTxt = memC.killer ? '　—　上次死在：' + (((C.ghosts[memC.killer] || {}).name) || memC.killer) : '';
+        mc.appendChild(el('div', 'noteLine', '· 带过来的规矩 ' + ((memC.clues || []).length) + ' 条 / 旧识 ' +
+          ((memC.people || []).length) + ' 人 / 名声 ' + repTxt + killTxt));
+        body.appendChild(mc);
+      }
       if (chain && chain.gid && C.ghosts[chain.gid]) {
         const cc = el('div', 'noteCard');
         cc.appendChild(el('div', 'noteTitle', '正在追查：' + C.ghosts[chain.gid].name));
