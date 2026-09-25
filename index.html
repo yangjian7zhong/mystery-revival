@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+<meta name="rs-build" content="v260925063555">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -155,6 +156,19 @@ body.fontL .line{line-height:1.85}
   .jLine .star{min-width:34px; min-height:34px; line-height:34px; font-size:18px; padding:0}
 }
 .toolbox .pk{min-width:72px; color:var(--dim); font-size:13px}
+
+/* ==== 第 32 轮：世界文本（每日新闻 / 结局尾声）==== */
+.line.news{
+  color:#9fd8e8; font-size:13px; line-height:1.8; margin:4px 0 2px;
+  border-left:2px solid #2b5563; padding-left:8px;
+}
+.line.news:first-of-type{color:#bfe9f5}
+.line.newshead{
+  color:#7fd0e8; font-size:12.5px; letter-spacing:1px; font-weight:600;
+  margin:10px 0 2px; opacity:.9;
+}
+.line.epi{color:#d6c7a8; font-size:14px; line-height:1.9; margin:3px 0}
+.line.epi:first-of-type{color:#ffd7a8; font-weight:600; letter-spacing:.4px}
 
 /* ==== 第 31 轮：开局向导（一步步选）与背包 ==== */
 .wizHead{border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:#0d141c; margin-bottom:10px}
@@ -400,6 +414,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 }</style>
 </head>
 <body>
+<script>window.__RS_BUILD = "v260925063555";</script>
 <header>
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
@@ -616,6 +631,1356 @@ body.story-mode .logwrap{max-height:22vh !important}
     ghostKeys: Object.keys(A).filter(function (k) { return k.indexOf('g_') === 0; }),
     has: function (k) { return !!A[k]; },
     get: function (k) { return A[k] || null; },
+  };
+});
+</script>
+<script>/* ============================================================================
+ * 神秘复苏模拟器 · 每日世界新闻（程序化生成，纯离线可用）
+ * ----------------------------------------------------------------------------
+ * 契约（已冻结，由 engine.js 的 newsCtx(state) 产出，本模块只吃纯数据、不碰 state）：
+ *   dailyNews(ctx) → string[]   1~3 行，每行 ≤60 字，行内不含换行符
+ *   ctx = { turn, chapter, era, eraName, city, cityName, stance, stanceName,
+ *           calamity, domainLv, erosion, clues, contracts, safehouse,
+ *           lastGhostName, lastEscape, purgeRecent, newClueRecent, metRecent,
+ *           seed, pick(arr, salt) }
+ *   任何字段缺失/越界都走安全兜底（不抛错、不吐 undefined/NaN）。
+ *
+ * 确定性来源：所有取句都走 ctx.pick(arr, salt)——同一 (seed, salt) 必得同一项；
+ *   ctx.pick 不可用时退回本地 FNV-1a(seed + salt) 取模，效果等价。
+ *   全程不使用随机数 / 系统时间 / 网络 / 文件，同一份 ctx 反复调用结果完全一致。
+ *   为了让"每天读到的不一样"，salt 里带 turn（'news.lead:12'）：同一天必同稿，隔天换稿。
+ *   另见下面 mix32()：引擎的 hash 低位对"同长度的纯数字种子"不敏感（123456 与 999
+ *   会在所有 bank 上撞到同一个下标），所以 salt 末尾再拼一个由 seed 混淆出的数。
+ *
+ * 占位符纪律（真机事故："{cityName}市公安局通告" 曾原样漏到玩家眼前）：
+ *   ① 所有文本一律经 fill(tpl, vars) 生成：两遍替换（原料本身可能嵌着别的占位符），
+ *      第二遍后仍未被替换的 {xxx} 一律就地抹掉，绝不原样输出；
+ *   ② 每行成句后再过 hasPlaceholder() 自检，命中就换成不含占位符的兜底句（不抛错）；
+ *   ③ 变量表里没有的 key 不需要报错——抹掉即可，文案少一个词也不能崩游戏。
+ *
+ * 视角约束：只写世界在运转——抬头/播报源、机构口径、目击者原话、街头传闻、数字；
+ *   不写任何"某个人做成了什么"的结果性宣告；提到人时只用"有人/那位同行"这类间接说法。
+ *   原料按时代分库（古代不会出现声控灯与公交），七期腔调各不相同。
+ * ==========================================================================*/
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSNews = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  /* ---------------------------------------------------------------- 工具 */
+  const u32 = (x) => x >>> 0;
+  function hashStr(s) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return u32(h);
+  }
+  /** murmur3 finalizer：把弱hash搅匀，避免"同长度数字种子取到同一下标" */
+  function mix32(x) {
+    x = u32(x);
+    x ^= x >>> 16; x = Math.imul(x, 0x7feb352d);
+    x ^= x >>> 15; x = Math.imul(x, 0x846ca68b);
+    x ^= x >>> 16;
+    return u32(x);
+  }
+  function numOr(v, d) { const n = Number(v); return isFinite(n) ? n : d; }
+  function intOf(v, d, lo, hi) {
+    let n = Math.round(numOr(v, d));
+    if (n < lo) n = lo;
+    if (n > hi) n = hi;
+    return n;
+  }
+  function strOf(v, d) { return (typeof v === 'string' && v.trim()) ? v.trim() : d; }
+
+  /** 每题一行：去换行、去多余空格；超长时在标点处收尾，保证 ≤max 字 */
+  function cut(s, max) {
+    const t = String(s === null || s === undefined ? '' : s).replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    if (t.length <= max) return t;
+    const head = t.slice(0, max);
+    const m = head.match(/^[\s\S]*[。！？]/);
+    if (m && m[0].length >= 12) return m[0];
+    const m2 = head.match(/^[\s\S]*[，、；：]/);
+    if (m2 && m2[0].length >= 12) return m2[0].replace(/[，、；：]$/, '') + '。';
+    return head.replace(/[，、；：]$/, '') + '。';
+  }
+
+  /** 唯一入口：模板 + 变量 → 成句。
+   *  两遍替换：原料本身可能嵌着别的占位符（如 {source} 里含 {cityName}）。
+   *  两遍之后仍有 {xxx}（拼错或没给值）→ 就地抹掉，绝不原样输出。 */
+  function fill(tpl, vars) {
+    if (tpl === null || tpl === undefined) return '';
+    let out = String(tpl);
+    for (let pass = 0; pass < 2; pass++) {
+      if (out.indexOf('{') < 0) break;
+      out = out.replace(/\{(\w+)\}/g, function (all, key) {
+        const v = vars ? vars[key] : null;
+        return (v === null || v === undefined || v === '') ? '' : String(v);
+      });
+    }
+    return stripPlaceholders(out);
+  }
+  /** 兜底清理：任何残留的花括号片段一律清掉，顺带收拾留下的空标点 */
+  function stripPlaceholders(s) {
+    return String(s)
+      .replace(/[{][^{}]{0,32}[}]/g, '')
+      .replace(/[（(]\s*[）)]/g, '')
+      // "{cityName}市公安局通告" 这类模板写错会产出"大昌市市公安局"，顺手压回去
+      .replace(/([市镇村区])\1+/g, '$1')
+      .replace(/[，、；：]{2,}/g, '，')
+      .replace(/^\s*[，、；：]/, '')
+      .replace(/\s{2,}/g, ' ');
+  }
+  /** 成句后的自检：命中即换兜底句，不 throw */
+  const PLACEHOLDER_RE = /[{][a-zA-Z_\u4e00-\u9fa5]+[}]/;
+  function hasPlaceholder(s) { return PLACEHOLDER_RE.test(String(s === null || s === undefined ? '' : s)); }
+
+  /** 绝不会含占位符的兜底句（自检命中时用它顶上） */
+  const FALLBACK_LINE = [
+    '本地今日无异常报告。',
+    '这一条通告正文缺失，只剩标题。',
+    '当天的记录没有留下更多内容。',
+  ];
+
+  /** 取句器：优先用引擎给的 pick，拿不到有效值就退回本地确定性取模 */
+  function makePick(ctx) {
+    const enginePick = (ctx && typeof ctx.pick === 'function') ? ctx.pick : null;
+    const seed = String((ctx && ctx.seed !== null && ctx.seed !== undefined) ? ctx.seed : '0');
+    return function (arr, salt) {
+      if (!arr || !arr.length) return '';
+      const key = String(salt) + '#' + mix32(hashStr(seed + '#' + salt));
+      if (enginePick) {
+        try {
+          const r = enginePick(arr, key);
+          if (typeof r === 'string' || typeof r === 'function') return r;
+        } catch (e) { /* 引擎的 pick 出问题就退回本地实现 */ }
+      }
+      return arr[hashStr(seed + ':' + key) % arr.length];
+    };
+  }
+  /** 取句 → 成句：bank 里可以放字符串，也可以放 (vars)=>string
+   *  （带城市名的抬头一律用后者：调用时直接拼好，模板里根本不存在 {cityName}，
+   *    也就没有"替换失败漏到玩家眼前"这一整类问题） */
+  function pickText(P, arr, salt, vars) {
+    const r = P(arr, salt);
+    return (typeof r === 'function') ? r(vars) : r;
+  }
+  /** 带城市名的抬头模板：head + cityName + tail */
+  const cityTemplate = (head, tail) => function (v) { return head + v.cityName + tail; };
+
+  /* -------------------------------------------------------- 通用原料库 */
+  const PLACE_MODERN = [
+    '城南的老纺织厂', '城东中学后墙那条街', '商场地下的旧车库', '城北的六层老居民楼',
+    '长途汽车站的候车厅', '河堤边的废船闸', '农贸市场的冷库', '市立医院的老楼',
+    '城郊那家加油站', '大学城西门的网吧', '烂尾六年的写字楼', '殡仪馆后面那条小路',
+    '关门三年的电影院', '邮局的分拣间', '老家属区的锅炉房', '跨江大桥的人行道',
+  ];
+  const PLACE_PRE = [
+    '南街那座空了三年的宅子', '镇口的旧祠堂', '城隍庙后面的空院', '河边的渡口',
+    '关帝庙的偏殿', '老槐树下的空场', '西街当铺的后院', '村东头的义庄',
+    '荒了的驿站', '县学后墙那条巷子', '染坊的旧库房', '城南的乱葬岗',
+  ];
+  const PLACE_MINGUO = PLACE_PRE.concat([
+    '停工的老纱厂', '码头边那排旧公寓', '租界外面的石库门', '停运的货运站',
+  ]);
+  const PLACE_ASH = [
+    '北边那片旧厂区', '断了两截的高架桥', '水站上游那片村', '南边的废加油站',
+    '清过三次的居民楼', '没拆完的写字楼', '养护段的老道班房', '河边那排水泥船',
+  ];
+  const WEATHER = [
+    '雾一整天没散', '雨连着下了三天', '风从巷口灌进来，纸片贴着地跑', '天阴着，雨没落下来',
+    '云压得很低，中午像傍晚', '起了一阵没有方向的风', '空气闷得不正常', '有股土腥味，找不到出处',
+  ];
+  const NUM = ['三', '七', '十四', '十七', '四十', '一百零八'];
+  const COUNT = ['3', '7', '12', '17', '23', '40'];
+
+  // 异象细节按"这个时代能不能出现这东西"分库
+  const ANOM_PRE = [
+    '井里的水一夜漫到井沿，颜色是黑的。',
+    '照壁上的人像换了衣裳，画师说不是他改的。',
+    '更鼓敲到第三下就断了，没人再接第四下。',
+    '队伍里多出一个不认识的人，没人敢点破。',
+    '坟头的新土被人翻过，碑上的字被磨了一半。',
+    '整条街的灯同时灭了，油灯怎么点都不着。',
+    '那户人家的自鸣钟停在子时，上弦也不走。',
+    '有孩子在门外背书，背到"天地玄黄"就停住。',
+  ];
+  const ANOM_MINGUO = ANOM_PRE.concat([
+    '电车到站时灯全灭了一下，司机说这个月第三回了。',
+    '电话接着接着就断了，接线生说那个号头是空的。',
+  ]);
+  const ANOM_MODERN = [
+    '楼道里的声控灯全灭了，怎么喊都不亮。',
+    '电梯停在十三层，门开着，厢里是空的。',
+    '监控拍到的那段全是雪花，时间戳却往回走了两分钟。',
+    '同一层住户的手机同时收到一条空白短信。',
+    '门禁记录了十一次刷卡，监控里只进去过一个人。',
+    '外卖放在门口没动过，第二天还在，还是温的。',
+    '公交报站报出了一个不存在的站名。',
+    '那栋楼的窗户从外面看是黑的，从里面看是亮的。',
+  ];
+  const ANOM_ASH = [
+    '据点外的铁丝网昨天夜里多了一个人形缺口，没人承认动过。',
+    '发电机的油耗比昨天快了一倍，声音却更小了。',
+    '巡逻队带回来的水，煮开后底下沉着一层灰。',
+    '那栋楼里还亮着灯，按说整片区域早断过电。',
+    '换防点人数点了三次，三次报上来的数都不一样。',
+  ];
+  const ANOM_AFTER = [
+    '当年的记录写着：那条巷子里的钟，一夜之间全停了。',
+    '档案里附的照片上，围观的人一个都没有影子。',
+    '口述记录到这一段空了很久，受访者后来说不记得了。',
+    '材料第 {k} 页的日期被涂改过，前后对不上。',
+    '同期另一份报告写了同一件事，细节完全不一样。',
+  ];
+
+  // 街头传闻正文（不含开头语），同样按时代分库
+  const RUMOR_PRE = [
+    '城北那户人家的灯，夜里三更还亮着，窗纸后面有两个人的影子。',
+    '有人把一整箱古书卖给了收废纸的，第二天又加价赎回去。',
+    '药铺的安神汤这几日卖得快，掌柜的不问来路。',
+    '渡口的船夫说，夜里过河的人比白天多了不少。',
+    '城隍庙的香火比往年旺，来磕头的人都不说话。',
+    '更夫说他昨夜报的时辰，第二天对不上。',
+  ];
+  const RUMOR_MINGUO = [
+    '城郊那户人家的灯，夜里三点还亮着，窗帘后面站着两个人。',
+    '有人在旧货市场收走了一整箱没人要的相册。',
+    '药铺把能安神的东西收进了柜台下面，不摆出来。',
+    '教堂的钟这几天响得不准，神父没有解释。',
+    '戏院散了场，总有人留在里面不出来。',
+    '脚行的工人说，这批货的单子上写的是空号。',
+  ];
+  const RUMOR_MODERN = [
+    '城北那户人家的灯，夜里三点还亮着，窗帘后面站着两个人。',
+    '有人在旧货市场收走了一整箱没人要的相册。',
+    '卖早点的说，最近买两份的人越来越多，都是一个人吃。',
+    '药店把安眠药挪到了柜台下面，不摆出来。',
+    '殡仪馆的预约排到了下个月。',
+    '跑夜班的司机不接城东的单，加价也没人接。',
+    '火车站的长椅上总有人坐着，不买票，也不走。',
+  ];
+  const RUMOR_ASH = [
+    '据点门口那盏灯整夜不熄，守的人换了两班。',
+    '有人拿手里的子弹换罐头，比例是一比二。',
+    '交换市上，同一张手绘地图被换走了三次。',
+    '队里把口粮标准又降了一点，没人抱怨。',
+    '有人坚持说西边还有活人，去过的都没回来。',
+  ];
+  const RUMOR_AFTER = [
+    '当年的邻居回忆，那户人家从不留人过夜。',
+    '有一份没署名的材料，后来被归进了"其他"那一摞。',
+    '那段时间城市的气象记录，缺了整整十四页。',
+    '同一批档案里，有三份文件的落款日期完全一样。',
+  ];
+
+  /* ------------------------------------------------------------ 时代腔调 */
+  const SECOND = [
+    '{official}',
+    '{witness}说，{said}',
+    '{column}{witness}说，{said}',
+    '{column}{official}',
+  ];
+
+  const ERA = {
+    ancient: {
+      place: PLACE_PRE, anom: ANOM_PRE, rumorBody: RUMOR_PRE, extras: 'pre',
+      source: [
+        '城门口贴出的告示', cityTemplate('《', '志·异闻卷》'), '驿站传回来的口信',
+        '里正挨门挨户的叮嘱', '更夫报给巡检的那句话',
+      ],
+      lead: [
+        '{source}：{place}有异，{anomaly}',
+        '{source}——{place}，{weather}，{anomaly}',
+        '{source}：{place}连着几日不安生，{anomaly}',
+      ],
+      official: [
+        '县衙说这是风水走偏，已请道人看过，各家不必张扬。',
+        '里正的回话是：野狗刨坟罢了，不必上报，也不许乱传。',
+        '官府的文书里只写了"事属微末"四个字，落款压在抽屉底。',
+        '巡夜的差役被人问起时摆手：上头有交代，不许细说。',
+      ],
+      witness: ['挑水的老汉', '守夜的更夫', '镇上的屠户', '过路的货郎', '开茶棚的掌柜'],
+      said: [
+        '他看见井边站着个人，喊了一声，那人没回头。',
+        '三更以后，村口的狗一齐不叫了。',
+        '那家人白天还在办喜事，晚上门就闩死了。',
+        '走过的路，第二天他自己找不到了。',
+      ],
+      column: ['（异闻）', '（杂记）', '（里巷传闻）', '（卷末附记）'],
+      rumor: ['茶棚里有人说，', '坊间私下传，', '货郎走街串巷时讲，'],
+    },
+    minguo: {
+      place: PLACE_MINGUO, anom: ANOM_MINGUO, rumorBody: RUMOR_MINGUO, extras: 'pre',
+      source: [
+        cityTemplate('《', '晨报》第三版'), '报馆访员送来的短讯', '巡捕房门口新贴的布告',
+        '茶馆里传抄的小报', '义庄管事托人捎的信',
+      ],
+      lead: [
+        '{source}：{place}出事，{anomaly}',
+        '{source}——{place}，{weather}，{anomaly}',
+        '{source}：{place}连着三夜不干净，{anomaly}',
+      ],
+      official: [
+        '巡捕房说是电线走火，着令即日修缮。',
+        '报馆接到通知：此事暂不宜见报，稿子先压在抽屉里。',
+        '工部局照会各方：纯属谣言，租界秩序如常。',
+        '镇公所的答复只有一句：查无实据。',
+      ],
+      witness: ['拉车的车夫', '洋行的账房先生', '看门的老仆', '修鞋的师傅', '卖花的姑娘'],
+      said: [
+        '从那家门里出来的人，脚下没有声音。',
+        '路灯底下站着一个，灯一暗就没了。',
+        '那趟末班车到站时，下来的比上去的多一个。',
+        '自己认得路，走了一夜又走回原地。',
+      ],
+      column: ['（社会栏）', '（短讯）', '（街谈）', '（来函照登）'],
+      rumor: ['茶馆里有人说，', '弄堂口的人在传，', '报馆里的人私下讲，'],
+    },
+    y2017: {
+      place: PLACE_MODERN, anom: ANOM_MODERN, rumorBody: RUMOR_MODERN, extras: 'modern',
+      source: [
+        cityTemplate('【', '灵异论坛】置顶帖'), '本地论坛·都市传说版', '一条被转了两百多次的微博',
+        '同城群里传的那段语音', '贴吧里被删过三次的那个帖子',
+      ],
+      lead: [
+        '{source}：{place}又出事了，{anomaly}',
+        '{source}——{place}，{weather}，{anomaly}',
+        '{source}：有人连夜在{place}拍了视频，{anomaly}',
+      ],
+      official: [
+        '警方的回复是煤气泄漏，已排除人为因素。',
+        '街道办说只是临时信号故障，请居民不必惊慌。',
+        '平台把相关帖子限流了，理由写的是"内容不实"。',
+        '物业在群里发通知：地下车库检修，请勿入内。',
+      ],
+      witness: ['夜班保安', '扫街的环卫工', '开出租的司机', '楼下的中介', '便利店的店员'],
+      said: [
+        '监控里有七秒是雪花，正好是出事那段。',
+        '那栋楼门禁刷了十一次，只进去过一个人。',
+        '他绕开那一段路走了半年，昨天没绕。',
+        '不敢回头，回头那一下会听见有人叫名字。',
+      ],
+      column: ['（社会版）', '（第三版·短讯）', '（边栏）', '（读者来信）'],
+      rumor: ['论坛上有人回帖说，', '群里那条语音说，', '匿名帖里写，'],
+    },
+    y2018: {
+      place: PLACE_MODERN, anom: ANOM_MODERN, rumorBody: RUMOR_MODERN, extras: 'modern',
+      source: [
+        cityTemplate('《', '晚报》社会版'), '市公安局的通告', '市疾控中心的通报',
+        '本地公众号的推送', '居委会群里的通知',
+      ],
+      lead: [
+        '{source}：{place}昨夜有异，{anomaly}',
+        '{source}——{place}，{weather}，{anomaly}',
+        '{source}：{place}连续第 {turn} 天有人报警，{anomaly}',
+      ],
+      official: [
+        '通报称系"煤气泄漏"，已排除人为因素，请市民不必恐慌。',
+        '街道办表示属"信号设备故障"，检修完成时间未定。',
+        '官方口径是"仍在核查"，未提人员伤亡。',
+        '公告落款是当天凌晨，正文只有两段，第二段被涂改成"另发"。',
+      ],
+      witness: ['夜班保安', '扫街的环卫工', '开出租的司机', '小区物业', '便利店的店员'],
+      said: [
+        '监控里有七秒是雪花，正好是出事那段。',
+        '警戒线外面站了一夜的人，没有一个登记的。',
+        '那栋楼门禁刷了十一次，只进去过一个人。',
+        '夜里听见风里有敲击声，很有规律。',
+      ],
+      column: ['（社会版）', '（第三版·短讯）', '（热线实录）', '（边栏）'],
+      rumor: ['本地群里有人说，', '楼道里有人讲，', '贴吧上有个帖子说，'],
+    },
+    y2019: {
+      place: PLACE_MODERN, anom: ANOM_MODERN, rumorBody: RUMOR_MODERN, extras: 'modern',
+      source: [
+        '市灵异事务管理办公室通报', '总部第 {k} 号情况简报', '市应急管理局公告',
+        '本地电视台晚间播报', '内部流转的那份短报',
+      ],
+      lead: [
+        '{source}：{place}已被划定，{anomaly}',
+        '{source}——{place}，{weather}，{anomaly}',
+        '{source}：{place}的情况连续第 {turn} 天没有变化，{anomaly}',
+      ],
+      official: [
+        '简报口径：属"未定级"，暂不公开细节。',
+        '应急口称"已完成处置"，没有说明处置的是什么。',
+        '通报里写"情况可控"，落款时间是当天凌晨四点。',
+        '会上有人提了一句，被要求按统一口径作答。',
+      ],
+      witness: ['路口的协管', '送水的师傅', '小区的物业', '夜班的护士', '跑长途的司机'],
+      said: [
+        '警戒线外面站了一整夜的人，没有一个登记的。',
+        '进去的那队人回来时少了一个，名单上没有。',
+        '夜里听见风里有敲击声，很有规律。',
+        '那一片的钟表走得都不一样。',
+      ],
+      column: ['（情况简报）', '（内部通报·摘）', '（晚间播报）', '（附页）'],
+      rumor: ['内部群里流出一句，', '通报之外还有半句，', '会上有人低声说，'],
+    },
+    doomsday: {
+      place: PLACE_ASH, anom: ANOM_ASH, rumorBody: RUMOR_ASH, extras: 'ash',
+      source: [
+        '据点广播站 07:00 播报', '短波电台第 {k} 频道', '运输队捎回来的口信',
+        '避难所墙上的手写板报', '换防时传的那句话',
+      ],
+      lead: [
+        '{source}：{place}清了又封，{anomaly}',
+        '{source}——{place}，{weather}，{anomaly}',
+        '{source}：{place}这一轮又没清干净，{anomaly}',
+      ],
+      official: [
+        '指挥部的说法是"外面已经清干净了"，没人信。',
+        '广播里说水源安全，当天停了三次水。',
+        '通报写"损失可以接受"，后面没有数字。',
+        '据点把名单收了回去，说等人齐了再念。',
+      ],
+      witness: ['运输队的司机', '水站的看守', '值夜的人', '没执照的医生', '守在门口的老兵'],
+      said: [
+        '铁丝网昨天夜里多了一个人形缺口。',
+        '发电机今天的油耗是昨天的两倍。',
+        '带回来的水煮开后底下有一层灰。',
+        '那栋楼里还有灯，按说整片区域早断过电。',
+      ],
+      column: ['（据点播报）', '（电台口述）', '（板报）', '（值班记录）'],
+      rumor: ['队里有人说，', '换防的时候有人讲，', '据点的人私下说，'],
+    },
+    after60: {
+      place: PLACE_MODERN, anom: ANOM_AFTER, rumorBody: RUMOR_AFTER, extras: 'after',
+      source: [
+        '《灵异时代史料汇编》第 {k} 卷', '市档案馆解密档案', '历史研究所的课题纪要',
+        '中学历史课本附录', '访谈记录的一段',
+      ],
+      lead: [
+        '{source}：{place}一案，{anomaly}',
+        '{source}——{place}，{weather}，{anomaly}',
+        '{source}：关于{place}，材料只留存了半页，{anomaly}',
+      ],
+      official: [
+        '档案在"结论"一栏只写了四个字：原因不明。',
+        '研究所述评称当时"缺乏统一口径"，未再展开。',
+        '地方志记为"气象异常"，前后矛盾处没有修订。',
+        '听证会上有人被问到细节，回答说不在授权范围。',
+      ],
+      witness: ['当年的目击者后人', '录入访谈的老研究员', '讲课的老师', '整理档案的馆员'],
+      said: [
+        '家里长辈一提到那一段就换话题。',
+        '照片上围观的人，没有一个有影子。',
+        '受访者讲到这里停了很久，然后说不记得了。',
+        '同一件事有两份报告，细节对不上。',
+      ],
+      column: ['（卷首）', '（附录）', '（访谈摘录）', '（档案原件）'],
+      rumor: ['研究者私下认为，', '访谈记录里有一段没编进报告，', '讲这件事的人最后说，'],
+    },
+  };
+
+  /* ------------------------------------------------ 状态侧写（按时代分库） */
+  // 与时代无关的通用组（登记/处置、生面孔、门与灯火）
+  const SHARED_EXTRA = {
+    purge: [
+      '这几天的隐患处置登记在册的有 {k} 起，没人对外说。',
+      '公告上没有写，但清理队这几天出过 {k} 次车。',
+      '仓库那边收走了 {k} 箱东西，单据上一律写"待检"。',
+    ],
+    met: [
+      '最近这一带被人见过的生面孔不少，都说自己是来办事的。',
+      '有人数过，这几天进城出城的同行比往常多。',
+      '小旅馆的登记本上多了不少来历不明的人。',
+    ],
+    safe: [
+      '这种时候，谁家有一扇能闩死的门，本身就是消息。',
+      '城南有几处门窗都改过的房子，夜里从不点灯。',
+      '有人在打听，谁家囤着够撑半年的东西。',
+    ],
+  };
+
+  const EXTRAS_MODERN = Object.assign({}, SHARED_EXTRA, {
+    cal: {
+      top: [
+        '三条主干道封了两条，剩下那条夜里不许开灯。',
+        '第一批撤离名单贴出来，当天就被人撕走一半。',
+        '往南的班车一天只发一班，票在前一天就没了。',
+      ],
+      high: [
+        '两所学校停了课，理由写的是"管网检修"。',
+        '超市的矿泉水和电池前天就空了。',
+        '医院把住院部搬到了地下一层，说那里安静。',
+      ],
+      mid: [
+        '城南的公交改线了，站牌上没有写改到哪。',
+        '保险公司停售了一种险，柜台不解释原因。',
+        '菜价涨了一截，摊主的说法是"进货难"。',
+      ],
+      low: [
+        '市面上的日子照旧，买菜的人比上周少了一成。',
+        '街上的店都开着，只有那一家把卷帘门拉到底。',
+        '路面新铺了一层沥青，盖住了上个月留下的印子。',
+      ],
+    },
+    rule: [
+      '城东那一片进去以后，手机上的时间会自己往回走。',
+      '有人说那条街上不能回头，回头的人后来都没再提过这件事。',
+      '那片区域的规矩和外面不一样，先迈哪只脚都有说法。',
+      '那一片的路牌换了新的，上面的字没人认得出来。',
+    ],
+    ruleAll: [
+      '整座城市现在按另一套规矩运转，路口的红灯每天换一次时长。',
+      '全城的钟表都慢了一点，慢得不多，但一直在慢。',
+      '现在城里换了一条规矩：天黑以后不进旧城区。',
+    ],
+    ero: [
+      '城里的钟表开始对不齐，差得不多，但一直在差。',
+      '有人发现自己记不住昨天的事，只记得三天前的。',
+      '同一段路，两个人说出来的走法不一样，谁都觉得自己对。',
+    ],
+    contract: [
+      '有懂行的人在打听，最近谁家"供着不该供的东西"。',
+      '街面上在形容一个同行：白天正常上下班，晚上从不点灯。',
+      '有人说这一带有人把那种东西养在自己身上，语气里像是羡慕。',
+    ],
+    clue: [
+      '旧报纸的借阅记录被人翻过，管理员说记不清是谁。',
+      '这几天有人在市政档案里查同一批失踪名册。',
+      '有人在旧照片里认出同一个背影，出现在四个不同的年份。',
+    ],
+    stance: {
+      captain: ['总部这几天的简报只发到队长一级，口径统一得反常。', '任务单上多了一项"不得擅自介入"，没有解释。'],
+      forum: ['论坛的置顶帖换了版主，删帖比从前快。', '有人把帖子设成了回复可见，回帖里全是"我也见过"。'],
+      civilian: ['街面上的人最近互相打听，谁手里真有东西。', '没有编制的人这几天都往熟人那儿凑，凑的是消息。'],
+      own: ['有人在传，城里有个不打算等总部收场的人。', '有几个人在私下议论那个"想自己动手"的家伙。'],
+    },
+  });
+
+  const EXTRAS_PRE = Object.assign({}, SHARED_EXTRA, {
+    purge: [
+      '这几日官面上处置过 {k} 起，卷宗锁着，不许抄。',
+      '衙门送走的箱子有 {k} 只，单据上写的是"杂物"。',
+    ],
+    met: [
+      '客栈的登记本上，多了不少说不清来路的人。',
+      '这几天过路的人比往常多，都不像是来做买卖的。',
+    ],
+    cal: {
+      top: [
+        '城门按时关了两回，晚到的车马一律不准进。',
+        '往南的路断了三天，挑担的改走小道，价钱加了一倍。',
+        '官仓外排着队，领粮的人从卯时排到日落。',
+      ],
+      high: [
+        '戏班和茶楼都歇了，掌柜的说等风头过去。',
+        '药铺的安神汤卖断了货，掌柜的不问来路。',
+        '学堂散了学，先生说"家里有事就先回去"。',
+      ],
+      mid: [
+        '南街的铺子比往常早关一个时辰，谁也没说为什么。',
+        '车马行的价涨了一成，赶车的只说"不好走"。',
+        '集市上的人比上月少了一半，摊子收得很早。',
+      ],
+      low: [
+        '街面上照旧，只是买菜的人比上月少了一成。',
+        '米价稳着，铺子照开，掌柜的脸色不太好看。',
+      ],
+    },
+    rule: [
+      '城南那一片进去以后，日头走得不对，出来时天已经黑了。',
+      '有人说那条巷子不能回头，回头的人后来都不提这件事。',
+      '那片地方的规矩和别处不同，先迈哪只脚都有说法。',
+      '有人在墙上画了记号，说照着走才出得来。',
+    ],
+    ruleAll: [
+      '整座城现在按另一套规矩运转，打更的时辰每天都不一样。',
+      '满城的钟漏都对不上，差得不多，但一直在差。',
+      '现在换了一条规矩：日落以后不许走旧城那一片。',
+    ],
+    ero: [
+      '更漏和日头对不上，谁也不肯先开口。',
+      '有人发现自己记不住昨天的事，只记得三天前的。',
+      '同一段路，两个人说出来的走法不一样，谁都觉得自己对。',
+    ],
+    contract: [
+      '有懂行的人在打听，最近谁家养着不该养的东西。',
+      '街面上在形容一个人：白天跟常人一样，晚上从不点灯。',
+      '有人说这附近有人把那种东西养在自己身上，语气像是羡慕。',
+    ],
+    clue: [
+      '县志的旧抄本被人翻过，看管的人说记不清是谁。',
+      '衙门里那几卷失踪名册，这几天被人调走过。',
+      '有人在旧画像上认出同一个背影，出现在四个不同的年份。',
+    ],
+    stance: {
+      captain: ['带着编制做事的人这几天收得很紧，话也比平时少。', '上头这两天只传口信，不留纸面，办事的人心里有数。'],
+      forum: ['坊间消息最灵的那几个人，这几天都不肯多说。', '茶棚里打听消息的人比往常多，付账都很爽快。'],
+      civilian: ['街面上的人最近互相打听，谁手里真有东西。', '没靠山的人这几天都往熟人那儿凑，凑的是消息。'],
+      own: ['有人在传，城里有个不打算等上头收场的人。', '有几个后生在私下议论那个"想自己动手"的家伙。'],
+    },
+  });
+
+  const EXTRAS_ASH = Object.assign({}, SHARED_EXTRA, {
+    purge: [
+      '台账上记着这几天清掉 {k} 处，没人对外说。',
+      '车队这几天出去过 {k} 趟，回来的人不说话。',
+    ],
+    met: [
+      '据点里这几天的生面孔不少，都说自己是来找人的。',
+      '这两天进出的队伍多，登记本上却写得很潦草。',
+    ],
+    cal: {
+      top: [
+        '据点的两个出口封了一个，剩下的那个昼夜有人守。',
+        '往南的车队三天没回来，指挥部不再提这件事。',
+        '水车一天只发两趟，排队的人从天亮站到天黑。',
+      ],
+      high: [
+        '据点把口粮标准又降了一点，没人抱怨。',
+        '医务室把床位腾出来了，没有说明留给谁。',
+        '夜里不许开灯，这条规矩贴在了墙上。',
+      ],
+      mid: [
+        '外面那圈铁丝网又往里收了一段。',
+        '交换市上子弹和罐头的比价又变了。',
+        '巡逻的路线改了，走的人只说"不用问"。',
+      ],
+      low: [
+        '据点里这几天没什么事，哨位上的人换班很准时。',
+        '水还算够用，饭点上的队伍排得不长。',
+      ],
+    },
+    rule: [
+      '禁区里那片地方进去以后，表走得和人不一样。',
+      '有人说围栏外面不能回头，回头的人后来都不提。',
+      '那一片的规矩和据点里不一样，先迈哪只脚都有说法。',
+      '铁丝网上挂着牌子：进去以后不要出声。',
+    ],
+    ruleAll: [
+      '整片区域现在按另一套规矩运转，日出日落每天都不对。',
+      '现在所有钟表都慢了一刻，修不好，也没人再修。',
+      '换了一条规矩：天黑以后任何人不得出围栏。',
+    ],
+    ero: [
+      '巡查的人说，同一个路口两次走过的长度不一样。',
+      '有人发现自己记不住昨天的事，只记得三天前的。',
+      '两个人去同一个地方，回来画的路线完全不同。',
+    ],
+    contract: [
+      '有人在打听，谁身上"带着"不该带的东西。',
+      '队里在传一个人：白天跟大家一样，晚上从不点灯。',
+      '有人说有人把那种东西养在身上，语气里像在羡慕。',
+    ],
+    clue: [
+      '旧台账被人翻过，管的人说记不清是谁。',
+      '档案柜里那几本失踪名册，这几天被人调走过。',
+      '有人在一张旧照片上认出同一个背影，只是照片已经烂了边。',
+    ],
+    stance: {
+      captain: ['指挥部这几天的口头命令多了，纸面上什么都没有。', '值勤表换得比往常勤，理由没写。'],
+      forum: ['消息最灵的那几个人这几天不说话了。', '有人在交换市上收旧报纸，价钱给得很高。'],
+      civilian: ['据点里的人最近互相打听，谁手里真有东西。', '没有队伍的人这几天都往熟人那儿凑。'],
+      own: ['有人在传，这里有个不打算等指挥部收场的人。', '有几个人在私下说，那个"想自己动手"的家伙还活着。'],
+    },
+  });
+
+  const EXTRAS_AFTER = Object.assign({}, SHARED_EXTRA, {
+    purge: [
+      '材料里提到，那几天登记在册的处置有 {k} 起，细节缺失。',
+      '档案里附了一张出车记录，一共 {k} 次。',
+    ],
+    met: [
+      '材料里说，那段时间外来的人明显多了。',
+      '有受访者提到，那阵子街上全是生面孔。',
+    ],
+    cal: {
+      top: [
+        '据当年的记载，往南的班车最后一天只发了一班。',
+        '撤离名单贴出来当天被撕走一半——这个细节有三份材料提到。',
+      ],
+      high: [
+        '当时的档案写：学校停课，理由填的是"管网检修"。',
+        '那一年的气象记录缺了很多页，编号却能对上。',
+      ],
+      mid: [
+        '材料里提到，城南的公交改过线，站牌上没有写改到哪。',
+        '有记录说那段时间物价涨了一截，原因栏空着。',
+      ],
+      low: [
+        '那几年大部分日子是正常的，这一点常被后来的叙述漏掉。',
+        '当时的报纸照常出，社会版和今天是同一副样子。',
+      ],
+    },
+    rule: [
+      '档案里写：那一片进去以后，钟表会往回走。',
+      '有人说那条街上不能回头——这一段被划了线，但没有解释。',
+      '记录里的规矩写得很细：先迈哪只脚都要照做。',
+      '卷宗里贴了一张手绘地图，标着"不要走到这里"。',
+    ],
+    ruleAll: [
+      '材料称当时整座城都按另一套规矩运转，路口红灯的时长每天不同。',
+      '当年的钟表普遍偏慢，原因一栏空着。',
+    ],
+    ero: [
+      '有两份独立记录都说：那段时间记不住昨天的事。',
+      '同一段路，两个人写下的走法不一样，两份都收进了卷宗。',
+    ],
+    contract: [
+      '材料里提到，当时有人在打听谁家"供着不该供的东西"。',
+      '访谈里描述过一个人：白天照常上班，晚上从不点灯。',
+    ],
+    clue: [
+      '阅览登记本上的名字被涂掉了，只剩日期。',
+      '那一批失踪名册，前后有四个人查过。',
+      '卷宗里夹着一张纸条，上面只写了"名单不全"四个字。',
+    ],
+    stance: {
+      captain: ['档案里提到总部后期的简报只发到队长一级，口径统一得反常。', '当年的任务单留了一份，上面有一项"不得擅自介入"。'],
+      forum: ['那几个老论坛的截图被完整保存了下来，是最早的一手材料。', '研究者认为，当年论坛上的消息比通报更接近事实。'],
+      civilian: ['材料里说，当时街面上的人互相打听，谁手里真有东西。', '没有编制的那批人，留下的记录最少。'],
+      own: ['访谈里有人提过一个"想自己动手"的人，名字没有留下来。', '材料里出现了"自立"这个词，只出现了一次。'],
+    },
+  });
+
+  const EXTRAS = { modern: EXTRAS_MODERN, pre: EXTRAS_PRE, ash: EXTRAS_ASH, after: EXTRAS_AFTER };
+
+  // 最近遭遇过的那只东西：只写"世界在提这个名字"，不写谁做成了什么
+  const BY_GHOST = [
+    '这一带最近开始有人提"{ghost}"这个名字，提的时候声音都很小。',
+    '关于"{ghost}"的说法这两天多了起来，几个版本互相都对不上。',
+    '有人把"{ghost}"写在了墙上，第二天就被刷掉了。',
+  ];
+  const BY_GHOST_RUMOR = [
+    '有人说"{ghost}"那一趟里有人自己走了出来，传到现在已经有三个说法。',
+    '市面上对"{ghost}"那一晚的讲法有好几版，谁也没拿出凭据。',
+  ];
+
+  /* -------------------------------------------------------------- 生成 */
+  function dailyNews(ctx) {
+    ctx = ctx || {};
+    const turn = intOf(ctx.turn, 1, 1, 9999);
+    const eraKey = Object.prototype.hasOwnProperty.call(ERA, ctx.era) ? String(ctx.era) : 'y2018';
+    const era = ERA[eraKey];
+    const ex = EXTRAS[era.extras] || EXTRAS_MODERN;
+    const cityName = strOf(ctx.cityName, '本市');
+    const calamity = intOf(ctx.calamity, 20, 0, 100);
+    const domainLv = intOf(ctx.domainLv, 0, 0, 5);
+    const erosion = intOf(ctx.erosion, 0, 0, 100);
+    const contracts = intOf(ctx.contracts, 0, 0, 99);
+    const safehouse = intOf(ctx.safehouse, 0, 0, 5);
+    const purge = intOf(ctx.purgeRecent, 0, 0, 99);
+    const newClue = intOf(ctx.newClueRecent, 0, 0, 99);
+    const met = intOf(ctx.metRecent, 0, 0, 99);
+    const stance = strOf(ctx.stance, 'civilian');
+
+    const basePick = makePick(ctx);
+    // salt 里带 turn（同一天同稿、隔天换稿）与时期（同一 seed 下各期各说各话）
+    const P = function (arr, salt) { return basePick(arr, String(salt) + ':' + turn + ':' + eraKey); };
+
+    const vars = {
+      cityName: cityName,
+      eraName: strOf(ctx.eraName, ''),
+      turn: turn,
+      ghost: strOf(ctx.lastGhostName, ''),      // 最近遭遇的那只（缺了就当没有，相关句子不出现）
+    };
+    vars.k = P(COUNT, 'news.k');
+    vars.cn = P(NUM, 'news.cn');
+    // T = 取句并成句（bank 里可以是字符串，也可以是带城市名的 (vars)=>string）
+    const T = function (arr, salt) { return pickText(P, arr, salt, vars); };
+
+    const lines = [];
+    const used = {};
+    function take(line) {
+      let t = cut(line, 60);
+      // 自检：万一还漏着 {xxx}，换成不含占位符的兜底句（不 throw，游戏不能因为文案崩）
+      if (hasPlaceholder(t)) t = cut(P(FALLBACK_LINE, 'news.fallback'), 60);
+      if (!t || used[t]) return false;
+      used[t] = 1;
+      lines.push(t);
+      return true;
+    }
+
+    /* 第 1 行：抬头 + 地点 + 异象（乱起来时另开 salt，异象跟着状态换一批） */
+    {
+      const v = Object.assign({}, vars);
+      v.source = fill(T(era.source, 'news.source'), vars);
+      v.place = fill(T(era.place, 'news.place'), vars);
+      v.weather = fill(T(WEATHER, 'news.weather'), vars);
+      v.anomaly = fill(T(era.anom, 'news.anomaly.' + (calamity >= 55 ? 'hot' : calamity >= 30 ? 'warm' : 'calm')), vars);
+      take(fill(T(era.lead, 'news.lead'), v));
+    }
+
+    /* 第 2 行：机构口径 / 目击者原话 */
+    {
+      const v = Object.assign({}, vars);
+      v.official = fill(T(era.official, 'news.official'), vars);
+      v.witness = fill(T(era.witness, 'news.witness'), vars);
+      v.said = fill(T(era.said, 'news.said'), vars);
+      v.column = fill(T(era.column, 'news.column'), vars);
+      take(fill(T(SECOND, 'news.second'), v));
+    }
+
+    /* 第 3 行：世界侧写（按状态挑一条；鬼域深时优先写"规则覆盖"） */
+    const cands = [];
+    if (domainLv >= 4) cands.push(fill(T(ex.ruleAll, 'news.ruleAll'), vars));
+    else if (domainLv >= 2) cands.push(fill(T(ex.rule, 'news.rule'), vars));
+    const band = calamity >= 85 ? 'top' : calamity >= 60 ? 'high' : calamity >= 35 ? 'mid' : 'low';
+    cands.push(fill(T(ex.cal[band], 'news.calamity'), vars));
+    if (erosion >= 40) cands.push(fill(T(ex.ero, 'news.erosion'), vars));
+    if (contracts > 0) cands.push(fill(T(ex.contract, 'news.contract'), vars));
+    if (newClue > 0) cands.push(fill(T(ex.clue, 'news.clue'), vars));
+    if (purge > 0) cands.push(fill(T(ex.purge, 'news.purge'), vars));
+    if (met > 0) cands.push(fill(T(ex.met, 'news.met'), vars));
+    if (safehouse >= 2) cands.push(fill(T(ex.safe, 'news.safehouse'), vars));
+    // 最近遭遇过的东西：只在名字还在的时候出现（世界侧的说法，不写谁做成了什么）
+    if (vars.ghost) {
+      cands.push(fill(T(BY_GHOST, 'news.ghost'), vars));
+      if (ctx.lastEscape === true) cands.push(fill(T(BY_GHOST_RUMOR, 'news.ghostRumor'), vars));
+    }
+    const stanceBank = (ex.stance && ex.stance[stance]) ? ex.stance[stance] : (ex.stance ? ex.stance.civilian : []);
+    if (stanceBank.length) cands.push(fill(T(stanceBank, 'news.stance'), vars));
+    // 街头传闻永远可作备选
+    cands.push(fill(T(era.rumor, 'news.rumor') + T(era.rumorBody, 'news.rumorBody'), vars));
+
+    take((domainLv >= 4 && cands.length) ? cands[0] : P(cands, 'news.extra'));
+
+    /* 行数：太平日子只给一条短讯，事多的时候给满三条 */
+    const busy = (calamity >= 30) || (domainLv >= 2) || (contracts > 0) ||
+      (newClue > 0) || (purge > 0) || (met > 0) || (safehouse >= 3);
+    let out;
+    if (busy) out = lines.slice(0, 3);
+    else if (calamity < 15 && domainLv === 0) out = lines.slice(0, 1);
+    else out = lines.slice(0, 2);
+
+    if (!out.length) out = [FALLBACK_LINE[0]];   // 兜底：极端输入下也至少一行
+    for (let i = 0; i < out.length; i++) {
+      // 出口再自检一次：任何一行还带 {xxx} 就换兜底句（兜底句本身不含占位符）
+      out[i] = hasPlaceholder(out[i]) ? cut(P(FALLBACK_LINE, 'news.fallback.out.' + i), 60) : cut(out[i], 60);
+      if (hasPlaceholder(out[i])) out[i] = FALLBACK_LINE[0];
+    }
+    return out;
+  }
+
+  return {
+    dailyNews: dailyNews,
+    // 仅测试/调参用：原料组一览
+    _banks: {
+      placeModern: PLACE_MODERN, placePre: PLACE_PRE, placeMinguo: PLACE_MINGUO, placeAsh: PLACE_ASH,
+      weather: WEATHER, num: NUM, count: COUNT, fallbackLine: FALLBACK_LINE,
+      anomPre: ANOM_PRE, anomMinguo: ANOM_MINGUO, anomModern: ANOM_MODERN, anomAsh: ANOM_ASH, anomAfter: ANOM_AFTER,
+      rumorPre: RUMOR_PRE, rumorMinguo: RUMOR_MINGUO, rumorModern: RUMOR_MODERN, rumorAsh: RUMOR_ASH, rumorAfter: RUMOR_AFTER,
+      byGhost: BY_GHOST, byGhostRumor: BY_GHOST_RUMOR,
+      extras: EXTRAS, eras: ERA,
+    },
+    // 仅测试用：占位符自检（与生成时的检查同一套规则）
+    _hasPlaceholder: hasPlaceholder,
+    _fill: fill,
+  };
+});
+</script>
+<script>/* ============================================================================
+ * 神秘复苏模拟器 · 结局个人化尾声（程序化生成，纯离线可用）
+ * ----------------------------------------------------------------------------
+ * 契约（已冻结，由 engine.js 的 epilogueCtx(state, endingId) 产出，只吃纯数据）：
+ *   epilogueFor(ctx) → string[]   3~5 段，每段 40~130 字，段内不含换行符
+ *   ctx = { seed, ending, endingName, endingText, turn, chapter, difficulty,
+ *           difficultyName, stance, stanceName, cityName, eraName,
+ *           facedNames, escapedCount, contractNames, cluesCount,
+ *           cash, gold, wifeName, children, marks, godLayers,
+ *           endingsSeenCount, pick(arr, salt) }
+ *   任何字段缺失/为 0/为空数组都走安全兜底（不抛错、不吐 undefined/NaN）。
+ *
+ * 确定性来源：所有取句都走 ctx.pick(arr, salt)——同一 (seed, salt) 必得同一项；
+ *   ctx.pick 不可用时退回本地 FNV-1a(seed + salt) 取模，效果等价。
+ *   全程不使用随机数 / 系统时间 / 网络 / 文件：同一份 ctx 反复调用结果完全一致。
+ *   尾声一局只生成一次，salt 里不带 turn（同一局无论何时调都同一段）。
+ *   另见下面 mix32()：引擎的 hash 低位对"同长度的纯数字种子"不敏感（123456 与 999
+ *   会在所有 bank 上撞到同一个下标），所以 salt 末尾再拼一个由 seed 混淆出的数。
+ *
+ * 占位符纪律（与 news.js 同一套）：所有文本一律经 fill(tpl, vars) 生成，
+ *   两遍替换后仍未替换的 {xxx} 一律就地抹掉，出口再过一次自检；绝不原样输出。
+ *
+ * 视角约束：这一局已经结束，因此允许总结已发生的事实（活到第几天、留下什么）；
+ *   但只写 ctx 里真的有的东西——没写契约就不提契约，没结婚就不提伴侣，
+ *   空数据另有专属句子（"几乎什么都没碰上""一条线索也没攒下"）。
+ *   死亡类结局（dead / p_fuxi）不得出现"你活着""活下来""活到了最后"这类措辞。
+ * ==========================================================================*/
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSEpilogue = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  /* ---------------------------------------------------------------- 工具 */
+  const u32 = (x) => x >>> 0;
+  function hashStr(s) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    return u32(h);
+  }
+  /** murmur3 finalizer：把弱hash搅匀，避免"同长度数字种子取到同一下标" */
+  function mix32(x) {
+    x = u32(x);
+    x ^= x >>> 16; x = Math.imul(x, 0x7feb352d);
+    x ^= x >>> 15; x = Math.imul(x, 0x846ca68b);
+    x ^= x >>> 16;
+    return u32(x);
+  }
+  function numOr(v, d) { const n = Number(v); return isFinite(n) ? n : d; }
+  function intOf(v, d, lo, hi) {
+    let n = Math.round(numOr(v, d));
+    if (n < lo) n = lo;
+    if (n > hi) n = hi;
+    return n;
+  }
+  function strOf(v, d) { return (typeof v === 'string' && v.trim()) ? v.trim() : d; }
+  /** 洗名字：去掉 null/空串/重复，返回干净的名字数组（数量与文本都用它） */
+  function cleanNames(v, cap) {
+    const list = [];
+    if (v && v.length) {
+      for (let i = 0; i < v.length; i++) {
+        const g = v[i];
+        if (typeof g !== 'string') continue;
+        const t = g.trim();
+        if (!t || list.indexOf(t) >= 0) continue;
+        list.push(t);
+        if (list.length >= (cap || 6)) break;
+      }
+    }
+    return list;
+  }
+
+  /** 唯一入口：模板 + 变量 → 成句（两遍替换 + 残留花括号清理，绝不输出 {xxx}） */
+  function fill(tpl, vars) {
+    if (tpl === null || tpl === undefined) return '';
+    let out = String(tpl);
+    for (let pass = 0; pass < 2; pass++) {
+      if (out.indexOf('{') < 0) break;
+      out = out.replace(/\{(\w+)\}/g, function (all, key) {
+        const v = vars ? vars[key] : null;
+        return (v === null || v === undefined || v === '') ? '' : String(v);
+      });
+    }
+    return stripPlaceholders(out);
+  }
+  /** 兜底清理：残留的 {xxx} 一律抹掉（出口还有一次自检） */
+  function stripPlaceholders(s) {
+    return String(s).replace(/[{][^{}]{0,32}[}]/g, '').replace(/[（(]\s*[）)]/g, '')
+      .replace(/([市镇村区])\1+/g, '$1').replace(/\s{2,}/g, ' ');
+  }
+  const PLACEHOLDER_RE = /[{][a-zA-Z_\u4e00-\u9fa5]+[}]/;
+  function hasPlaceholder(s) { return PLACEHOLDER_RE.test(String(s === null || s === undefined ? '' : s)); }
+
+  function hardCut(s, max) {
+    const head = String(s).slice(0, max);
+    const m = head.match(/^[\s\S]*[。！？]/);
+    if (m && m[0].length >= 12) return m[0];
+    const m2 = head.match(/^[\s\S]*[，；：]/);
+    if (m2 && m2[0].length >= 12) return m2[0].replace(/[，；：]$/, '') + '。';
+    return head.replace(/[，；：]$/, '') + '。';
+  }
+
+  /** 取句器：优先用引擎给的 pick，拿不到有效值就退回本地确定性取模 */
+  function makePick(ctx) {
+    const enginePick = (ctx && typeof ctx.pick === 'function') ? ctx.pick : null;
+    const seed = String((ctx && ctx.seed !== null && ctx.seed !== undefined) ? ctx.seed : '0');
+    return function (arr, salt) {
+      if (!arr || !arr.length) return '';
+      const key = String(salt) + '#' + mix32(hashStr(seed + '#' + salt));
+      if (enginePick) {
+        try {
+          const r = enginePick(arr, key);
+          // 注意：bank 里可以放 (vars)=>string（带城市名的收尾），不能 String() 掉
+          if (typeof r === 'string' || typeof r === 'function') return r;
+        } catch (e) { /* 引擎的 pick 出问题就退回本地实现 */ }
+      }
+      return arr[hashStr(seed + ':' + key) % arr.length];
+    };
+  }
+
+  /* ------------------------------------------------------------ 素材库 */
+  const STANCE_FLAVOR = {
+    captain: '你是有编制的人：有渠道、有报酬，也有上级，做事情第一件是想流程，第二件才是想自己。',
+    forum: '你靠情报活着。论坛上真真假假掺在一起，你比周围人早知道要出什么事，也因此更容易被找上门。',
+    civilian: '你没有编制、没有后援、没人替你收尸。好处是没人能命令你，坏处是什么都得自己扛。',
+    own: '你没打算等谁来收场。你要自己把这件事结束掉，代价是两头都把你当成一个变量。',
+  };
+  const STANCE_FALLBACK = '你是这座城里讨生活的那一类人：知道一点点，怕一点点，还是得往前走。';
+
+  const DIFF_LINE = {
+    easy: '难度是{difficultyName}：世界走得慢一点，容错也多一点，好让人把话听完。',
+    standard: '难度是{difficultyName}：世界按自己的速度往前走，从来没有等过谁。',
+    hardcore: '难度是{difficultyName}：遭遇更密、判定更严，缺的那点运气没有人补给你。',
+    nightmare: '难度是{difficultyName}。这一局从一开始就没打算让人舒服。',
+  };
+  const DIFF_FALLBACK = '难度是{difficultyName}。';
+
+  // 事实层（第 ①②③ 段）一律中性：不写"活着/死了"这类基调，基调只由第 ④⑤ 段的 ending 决定。
+  // 每个分句都挂条件——没遭遇就不谈"它长什么样"，escapedCount=0 才用"没走上生路"的说法，
+  // 没遭遇又没走生路时用"生路这一局没派上用场"这类空语境句，绝不拼出互相矛盾的组合。
+  const FACED_NONE = [
+    '你几乎什么都没碰到——这一局对你来说更像是一段空白。',
+    '你几乎没撞见什么。在这座城里，这算运气，也算是不幸——能拿出来讲的只有别的事。',
+    '这一局你几乎没有和那些东西打过正经的照面，能记下来的都是旁的事。',
+  ];
+  // 脏数据兜底：没记下名字，但确实从里面出来过几次
+  const FACED_UNNAMED = [
+    '你碰见过的东西没留下名字，但你有几次确实是从里面走出来的。',
+    '档案里没记下那些东西叫什么，只记着你从里面走出来过。',
+  ];
+  const ESCAPE_NONE = [
+    '没有一次是靠生路走出去的，全是绕、是躲、是赌，赌对了才算过去。',
+    '你一次也没找到过生路，每一次都是硬着头皮从别的口子钻出来。',
+  ];
+  const ESCAPE_SOME = [
+    '其中有 {n} 次，你是找到它的生路、从那条路走出来的——那种路一次只让一个人过。',
+    '算下来有 {n} 次，你踩在生路上从里面走了出来，事后想想手心还会出汗。',
+  ];
+  // 没遭遇过任何东西时的空语境句（不谈生路成败，只说明这一局没走那条线）
+  const ESCAPE_VOID = [
+    '生路这件事这一局没有派上用场：你连它长什么样都没见着。',
+    '你没有走近过任何一条生路——这一局你几乎没往那个方向去。',
+    '这一局你没走到需要用它的那一步，关于生路你没什么可说的。',
+  ];
+  const CLUE_NONE = [
+    '线索一条也没攒下：你对它的规矩几乎一无所知，全靠临场反应。',
+    '你手里没留下任何线索，全靠临场应变，这种东西不能指望第二次。',
+  ];
+  const CLUE_SOME = [
+    '你攒下 {n} 条线索，够把几件本来不相干的事连成一条线。',
+    '你把 {n} 条线索拼在一起，才勉强看出那张网的一角。',
+  ];
+  const CLUE_VOID = [
+    '你手里一条线索也没有——这一局几乎没有需要答案的地方。',
+    '关于那类东西的规矩，你什么也说不出来：这一局你没往那上面想过。',
+  ];
+
+  const MONEY = {
+    both: ['你留下了 {cash} 块钱，和 {gold} 块黄金。', '口袋里是 {cash} 块现金，柜子最里层压着 {gold} 块黄金。'],
+    cash: ['你留下了 {cash} 块钱，一块黄金也没有——那东西在这座城里比命都紧。', '你留下 {cash} 块钱。黄金始终没攒起来，攒起来的人多半也没留住。'],
+    gold: ['钱没剩下多少，只有 {gold} 块黄金，一直压在最里层的口袋。', '现金早就花完了，剩下 {gold} 块黄金，是你唯一还舍得带的东西。'],
+    none: ['你什么都没留下：钱花光了，黄金没有，柜子空得能听见回声。', '账面上是空的。这一局你没攒下钱，也没攒下黄金。'],
+  };
+  const FAMILY = {
+    both: ['你身边还剩{kin}，和 {n} 个孩子。', '{kin}还在，孩子有 {n} 个，饭桌上总算坐得满一些。'],
+    wife: ['你身边还剩{kin}——没有孩子，你们谁也没敢要。', '{kin}还跟着你，孩子一个也没有，这是你们商量过的结果。'],
+    kids: ['你没有成家，却有 {n} 个孩子，这件事你从来没跟人细说过。'],
+    none: ['你没成家，也没留下等门的人，钥匙只有一把，一直带在身上。', '屋里始终只有你一个人，钥匙只有一把，锁换了两次。'],
+  };
+  const BODY = {
+    both: ['你身上有 {marks} 道印记，鬼域也推到了第 {layers} 层——那不是本事，是它在你身上占的地方越来越大。'],
+    marks: ['你身上留着 {marks} 道印记，你自己都数不全是什么时候留下的。'],
+    god: ['你的鬼域推到了第 {layers} 层。别人看它是本事，你看它是它占的地方。'],
+    none: ['你身上干干净净，没有印记，也没有属于自己的鬼域——干净得像一个还没上桌的人。'],
+  };
+
+  // 收尾里要带城市名的几条：调用时直接拼好（不放模板占位符，杜绝"替换失败就漏 {xxx}"这一整类问题）
+  const cityTemplate = (head, tail) => function (v) { return head + v.cityName + tail; };
+
+  // 12 个结局各 3~4 段收尾；没列出的 id 用 FALLBACK 兜底
+  const CLOSERS = {
+    dead: [
+      '你死在第 {turn} 天，墓碑上没有刻名字。这座城第二天照常开盘、照常报站，没有人多问一句为什么。',
+      cityTemplate('你在', '停下来了，没有告别，也没有人来认领。世界没有因为少一个人而慢下哪怕半天。'),
+      '你的名字没能留在任何一份名单上：档案里只有一行编号，和一句"已处理"，后面没有附注。',
+      '最后一口气是在巷子里松掉的。天亮以后那条巷子被人洒了一遍水，冲得干干净净，连脚印都没剩。',
+    ],
+    p_fuxi: [
+      cityTemplate('走到最后，你身上属于人的那部分先没了。你成了', '新的传说，夜里有人拿你吓小孩。'),
+      '你没有死，你变成了别的东西。再过几年，会有人在论坛上给你起一个名字，然后有人不信。',
+      '你最后那一点人味散干净的时候，没有人在场。从那天起这城里多了一条规矩，只是没人知道规矩是你。',
+      '你的脸还留在照片上，照片里的人已经不在了。那一片的灯从此由你决定亮不亮，不是你想管，是你已经在那儿了。',
+    ],
+    p_mad: [
+      '你活着，理智却早在路上丢干净了。现在只有你还记得事情原本的样子，你说给别人听，别人当你在发疯。',
+      '最后你弄明白了全部真相，代价是没有人再愿意听你说话。你成了这座城里最清醒的那一个。',
+      '你被安置在一个安静的地方，每天说的话都一样，一个字都不差。听懂的人只有一个，是你自己。',
+      '你在墙上写满了同一个日期。来看你的人换了几批，他们说的话你一句都没接，因为你听见的是另一件事。',
+    ],
+    p_family: [
+      '你把那身东西脱在门外，回去当了普通人。{kin}再没问过你夜里去哪，也没有人再上门找你。',
+      '你活到了能在饭桌上说"今天没什么事"的那一天。这是所有收场里最不显眼的一种，也是最难的一种。',
+      '你换了城市、换了名字，把过去折起来收进柜子最里层。偶尔夜里听见敲门声，你不会去开。',
+      '孩子长大以后问你，那几年在做什么。你说在上班。这句话不算谎，只是省掉了大部分内容。',
+    ],
+    p_debtor: [
+      '你欠的东西最后自己找上门来了。债不是钱，是因果——利滚利，谁签的字谁还，一分都不会少。',
+      cityTemplate('你算了一辈子账，最后一笔是别人替你算的。你在', '的最后一晚，把该还的都还清了。'),
+      '你没跑掉，也没打算跑。这件事从头到尾都很公道：你拿走过什么，最后就被什么拿走。',
+      '账本上你的名字后面画了一个圈。懂行的人看到那个圈就知道这笔账结了，不会再问起你。',
+    ],
+    p_survivor: [
+      '你活下来了，而且身上没剩下多少不属于自己的东西。这比外面想的要难，也比外面想的要安静。',
+      '故事的最后，你回到了普通日子里：按时上班，按时回家，把那几年折起来放在柜子里，不提。',
+      '没有人给你记功，也没有人来追债。你活过了一场没人能赢的事，然后学会了不说——不说，是活下来的条件之一。',
+      '你后来偶尔会在新闻上看见熟悉的地名，看一眼就翻过去。你知道那底下埋着什么，也知道不必再提。',
+    ],
+    w_ruyu: [
+      cityTemplate('你推动的那件事最后成了：', '的火烧穿了最后一层纸。灵异时代不再需要解释，它就在街上走。'),
+      '你亲手证明了这个世界的壳是可以敲碎的。剩下的人退进零散的据点，地图上的空白越来越多。',
+      '最后一批撤离的人回头看了一眼，城市的轮廓还在，只是它已经不再属于活着的人，也不再属于你。',
+      '从你那一晚开始，夜里不再有巡逻的人。留下的人学会了不开灯、不出声、不回头看。',
+    ],
+    w_golden: [
+      '你参与建起的那套体系最后真的转起来了：灵异的时代被写进条例，从此有编号、有档案、有价格。',
+      '你换来的是一整套规矩和一把坐一辈子的椅子。后世把这一段叫监管时代，没有人提过你付了什么。',
+      '黄金收进库房，厉鬼登记造册。你成了终身监察长，签字签到最后一页，手抖也没有停下来。',
+      '所有危险的东西最后都被编上了号，放进了该放的地方。你留下来看着它们，看了一辈子。',
+    ],
+    w_gate: [
+      '你找到了那扇门，也亲手把它合上了。从那天起你站在门这一边，门那边的动静还在，一直没有停。',
+      '闸门闭合的那一声很轻，只有你听见。你把钥匙和名字一起留在了门后，走出来的时候天刚亮。',
+      '后来没有人再走那条路，因为路口站着一个人。他记得每一个过路的人，而没有人记得他。',
+      '门关上了，路还在。你成了那条路的尽头，也成了它唯一的看守。',
+    ],
+    w_rules: [
+      '你把该拼的拼完了。灵异时代在你手上结束，代价是你不再被当成一个人来记——他们叫你另一个名字。',
+      '规则被人重新写过一遍，落笔的是你。史书上留下的那个名字，跟你自己已经没有多大关系了。',
+      '你成了收尾的那一个。后人读到这一页只会记住一个名字，不会知道这个名字原先属于谁。',
+      '世界按你写下的那几条重新运转起来，运转得很稳，稳得没有人再需要问为什么。',
+    ],
+    w_37: [
+      '你翻开的是最后一张底牌：这个时代本身，就是第 37 只源头鬼的杀人规律。答案给了，题还留着。',
+      '你把结论留在纸上就收手了。共存还是对抗，这个问题被交到别人手上，没有人敢先回答。',
+      '第 37 号没有名字，也没有形状。你只是确认了它确实存在，然后让时间继续往下走，谁也没有回头。',
+      '你没有改变任何事，只是把问题的边界画出来了。剩下的人会在这个边界里面争论很久。',
+    ],
+    w_witness: [
+      '你一次都没有插手。你把事件压住、把线索交上去、把该活的人从现场拖出来，然后退回到人群里。',
+      '新时代开始的时候，档案里没有你的名字，只有一行注记：全程未干预，工作合格。后面没有评语。',
+      '他站在所有规矩的尽头回头看了你一眼，点了点头。你什么也没说，因为你本来就是来看着的。',
+      '该交的东西都交上去了，该活的人也都还在。你把自己从这段历史里删掉，删得很干净。',
+    ],
+  };
+  const FALLBACK_CLOSER = [
+    cityTemplate('这一局在你手里收住了。', '的档案上写下最后一行，落款是你的名字，字迹还算稳。'),
+    '故事到这里停住。世界继续运转，你的事被归进一个不太重要的卷宗，编号排在很后面。',
+    '不管叫什么名字，收场就是收场：事情办完了，人留下了，剩下的交给时间，时间不会还价。',
+  ];
+
+  // 结局分类 → 收尾补句（写在专属段之后，让第 ④ 段站得住，也让留白不至于只剩一句）
+  const ENDING_CATEGORY = {
+    dead: 'bad', p_fuxi: 'bad', p_mad: 'bad', p_debtor: 'bad',
+    w_ruyu: 'ruin',
+    p_family: 'good', p_survivor: 'good', w_golden: 'good', w_gate: 'good', w_rules: 'good',
+    w_37: 'amb', w_witness: 'witness',
+  };
+  const AFTERGLOW = {
+    bad: [
+      '城里的日子照旧，只是少了一个熟悉的身影，谁也说不出少了谁。',
+      '没有人特意提起这件事，也没有人特意把它忘掉。',
+      '档案上这一页很短，短得像一句结语，读完就翻过去了。',
+      '后来再有类似的事，提起你的人也只是含糊地提一句。',
+    ],
+    // 世界沦陷类：不能再写"日子照旧"，否则跟"城市烧穿"自相矛盾
+    ruin: [
+      '那之后的城市再没有日常可讲，剩下的只有据点和路线。',
+      '再往后，能把这段讲清楚的人越来越少，肯讲的更少。',
+      '地图上的空白一块连着一块，这一段被记在旧地图的边角上。',
+      '后来的秩序建立在废墟上，规矩比人先立起来。',
+    ],
+    good: [
+      '你后来很少说起这一段，说也说不完整，干脆就不说。',
+      '剩下的年头过得很平，平得让你有点不习惯。',
+      '你把该做的做完了，然后学会了不回头看。',
+      '有些夜里你还是会醒，醒来之后先听一下门外的动静。',
+    ],
+    amb: [
+      '这件事最后没有一个明确的评价，写下来的人也没有给。',
+      '答案留在了纸面上，至于对不对，要等更久才有人知道。',
+      '书页翻过去以后，问题还留在原来的位置上。',
+    ],
+    witness: [
+      '后来有人翻到这条注记，也没有多写一个字。',
+      '你把位置让了出来，新的秩序自己站住了脚，没有人回头找你。',
+      '新规矩立起来以后，会做事的人依旧在做事，只是不再留名。',
+    ],
+    generic: [
+      '这一段写完了，后面的事照旧发生，没有人专门为它停一下。',
+      '档案收进柜子，编号排在同类文件的后面。',
+    ],
+  };
+
+  const SEE_NONE = [
+    '这是这一局第一次出现这样的收场，编号和日期都写得很清楚。',
+    '档案里这一类收场目前只有你这一份，前后没有可对照的。',
+    '这一页是新开的，前面没有同类可参考，落款只有一个人名。',
+  ];
+  const SEE_ONE = [
+    '档案里记录过的收场一共 {n} 种，这一份是其中之一。',
+    '你已经攒下 {n} 种收场，每一种都写得一样冷静，好像是别人过完的日子。',
+    '同类记录一共 {n} 份，写法都差不多，看完不会多知道什么。',
+  ];
+  const SEE_MANY = [
+    '档案里已经攒下 {n} 种收场，你越来越熟悉这种写法：事情说完，纸就合上。',
+    '这是你见过的第 {n} 种收场了。每一种最后都只剩下一行字，谁也带不走别的。',
+    '收场一共攒到了 {n} 种，翻回去看，每一份都短得不像一回事。',
+  ];
+  const CODA = [
+    '这件事过去以后，城里照样有人早起买菜，照样有人在楼下闲聊几句。',
+    '档案合上的时候，外面的雨还没停，走廊里的灯亮了一整夜。',
+    '后来的人读到这一页，多半只会翻得快一点，然后去看下一页。',
+    '写这份记录的人没有加任何评语，只在页脚标了一个日期。',
+    '文件后面没有附照片，只有一张手绘的位置示意图。',
+    '卷宗边上有人用铅笔写了一句："当事人已不在。"没有再改过。',
+  ];
+  const FILLER = [
+    '剩下的日子平淡得像一张复印纸，谁也不会去翻。',
+    '后面的事没有人再记录，也没有人再问起。',
+    '这些细节在当时都不重要，现在更不重要。',
+  ];
+
+  /* -------------------------------------------------------------- 生成 */
+  function epilogueFor(ctx) {
+    ctx = ctx || {};
+    const seedPick = makePick(ctx);
+    const P = function (arr, salt) { return seedPick(arr, salt); };
+
+    const turn = intOf(ctx.turn, 1, 1, 9999);
+    const ending = strOf(ctx.ending, 'dead');
+    const endingName = strOf(ctx.endingName, '');
+    const cityName = strOf(ctx.cityName, '这座城');
+    const eraName = strOf(ctx.eraName, '');
+    const stance = strOf(ctx.stance, 'civilian');
+    const stanceName = strOf(ctx.stanceName, '民间驭鬼者');
+    const difficulty = strOf(ctx.difficulty, 'standard');
+    const difficultyName = strOf(ctx.difficultyName, '标准');
+    const facedNames = (ctx.facedNames && ctx.facedNames.length) ? ctx.facedNames : [];
+    const contractNames = (ctx.contractNames && ctx.contractNames.length) ? ctx.contractNames : [];
+    const escapedCount = intOf(ctx.escapedCount, 0, 0, 9999);
+    const cluesCount = intOf(ctx.cluesCount, 0, 0, 9999);
+    const cash = intOf(ctx.cash, 0, 0, 99999999);
+    const gold = intOf(ctx.gold, 0, 0, 99999999);
+    const children = intOf(ctx.children, 0, 0, 99);
+    const marks = intOf(ctx.marks, 0, 0, 999);
+    const godLayers = intOf(ctx.godLayers, 0, 0, 99);
+    const seenCount = intOf(ctx.endingsSeenCount, 0, 0, 9999);
+    const wifeName = strOf(ctx.wifeName, '');
+    const kin = wifeName || '家里人';
+
+    const vars = {
+      turn: turn, cityName: cityName, eraName: eraName, difficultyName: difficultyName,
+      // 注意：n 供 FAMILY 用（孩子数）；生路/线索句在拼装前已用显式 n 填过，不会被覆盖
+      kin: kin, n: children, cash: cash, gold: gold, layers: godLayers, marks: marks,
+    };
+
+    /** 段落装配：按句拼、超长逐句裁（保底留一句）、过短用中性句补足 */
+    function assemble(sents, min, max) {
+      const list = [];
+      for (let i = 0; i < sents.length; i++) {
+        // 句子可以是字符串，也可以是 (vars)=>string（带城市名的那几条直接拼好，不走占位符）
+        const raw = (typeof sents[i] === 'function') ? sents[i](vars) : sents[i];
+        const s = fill(raw, vars).replace(/[\r\n\t]+/g, ' ').trim();
+        if (s) list.push(s);
+      }
+      let out = list.join('');
+      if (out.length > max) {
+        let len = 0;
+        const kept = [];
+        for (let i = 0; i < list.length; i++) {
+          if (len + list[i].length > max && kept.length) break;
+          if (len + list[i].length > max) { kept.push(hardCut(list[i], max)); break; }
+          kept.push(list[i]); len += list[i].length;
+        }
+        out = kept.join('');
+      }
+      let guard = 0;
+      while (out.length < min && guard < 3) {
+        out += P(FILLER, 'ep.filler.' + guard);
+        guard++;
+      }
+      if (out.length > max) out = hardCut(out, max);
+      return out;
+    }
+
+    /* ① 这一局你站在哪：立场 / 城市 / 时期 / 难度 */
+    const p1 = assemble([
+      '这一局你是' + stanceName + '，落点在' + cityName + (eraName ? '，时候是' + eraName : '') + '。',
+      STANCE_FLAVOR[stance] || STANCE_FALLBACK,
+      fill(DIFF_LINE[difficulty] || DIFF_FALLBACK, vars),
+    ], 40, 130);
+
+    /* ② 路上怎么过来的：只写本局确实发生过的事，逐句挂条件（基调留给第 ④⑤ 段） */
+    const p2sents = [];
+    const facedList = cleanNames(facedNames, 6);
+    const facedAll = cleanNames(facedNames, 999);
+    const hasFaced = facedList.length > 0;
+    const hasEsc = escapedCount > 0;
+    const hasClue = cluesCount > 0;
+
+    if (hasFaced) {
+      const fname = (facedList.length < facedAll.length) ? facedList.join('、') + '等' : facedList.join('、');
+      p2sents.push('你碰见过' + fname + '，一共 ' + facedAll.length + ' 个名字，现在都还记得。');
+    } else if (hasEsc) {
+      p2sents.push(P(FACED_UNNAMED, 'ep.facedUnnamed'));   // 脏数据：有生路记录却没有名字
+    } else {
+      p2sents.push(P(FACED_NONE, 'ep.facedNone'));
+    }
+
+    if (hasEsc) {
+      p2sents.push(fill(P(ESCAPE_SOME, 'ep.escape.some'), { n: escapedCount }));
+    } else if (hasFaced) {
+      p2sents.push(P(ESCAPE_NONE, 'ep.escape.none'));
+    } else {
+      p2sents.push(P(ESCAPE_VOID, 'ep.escape.void'));      // 没遭遇 → 不谈生路成败
+    }
+
+    if (hasClue) {
+      p2sents.push(fill(P(CLUE_SOME, 'ep.clue.some'), { n: cluesCount }));
+    } else if (hasFaced) {
+      p2sents.push(P(CLUE_NONE, 'ep.clue.none'));
+    } else {
+      p2sents.push(P(CLUE_VOID, 'ep.clue.void'));
+    }
+
+    const contractList = cleanNames(contractNames, 5);
+    if (contractList.length) {
+      p2sents.push('你身上还带着' + contractList.join('、') + '——那不是同伴，是记在账上的东西。');
+    }
+    const p2 = assemble(p2sents, 40, 130);
+
+    /* ③ 你留下了什么：钱 / 黄金 / 家人 / 印记 / 鬼域 */
+    const moneyKey = (cash > 0 && gold > 0) ? 'both' : cash > 0 ? 'cash' : gold > 0 ? 'gold' : 'none';
+    const p3sents = [P(MONEY[moneyKey], 'ep.money.' + moneyKey)];
+    const famKey = (wifeName && children > 0) ? 'both' : wifeName ? 'wife' : children > 0 ? 'kids' : 'none';
+    p3sents.push(P(FAMILY[famKey], 'ep.family.' + famKey));
+    const bodyKey = (marks > 0 && godLayers > 0) ? 'both' : marks > 0 ? 'marks' : godLayers > 0 ? 'god' : 'none';
+    p3sents.push(P(BODY[bodyKey], 'ep.body.' + bodyKey));
+    const p3 = assemble(p3sents, 40, 130);
+
+    /* ④ 这个世界的收尾：按结局 id 走专属段，未列出的走通用兜底 */
+    const closers = CLOSERS[ending] || FALLBACK_CLOSER;
+    const glow = AFTERGLOW[ENDING_CATEGORY[ending] || 'generic'] || AFTERGLOW.generic;
+    const p4 = assemble([P(closers, 'ep.closer.' + ending), P(glow, 'ep.glow.' + ending)], 40, 130);
+
+    /* ⑤ 档案侧写（世界结局，或档案里已有别的收场时才出现） */
+    const isWorld = ending.indexOf('w_') === 0;
+    const out = [p1, p2, p3, p4];
+    if (isWorld || seenCount >= 1) {
+      const codaSents = [];
+      if (endingName) codaSents.push('档案给这一局的收场起了个名字：' + endingName + '。');
+      if (seenCount >= 2) codaSents.push(fill(P(SEE_MANY, 'ep.see.many.' + ending), { n: seenCount }));
+      else if (seenCount === 1) codaSents.push(fill(P(SEE_ONE, 'ep.see.one.' + ending), { n: seenCount }));
+      else codaSents.push(P(SEE_NONE, 'ep.see.none.' + ending));
+      codaSents.push(P(CODA, 'ep.coda.' + ending));
+      out.push(assemble(codaSents, 40, 130));
+    }
+
+    for (let i = 0; i < out.length; i++) {
+      let p = String(out[i]).replace(/[\r\n]+/g, ' ').trim();
+      if (hasPlaceholder(p)) p = stripPlaceholders(p);   // 出口自检：绝不把 {xxx} 交给玩家
+      out[i] = p;
+    }
+    return out;
+  }
+
+  return {
+    epilogueFor: epilogueFor,
+    _hasPlaceholder: hasPlaceholder,
+    _fill: fill,
+    // 仅测试/调参用：原料组一览
+    _banks: {
+      stanceFlavor: STANCE_FLAVOR, diffLine: DIFF_LINE, facedNone: FACED_NONE, facedUnnamed: FACED_UNNAMED,
+      escapeNone: ESCAPE_NONE, escapeSome: ESCAPE_SOME, escapeVoid: ESCAPE_VOID,
+      clueNone: CLUE_NONE, clueSome: CLUE_SOME, clueVoid: CLUE_VOID,
+      money: MONEY, family: FAMILY, body: BODY, closers: CLOSERS, fallbackCloser: FALLBACK_CLOSER,
+      afterglow: AFTERGLOW, endingCategory: ENDING_CATEGORY,
+      seeNone: SEE_NONE, seeOne: SEE_ONE, seeMany: SEE_MANY, coda: CODA, filler: FILLER,
+    },
   };
 });
 </script>
@@ -10215,6 +11580,78 @@ body.story-mode .logwrap{max-height:22vh !important}
     return ((state && state.journal) || []).filter((x) => x.t === int(t))[0] || null;
   }
 
+  /* ------------------- 第 32 轮：叙事生成器的输入契约（新闻 / 尾声） -------------------
+   * 模块（game/src/news.js、epilogue.js）只吃这里产出的纯数据对象、不碰 state：
+   * 这样它们在 Node 里能直接单测，也保证"离线也能生成"（AI 只是可选的润色层）。
+   */
+  /** 确定性抽取：同一 (seed, salt) 必得同一项（供生成模块内部组合用） */
+  function pickFrom(arr, seed, salt) {
+    if (!arr || !arr.length) return null;
+    return arr[hashStr(String(seed) + ':' + salt) % arr.length];
+  }
+  /** 「今日灵异新闻」的输入（世界视角，不含玩家成败） */
+  function newsCtx(state) {
+    const city = cityOf(state), era = eraOf(state), st = stanceOf(state);
+    const done = (state.events && state.events.done) || [];
+    const turn = state.turn;
+    const lastGhost = state.lastGhost && CONTENT.ghosts[state.lastGhost] ? CONTENT.ghosts[state.lastGhost].name : null;
+    const seed = state.seedInt || hashStr(state.seed);
+    return {
+      turn: turn,
+      chapter: state.chapter,
+      era: state.era, eraName: era.short || era.name,
+      city: state.city, cityName: city.name,
+      stance: state.stance, stanceName: st ? st.name : '民间驭鬼者',
+      calamity: state.stats.calamity, domainLv: domainLv(state),
+      erosion: state.stats.erosion, clues: (state.clues || []).length,
+      contracts: (state.contracts || []).length,
+      safehouse: (state.flags && state.flags.safehouse) || 0,
+      lastGhostName: lastGhost,
+      lastEscape: (lastGhost && done.indexOf('escape:' + state.lastGhost) >= 0) ? true : null,
+      purgeRecent: Math.max(0, state.chapterPurge || 0),
+      newClueRecent: Math.max(0, state.clueGainsToday || 0),
+      metRecent: (state.lastDriverTurn && turn - state.lastDriverTurn <= 7) ? 1 : 0,
+      seed: seed,
+      pick: function (arr, salt) { return pickFrom(arr, seed, salt); },
+    };
+  }
+  /** 「结局个人化尾声」的输入（一局已经结束，可以总结事实） */
+  function epilogueCtx(state, endingId) {
+    const city = cityOf(state), era = eraOf(state), st = stanceOf(state);
+    const def = CONTENT.endings[endingId] || CONTENT.endings.dead || {};
+    const tu = tuningOf(state);
+    const done = (state.events && state.events.done) || [];
+    const faced = [];
+    let escaped = 0;
+    for (const d of done) {
+      if (typeof d !== 'string') continue;
+      if (d.indexOf('enc:') === 0) {
+        const g = CONTENT.ghosts[d.slice(4)];
+        if (g && faced.indexOf(g.name) < 0) faced.push(g.name);
+      } else if (d.indexOf('escape:') === 0) escaped++;
+    }
+    const contracts = (state.contracts || []).map((gid) => (CONTENT.ghosts[gid] ? CONTENT.ghosts[gid].name : gid));
+    const seed = state.seedInt || hashStr(state.seed);
+    return {
+      seed: seed,
+      ending: endingId, endingName: def.name || endingId, endingText: def.text || '',
+      turn: state.turn, chapter: state.chapter,
+      difficulty: state.difficulty, difficultyName: tu.name || state.difficulty,
+      stance: state.stance, stanceName: st ? st.name : '民间驭鬼者',
+      cityName: city.name, eraName: era.short || era.name,
+      facedNames: faced.slice(0, 6),
+      escapedCount: escaped,
+      contractNames: contracts,
+      cluesCount: (state.clues || []).length,
+      cash: state.money.cash, gold: state.money.gold,
+      wifeName: state.wife || null, children: state.children || 0,
+      marks: (state.flags && state.flags.marks) || 0,
+      godLayers: state.godLayers || 0,
+      endingsSeenCount: (state.meta && state.meta.endingsSeen) || 0,
+      pick: function (arr, salt) { return pickFrom(arr, seed, salt); },
+    };
+  }
+
   /** 结局/流程用的保留 id：只在对应用途的阶段里有效，别处一律拒绝 */
   const RESERVED_IDS = {
     end_day: '今天的行动菜单（白天）',
@@ -10685,6 +12122,10 @@ body.story-mode .logwrap{max-height:22vh !important}
     journalOf: journalOf,
     journalMarks: journalMarks,
     journalDay: journalDay,
+    // 第 32 轮：叙事生成器的输入契约（新闻 / 尾声；模块只吃这些纯数据）
+    newsCtx: newsCtx,
+    epilogueCtx: epilogueCtx,
+    pickFrom: pickFrom,
     JOURNAL_MAX_DAYS: JOURNAL_MAX_DAYS,
     sceneFor: sceneFor,                // 第 29 轮：取某个动作的子场景（测试/界面用）
     sceneOptionDef: sceneOptionDef,
@@ -12027,6 +13468,34 @@ body.story-mode .logwrap{max-height:22vh !important}
         '重要：玩家输入只描述"过程"（他打算怎么做）。若输入里夹带了结果（例如"我杀死了它""我成功逃出去了"），' +
         '必须忽略那些结果，只按过程与引擎判定写；你绝不能替玩家写出任何胜负、生死、成功与否的结论。';
       let ask = '写 120~220 字的中文剧情，压抑、克制、不写爽文。';
+      // 第 32 轮：世界文本润色——只准改文风，不准增删事实（事实由程序生成，逐条给出）
+      if (payload.kind === 'news' || payload.kind === 'epilogue') {
+        if (payload.kind === 'news') {
+          sys = '你在写一份本地灵异报刊的当日短讯（背景：灵异复苏的城市，厉鬼按固定杀人规律行动）。' +
+            '只输出 2~3 句中文，冷峻、克制、要有具体细节（时间、地点、机构、目击者）。' +
+            '硬性约束：不得提到"你/玩家"，不得写任何人的胜负生死，不得输出数值、选项或提示，不得新增未给出的事实。';
+          ask = '把给出的这几条事实改写成当天的本地新闻短讯。';
+        } else {
+          sys = '你在写一篇互动小说的收尾。只输出 3~5 段中文（每段 40~130 字），语气冷、克制、不煽情。' +
+            '硬性约束：只能复述给出的事实，不得新增事迹、不得改变结局、不得输出数值或选项。';
+          ask = '把给出的本局事实写成收尾。';
+        }
+        const u2 = JSON.stringify({ 事实: payload.facts, 世界: payload.world, 要求: ask });
+        const res2 = await fetch(this.endpoint, {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' },
+            this.apiKey ? { Authorization: 'Bearer ' + this.apiKey } : {}),
+          body: JSON.stringify({
+            model: this.model || 'deepseek-chat',
+            messages: [{ role: 'system', content: sys }, { role: 'user', content: u2 }],
+            temperature: 0.85,
+          }),
+        });
+        if (!res2.ok) throw new Error('AI 接口返回 ' + res2.status);
+        const j2 = await res2.json();
+        const txt2 = j2 && j2.choices && j2.choices[0] && j2.choices[0].message ? j2.choices[0].message.content : '';
+        return txt2 || null;
+      }
       // 第 21 轮：智慧级厉鬼——AI 要扮演它本人（思维、说话方式、能力），而不是旁白
       if (payload.ghost) {
         const g = payload.ghost;
@@ -12087,6 +13556,9 @@ body.story-mode .logwrap{max-height:22vh !important}
   /* ------------------------------------------------------------ 场景文本 */
   const N = window.RSNarrative || null;
   const ART = window.RSArt || null;      // 绘图模型生成的画册插画（内联 data URI）
+  // 第 32 轮：程序化叙事生成器（离线优先；AI 只做可选润色）
+  const NEWS = window.RSNews || null;
+  const EPI = window.RSEpilogue || null;
 
   /* --------------------------------------------- 插画（第 22 轮：真图）
    * 之前的程序生成 SVG 太"几何色块"，用户判定"太假、很劣质"。
@@ -12194,6 +13666,35 @@ body.story-mode .logwrap{max-height:22vh !important}
   function syncAI(s) {
     if (s) s.aiOn = aiReady();
     return s;
+  }
+
+  /* ------------------- 第 32 轮：世界文本（新闻 / 尾声）的生成与可选 AI 润色 -------------------
+   * 底线是「离线优先」：程序先长出来，AI 只做文风润色，超时/报错一律退回程序文本。
+   */
+  function aiExtraOn() {
+    return String(LS.get('rs_ai_extra', '1')) !== '0';
+  }
+  function setAiExtra(on) {
+    LS.set('rs_ai_extra', on ? '1' : '0');
+  }
+  function withTimeout(p, ms) {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('AI 超时')), ms);
+      Promise.resolve(p).then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+    });
+  }
+  async function worldText(kind, procLines) {
+    if (!procLines || !procLines.length) return [];
+    if (!aiReady() || !aiExtraOn()) return procLines;
+    try {
+      const txt = await withTimeout(window.RS_AI.narrate({ kind: kind, facts: procLines, world: C.meta.title }), 15000);
+      const clean = String(txt || '').trim();
+      if (!clean) return procLines;
+      const parts = clean.split(/\n+/).map((x) => x.trim()).filter(Boolean);
+      return parts.length ? parts : procLines;
+    } catch (e) {
+      return procLines;
+    }
   }
   function isSmartPending(s) {
     return !!(s && s.pending && s.pending.smart);
@@ -12547,6 +14048,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       const bank = C.narrative['level' + lv];
       addLog('warn', bank[(state.turn + state.seedInt) % bank.length]);
     }
+    // 第 32 轮：个人化尾声（把这一局怎么过来的总结成几段；AI 只润色）
+    showEpilogue();
     const gallery = LS.get('rs_gallery', {});
     if (!gallery[o.ending]) {
       gallery[o.ending] = { times: 1, first: Date.now() };
@@ -12737,6 +14240,59 @@ body.story-mode .logwrap{max-height:22vh !important}
     return String(id).slice(0, 20);
   }
 
+  /** 第 32 轮：当天的灵异新闻（世界在运转的那一层；离线也一定有内容） */
+  async function showDailyNews() {
+    // 仅供自动化排查：记下"到底调用了几次 / 生成出几行"
+    try { window.__newsCalls = (window.__newsCalls || 0) + 1; } catch (e0) { /* ignore */ }
+    if (!state || state.over || !NEWS || !NEWS.dailyNews) {
+      try { window.__newsSkip = (!state ? 'no-state' : state.over ? 'over' : !NEWS ? 'no-module' : 'no-fn'); } catch (e1) { /* ignore */ }
+      return;
+    }
+    let lines = [];
+    try {
+      lines = NEWS.dailyNews(E.newsCtx(state)) || [];
+      try { window.__newsLines = lines.length; } catch (e1b) { /* ignore */ }
+    } catch (e) {
+      lines = [];
+      // 仅供自动化排查：把生成失败的原因留在页面上（玩家看不到，测试会读它）
+      try { window.__newsErr = String((e && e.message) || e); } catch (e2) { /* ignore */ }
+    }
+    if (!lines.length) return;
+    lines = await worldText('news', lines);
+    if (!state || state.over) return;
+    addLog('newshead', '【今日灵异新闻】');
+    addLog('news', lines);
+    // 日记里留一条（当天那页看得见"那天世界发生了什么"）
+    if (E.journalAdd && lines.length) {
+      E.journalAdd(state, { t: state.turn, slot: '清晨', key: ['【今日灵异新闻】' + String(lines[0]).slice(0, 120)] });
+    }
+    renderNow();
+  }
+
+  /** 第 32 轮：结局的个人化尾声（按本局轨迹生成；AI 只润色） */
+  async function showEpilogue() {
+    if (!state || !state.over || !EPI || !EPI.epilogueFor) return;
+    let paras = [];
+    try {
+      paras = EPI.epilogueFor(E.epilogueCtx(state, state.over.ending)) || [];
+    } catch (e) {
+      paras = [];
+    }
+    if (!paras.length) return;
+    addLog('epi', '【这一局是怎么过来的】');
+    addLog('epi', paras);
+    const polished = await worldText('epilogue', paras);
+    if (polished && polished !== paras) {
+      // AI 润色版与程序版内容一致（只改文风），直接替换显示：先撤掉程序版的两条日志再写润色版
+      const box = $('log');
+      const kids = Array.prototype.slice.call(box.children);
+      for (let i = kids.length - 1; i >= 0 && i >= kids.length - 2; i--) box.removeChild(kids[i]);
+      addLog('epi', '【这一局是怎么过来的】');
+      addLog('epi', polished);
+      renderNow();
+    }
+  }
+
   /** 第 30 轮：把一次行动的关键行写进日记（一天一页；关键行 = 结算/收获，不抄全部正文） */
   function recordJournal(day, actionId, optLabel) {
     if (!state || !E.journalAdd) return;
@@ -12808,6 +14364,8 @@ body.story-mode .logwrap{max-height:22vh !important}
         const first = (lastLines.filter((x) => x.kind === '' || x.kind === 'story' || x.kind === 'scene')[0] || {}).text || '';
         E.journalAdd(state, { t: state.turn, slot: '清晨', head: String(first).slice(0, 80) });
       }
+      // 第 32 轮：今日灵异新闻（离线程序生成；接了 AI 才润色）
+      showDailyNews();
       return;
     }
     // ② 剧情读完了：收起卡片，露出今天的选项
@@ -14611,7 +16169,9 @@ body.story-mode .logwrap{max-height:22vh !important}
         { label: '字号：' + (LS.get('rs_font', '中')), fn: () => cycleFontSize() }]);
 
     group('AI 叙事（可选）', $('aiState') ? $('aiState').textContent : '',
-      [{ label: '账户与接口设置', id: 'btnAI', primary: true }]);
+      [{ label: '账户与接口设置', id: 'btnAI', primary: true },
+        { label: 'AI 扩写（新闻/尾声）：' + (aiExtraOn() ? '开' : '关'),
+          fn: () => { setAiExtra(!aiExtraOn()); openSettings(); } }]);
 
     group('存档', '存档只在本机；跨设备用「分享存档」把存档压进链接',
       [{ label: '快速存档', id: 'btnSaveQuick', primary: true },
