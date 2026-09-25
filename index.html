@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260925151329">
+<meta name="rs-build" content="v260925163115">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -417,7 +417,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260925151329";</script>
+<script>window.__RS_BUILD = "v260925163115";</script>
 <header>
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
@@ -15022,6 +15022,56 @@ body.story-mode .logwrap{max-height:22vh !important}
     };
   }
 
+  /* ------------------------------------------------- 第 43 轮：给"档案"用的收据
+   * 图鉴/成就/周目点数这些**跨局**的东西需要一个"这局真的发生过"的凭据。
+   * 凭据就是一张收据：开局参数 + 这一局（可能是半局）的行动日志 + 声明的结局。
+   * 要发奖励，先把收据重放一遍——**档案只吃核对过的那一份状态**。
+   *   · 改档案里的点数没用：点数由收据推导，档案里那个数字只是显示缓存；
+   *   · 伪造一张收据要过重放（写个脚本用引擎跑一局也行，但那本来就是"开卷重打"）；
+   *   · 控制台往内存里塞的线索/道具进不了收据（收据只装输入），也就进不了档案。
+   * 没走到结局的收据是有效的（用来记"这次开局花了点数"），只是不给分。 */
+  function saveReceipt(state) {
+    return {
+      o: saveOptsOf(state),
+      l: (state.log || []).slice(-LOG_MAX),
+      e: (state.over && state.over.ending) || 'unfinished',
+    };
+  }
+  /** 核对一张收据。
+   *  opts.lenient = true（档案层用）：规则改过之后重放出来的结局可能和当年不一样。
+   *  那种情况**不算伪造**（凭据本身没问题，只是世界规则变了），按重放结果给分；
+   *  真正的"改过的收据"会死在重放中途（动作走不通 / 开局参数对不上）。 */
+  function verifyReceipt(r, opts) {
+    if (!r || typeof r !== 'object' || !r.o) return { ok: false, why: '收据格式不对' };
+    const lenient = !!(opts && opts.lenient);
+    const o = r.o;
+    let s;
+    try {
+      s = createGame({
+        seed: o.seed, pack: o.pack, difficulty: o.difficulty, custom: o.custom || null,
+        contentLevel: o.contentLevel, city: o.city, era: o.era,
+        stance: o.stance, legacy: o.legacy || null, memory: o.memory || null,
+      });
+    } catch (e) { return { ok: false, why: '收据里的开局参数不对（' + ((e && e.message) || e) + '）' }; }
+    const log = Array.isArray(r.l) ? r.l : [];
+    for (let i = 0; i < log.length; i++) {
+      const en = log[i] || {};
+      let res;
+      if (en.o === 's') res = sayTo(s, String(en.s || ''));
+      else if (en.o === 'r') res = resolve(s, String(en.id == null ? '' : en.id), en.t ? String(en.t) : undefined);
+      else return { ok: false, why: '第 ' + (i + 1) + ' 步不是有效输入' };
+      if (res && res.error) return { ok: false, why: '第 ' + (i + 1) + ' 步走不通：' + res.error };
+      if (s.over) break;
+    }
+    const ending = (s.over && s.over.ending) || 'unfinished';
+    const want = r.e || 'unfinished';
+    const drift = ending !== want;
+    if (drift && !lenient) {
+      return { ok: false, why: '收据声明的结局与重放结果不符（' + want + ' vs ' + ending + '）' };
+    }
+    return { ok: true, finished: !!s.over, drift: drift, state: s, ending: ending, turn: s.turn };
+  }
+
   /** 写档：只写"过程"（加上日记这类纯文本；它不影响任何判定） */
   function serialize(state) {
     // 旧格式读进来的局没有完整行动记录，重放不出正确进度 → 它继续按旧格式存，并在界面上标"未验证"
@@ -15032,6 +15082,9 @@ body.story-mode .logwrap{max-height:22vh !important}
       journal: state.journal || [],
       meta: state.meta || null,
       eng: (CONTENT.meta && CONTENT.meta.version) || '',
+      // 第 43 轮：这一局在档案收据链里的位置（带继承开局时先占了号，打完要把它换成完整收据）。
+      // 只是个指针，改它顶多让花费记错，占不到便宜（详见 profile.recordRun）。
+      seq: (state.receiptSeq == null ? null : state.receiptSeq),
       turn: state.turn || 0,        // 下面两个只为"不载入也能看出这是哪一天的档"，载入时一律被重放结果覆盖
       over: state.over || null,
     };
@@ -15158,6 +15211,7 @@ body.story-mode .logwrap{max-height:22vh !important}
       s.meta = m;
     }
     s.replayed = steps;
+    s.receiptSeq = (p.seq == null ? null : int(p.seq));
     // 规则改过之后读老档：数值会按**现在的规则**重算——把旧的引擎版本号带出来给界面提示
     s.engineDrift = (p.eng && CONTENT.meta && String(p.eng) !== String(CONTENT.meta.version)) ? String(p.eng) : '';
     for (const k of Object.keys(BOUNDS)) s.ledgerStart[k] = getPath(s, k);
@@ -15313,6 +15367,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     // 第 42 轮：可重放存档
     SAVE_VERSION: SAVE_VERSION,
     serializeV1: serializeV1,  // 供测试构造"旧格式存档"，验证兼容读取与标记
+    // 第 43 轮：档案收据
+    saveReceipt: saveReceipt,
+    verifyReceipt: verifyReceipt,
     logOf: function (state) { return (state && Array.isArray(state.log)) ? state.log.slice() : []; },
     parseIntent: parseIntent,  // 自由行动：把玩家写的话映射成真实行动
     parseEncounterIntent: parseEncounterIntent,  // 遭遇中的自由输入 → 映射到现有选项
@@ -15446,8 +15503,13 @@ body.story-mode .logwrap{max-height:22vh !important}
       endings: {},               // endingId → 次数
       runs: { total: 0, died: 0, won: 0, byDiff: {} },
       best: { turn: 0, byDiff: {} },
-      points: 0,                 // 可用周目点数
-      earned: 0,                 // 累计获得
+      points: 0,                 // 可用周目点数（**显示缓存**：真值由 receipts 推导，见 pointsOf）
+      earned: 0,                 // 累计获得（同样是显示缓存）
+      /* 第 43 轮：可核对的收据链。每条 = 一局（或一次带继承的开局）的"开局参数 + 行动日志 + 结局"。
+       * 点数由这条链重放核对后推导，档案里存的数字不算数。seq 必须从 trimmed 起连号：
+       * 断号说明有人删过记录，此时只认断号之前那一段（保守方向，删记录只会更少）。 */
+      receipts: [],
+      trimmed: 0,                // 链首被裁掉的条数（超过 RECEIPT_MAX 才裁；裁掉的那几条不再计分）
       seen: { ghostView: false, secondRun: false },
       faced: {},                 // 图鉴：遭遇过的厉鬼 id → true（跨局累积）
       knownClues: {},            // 图鉴：掌握过的规律线索 id → true
@@ -15488,6 +15550,10 @@ body.story-mode .logwrap{max-height:22vh !important}
       p.runs.died = clampInt(p.runs.died, 0, 1e9);
     }
     if (p.best) p.best.turn = clampInt(p.best.turn, 0, 1e9);
+    /* 第 43 轮：收据链要消毒（只留结构合法的条目；数值/长度一律钳住）。
+     * 内容不对的条目读到这里不作判断——真伪交给 pointsOf 重放时核。 */
+    p.trimmed = clampInt(p.trimmed, 0, 1e9);
+    p.receipts = sanitizeReceipts(obj.p.receipts);
     // 第 37 轮：记忆快照也要消毒（伪造一份"记得 500 条线索"的档案不该被接受）
     p.cycle = clampInt(p.cycle, 0, 1e9);
     p.memory = sanitizeMemory(p.memory);
@@ -15531,6 +15597,38 @@ body.story-mode .logwrap{max-height:22vh !important}
     const n = typeof x === 'number' && isFinite(x) ? Math.floor(x) : 0;
     return n < lo ? lo : (n > hi ? hi : n);
   }
+
+  /* 收据链上限：一条收据约 2~3KB，200 条约 0.5MB（localStorage 一般 5MB）。
+   * 超过就从链首裁掉（被裁的那几局不再计分——保守方向，不做"已裁掉的分数"这种可伪造的账）。 */
+  const RECEIPT_MAX = 200;
+  /** 第 43 轮：收据的结构消毒（不改内容；内容真伪由 pointsOf 重放时核） */
+  function sanitizeReceipts(raw) {
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    for (const r of raw.slice(-RECEIPT_MAX)) {
+      if (!r || typeof r !== 'object' || !r.o || typeof r.o !== 'object') continue;
+      const o = {};
+      for (const k of ['seed', 'pack', 'difficulty', 'custom', 'contentLevel', 'city', 'era', 'stance', 'legacy']) {
+        if (typeof r.o[k] === 'string') o[k] = r.o[k].slice(0, 64);
+        else if (r.o[k] === null) o[k] = null;
+      }
+      if (r.o.memory && typeof r.o.memory === 'object') o.memory = sanitizeMemory(r.o.memory);
+      const l = Array.isArray(r.l) ? r.l.slice(0, 20000).map((e) => {
+        if (!e || typeof e !== 'object') return { o: '?', id: '' };
+        const x = { o: e.o === 's' ? 's' : 'r' };
+        if (typeof e.id === 'string') x.id = e.id.slice(0, 80);
+        if (typeof e.t === 'string') x.t = e.t.slice(0, 2000);
+        if (typeof e.s === 'string') x.s = e.s.slice(0, 200);
+        return x;
+      }) : [];
+      out.push({ seq: clampInt(r.seq, 0, 1e9), o: o, l: l, e: typeof r.e === 'string' ? r.e.slice(0, 32) : 'unfinished' });
+    }
+    return out;
+  }
+
+  /* 第 43 轮：花费表的兜底（界面会从内容表注入真表）。
+   * 拿不到真表时宁可多扣：未知继承 id 记 12 点，免得"注入失败 = 继承免费"。 */
+  const LEGACY_COST = { memory: 1, relic: 2, lesson: 3, remember: 1 };
 
   /* ------------------------------------------------------------- 成就表 */
   // cond(ctx) → boolean；ctx = { state, ending, run, profile }
@@ -15772,8 +15870,9 @@ body.story-mode .logwrap{max-height:22vh !important}
   }
 
   /**
-   * 结算一局：更新统计、解锁成就、发放周目点数。
-   * 返回 { profile, unlocked:[{id,name,desc}], points, run }
+   * 结算一局：更新统计、解锁成就、发周目点数。
+   * 返回 { profile, unlocked:[{id,name,desc}], run }
+   * 第 43 轮：**这里不再直接加点数**——点数由收据链核对后推导（见 pointsOf）。
    */
   function settle(profile, state, ending) {
     const p = merge(empty(), profile);
@@ -15804,9 +15903,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     }
     for (const c of state.clues || []) p.knownClues[c] = true;
 
-    const pts = pointsFor(run);
-    p.points = Math.max(0, num(p.points)) + pts;
-    p.earned = Math.max(p.points, num(p.earned) + pts);
+    // 第 43 轮：点数不在这里加——收据链核对过才算（这样"直接改档案里的点数"就没了意义）
+    p.points = Math.max(0, num(p.points));
+    p.earned = Math.max(0, num(p.earned));
 
     // 第 37 轮：存下"上一世的记忆"（下一次开局可以带过来；不带也不影响其它继承）
     p.cycle = clampInt(p.cycle, 0, 1e9) + 1;
@@ -15824,7 +15923,71 @@ body.story-mode .logwrap{max-height:22vh !important}
         unlocked.push({ id: a.id, name: a.name, desc: a.desc });
       }
     }
-    return { profile: p, unlocked: unlocked, points: pts, run: run };
+    return { profile: p, unlocked: unlocked, run: run };
+  }
+
+  /* --------------------------------------------------------- 第 43 轮：收据链 */
+
+  /** 把一张收据挂进链子。
+   *  seq 为空 = 追一条新的（"这一局打完了"或"带继承开局了"）；
+   *  给了 seq = 替换那一条（同一局从"开局"变成"打完"，只允许改最后一条，防改历史）。 */
+  function recordRun(profile, receipt, seq) {
+    const p = merge(empty(), profile);
+    if (!Array.isArray(p.receipts)) p.receipts = [];
+    const one = sanitizeReceipts([Object.assign({ seq: 0, e: 'unfinished' }, receipt || {})])[0];
+    if (!one) return { profile: p, seq: null, replaced: false };
+    if (seq != null) {
+      const i = p.receipts.findIndex((r) => r && r.seq === seq);
+      if (i >= 0 && i === p.receipts.length - 1) {
+        one.seq = seq;
+        p.receipts[i] = one;
+        return { profile: p, seq: seq, replaced: true };
+      }
+    }
+    const next = (p.trimmed || 0) + p.receipts.length;
+    one.seq = next;
+    p.receipts.push(one);
+    if (p.receipts.length > RECEIPT_MAX) {
+      const cut = p.receipts.length - RECEIPT_MAX;
+      p.receipts = p.receipts.slice(cut);
+      p.trimmed = (p.trimmed || 0) + cut;
+    }
+    return { profile: p, seq: next, replaced: false };
+  }
+
+  /** 点数：**由收据链推导**（verify 由界面注入引擎的 verifyReceipt，costOf 注入继承花费表）。
+   *  规则：
+   *   · seq 必须从 trimmed 起连号，断号 = 有人删过记录 → 只认断号之前那一段（删只会更少）；
+   *   · 每条收据重放核对（lenient：规则改过、结局对不上不算伪造，按重放结果给分）；
+   *   · 走到结局 → 按局给分；没走到结局（开局后弃掉）→ 不给分；
+   *   · 重放走不通（改过的收据 / 开局参数对不上）→ 不给分，但"这次开局用了什么继承"照付。 */
+  function pointsOf(profile, verify, costOf) {
+    const p = merge(empty(), profile);
+    const cost = typeof costOf === 'function' ? costOf
+      : function (id) { return id ? (LEGACY_COST[id] || 12) : 0; };
+    const list = Array.isArray(p.receipts) ? p.receipts : [];
+    const base = clampInt(p.trimmed, 0, 1e9);
+    let earned = 0, spent = 0, ok = 0, pending = 0, bad = 0, drift = 0, gap = false;
+    for (let i = 0; i < list.length; i++) {
+      const r = list[i];
+      if (!r || clampInt(r.seq, -1, 1e9) !== base + i) { gap = true; break; }
+      let v = null;
+      try { v = verify(r, { lenient: true }); } catch (e) { v = { ok: false, why: String((e && e.message) || e) }; }
+      if (v && v.ok) {
+        if (v.finished) {
+          earned += pointsFor(runSummary(v.state, v.ending));
+          ok += 1;
+          if (v.drift) drift += 1;
+        } else if (r.e && r.e !== 'unfinished') {
+          /* 收据说自己打出了某个结局，重放却没走到结局 → 这是在撒谎，算不合格。
+           * （真的弃局收据声明的是 'unfinished'，走下面那支记成"未完成"。） */
+          bad += 1;
+        } else pending += 1;
+      } else bad += 1;
+      spent += cost((r.o && r.o.legacy) || null);
+    }
+    return { earned: earned, spent: spent, available: Math.max(0, earned - spent),
+      ok: ok, pending: pending, bad: bad, drift: drift, gap: gap, total: list.length };
   }
 
   function achievementProgress(profile) {
@@ -15883,6 +16046,10 @@ body.story-mode .logwrap{max-height:22vh !important}
     runSummary: runSummary,
     pointsFor: pointsFor,
     settle: settle,
+    // 第 43 轮：可核对的收据链（点数由它推导）
+    recordRun: recordRun,
+    pointsOf: pointsOf,
+    RECEIPT_MAX: RECEIPT_MAX,
     // 第 37 轮：多周目轮回记忆
     snapshotMemory: snapshotMemory,
     memorySummary: memorySummary,
@@ -17434,35 +17601,85 @@ body.story-mode .logwrap{max-height:22vh !important}
     }
   }
 
+  /* ------------------------------------------- 第 43 轮：周目点数要"核对过"才算数
+   * 档案里存的那个 points 只是一个显示缓存；真值 = 把收据链（每局的开局参数 + 行动日志）
+   * 用引擎重放核对一遍推导出来的（`P.pointsOf`）。一个会话只核一次，要花点数时再强制核。
+   */
+  let pointsCache = null;
+  function legacyCostOf(id) {
+    if (!id) return 0;
+    const l = (C.legacyOptions || {})[id];
+    return l ? (l.cost || 0) : 12;      // 不认识的继承 id 宁可多扣，免得"表丢了 = 继承免费"
+  }
+  function pointsNow(force) {
+    if (!P || !profile || !P.pointsOf || !E.verifyReceipt) {
+      return { available: 0, earned: 0, spent: 0, ok: 0, pending: 0, bad: 0, gap: false, total: 0 };
+    }
+    if (pointsCache && !force) return pointsCache;
+    const had = profile.points || 0;
+    const hasChain = !!(profile.receipts && profile.receipts.length);
+    pointsCache = P.pointsOf(profile, E.verifyReceipt, legacyCostOf);
+    // 老档案里的余额是个"改一下就有的数字"，这一版不再承认它（菜单里会写明）
+    pointsCache.legacyVoid = (!hasChain && had > 0) ? had : 0;
+    profile.points = pointsCache.available;      // 只当显示缓存
+    profile.earned = pointsCache.earned;
+    if (P.saveProfile) P.saveProfile(profile);
+    return pointsCache;
+  }
+
   function renderOver() {
     const o = state.over;
     const def = C.endings[o.ending] || { name: o.ending, text: '' };
     addLog('over', '【结局】' + def.name);
     addLog('over', def.text);
     addLog('', '存活 ' + state.turn + ' 天（第 ' + state.chapter + ' 章）。');
-    // 跨局结算：统计、成就、周目点数（档案带校验和）
+    /* 跨局结算：统计、成就、图鉴、周目点数（第 43 轮起：**只吃重放核对过的那一份状态**）。
+     * 一局要进档案，得先把它封成一张收据（开局参数 + 行动日志），再重放一遍核对结局。
+     * 这样做的好处：控制台往内存里塞的线索/道具进不了收据 → 也就进不了档案；
+     * 旧格式存档（改没改过看不出来）干脆整局不计入档案。 */
     if (P && profile && !o.settled) {
       o.settled = true;
-      const r = P.settle(profile, state, o.ending);
-      profile = r.profile;
-      P.saveProfile(profile);
-      addLog('muted', '【档案】本局获得周目点数 +' + r.points + '（累计可用 ' + profile.points + '）｜存活 ' +
-        r.run.turn + ' 天｜生路存活 ' + r.run.escapes + ' 次｜触发玩法 ' + r.run.mechCount + ' 条');
-      if (r.unlocked.length) {
-        addLog('over', '【解锁成就】' + r.unlocked.map((a) => a.name + '（' + a.desc + '）').join('；'));
-      }
-      // 第 37 轮：把"下一局你会记得什么"说清楚（选了「上一世的记忆」就能带过去）
-      if (profile.memory && P.memorySummary) {
-        const ms = P.memorySummary(profile.memory);
-        if (ms.length) {
-          addLog('mem', '【这一世留下的记忆】' + ms.join('　｜　'));
-          addLog('muted', '下一局在开局菜单里选「上一世的记忆」，就能把这些带过去（最多 ' +
-            (E.MEM_CLUE_MAX || 2) + ' 条规律、' + (E.MEM_PEOPLE_MAX || 3) + ' 个旧识；名声只有一小半）。');
+      if (state.legacySave) {
+        addLog('warn', '【不计入档案】这一局是从旧格式存档接着玩的——它改没改过看不出来，所以统计、成就、图鉴、周目点数都不记。');
+        addLog('muted', '新开一局就好了：新档每一步都记在行动日志里，打完能重放核对，才进档案。');
+      } else {
+        const rc = E.saveReceipt ? E.saveReceipt(state) : null;
+        const v = (rc && E.verifyReceipt) ? E.verifyReceipt(rc) : { ok: false, why: '引擎没有收据接口' };
+        if (!v.ok) {
+          addLog('warn', '【不计入档案】这一局没能通过重放核对（' + v.why + '），统计与周目点数都不记。');
+        } else {
+          const rr = P.settle(profile, v.state, o.ending);
+          profile = rr.profile;
+          const rec = P.recordRun(profile, rc, state.receiptSeq == null ? null : state.receiptSeq);
+          profile = rec.profile;
+          state.receiptSeq = null;
+          P.saveProfile(profile);
+          const gain = P.pointsFor(rr.run);
+          const pts = pointsNow(true);
+          addLog('muted', '【档案】本局周目点数 +' + gain + '（已重放核对｜累计可用 ' + pts.available +
+            ' ＝ 获得 ' + pts.earned + ' − 继承花掉 ' + pts.spent + '）｜存活 ' +
+            rr.run.turn + ' 天｜生路存活 ' + rr.run.escapes + ' 次｜触发玩法 ' + rr.run.mechCount + ' 条');
+          if (pts.gap || pts.bad) {
+            addLog('warn', '【档案核对】有记录没通过核对：断号 ' + (pts.gap ? '是' : '否') + '、不合格 ' + pts.bad +
+              ' 条（这些不给分；被人改过的档案到这一步就露出来了）。');
+          }
+          if (rr.unlocked.length) {
+            addLog('over', '【解锁成就】' + rr.unlocked.map((a) => a.name + '（' + a.desc + '）').join('；'));
+          }
+          // 第 37 轮：把"下一局你会记得什么"说清楚（选了「上一世的记忆」就能带过去）
+          if (profile.memory && P.memorySummary) {
+            const ms = P.memorySummary(profile.memory);
+            if (ms.length) {
+              addLog('mem', '【这一世留下的记忆】' + ms.join('　｜　'));
+              addLog('muted', '下一局在开局菜单里选「上一世的记忆」，就能把这些带过去（最多 ' +
+                (E.MEM_CLUE_MAX || 2) + ' 条规律、' + (E.MEM_PEOPLE_MAX || 3) + ' 个旧识；名声只有一小半）。');
+            }
+          }
+          const prog = P.achievementProgress(profile);
+          addLog('muted', '成就进度 ' + prog.unlocked + '/' + prog.total + '　结局收集 ' +
+            Object.keys(profile.endings).length + '/' + Object.keys(C.endings).length);
         }
       }
-      const prog = P.achievementProgress(profile);
-      addLog('muted', '成就进度 ' + prog.unlocked + '/' + prog.total + '　结局收集 ' +
-        Object.keys(profile.endings).length + '/' + Object.keys(C.endings).length);
     }
     const lv = state.contentLevel || 'A';
     if (lv !== 'A' && C.narrative['level' + lv]) {
@@ -19126,7 +19343,11 @@ body.story-mode .logwrap{max-height:22vh !important}
       kv.appendChild(rowOf('死亡次数', r.died));
       kv.appendChild(rowOf('非死亡结局', r.won));
       kv.appendChild(rowOf('最佳存活', best.turn + ' 天'));
-      kv.appendChild(rowOf('周目点数', (profile ? profile.points : 0) + '（累计获得 ' + (profile ? profile.earned : 0) + '）'));
+      const ptsNow = pointsNow();
+      kv.appendChild(rowOf('周目点数', ptsNow.available + '（核对过 ' + ptsNow.ok + ' 局；获得 ' + ptsNow.earned +
+        ' − 继承花掉 ' + ptsNow.spent + '）' +
+        (ptsNow.legacyVoid ? '　⚠ 旧档案里的 ' + ptsNow.legacyVoid + ' 点余额已作废（那只是个改一下就能有的数字）' : '') +
+        (ptsNow.bad ? '　⚠ ' + ptsNow.bad + ' 局记录没通过核对' : '')));
       const diffs = Object.keys(r.byDiff || {}).map((d) => d + '×' + r.byDiff[d]).join('　') || '—';
       kv.appendChild(rowOf('难度分布', diffs));
       const byBest = Object.keys(best.byDiff || {}).map((d) => d + ' ' + best.byDiff[d] + '天').join('　') || '—';
@@ -19471,6 +19692,7 @@ body.story-mode .logwrap{max-height:22vh !important}
       body.appendChild(seedInput);
 
       if (profile && P) {
+        const ptsNow = pointsNow();
         const prog = P.achievementProgress(profile);
         const endCount = Object.keys(profile.endings || {}).length;
         body.appendChild(el('div', 'sectionTitle', '玩家档案（跨局保存）'));
@@ -19478,8 +19700,12 @@ body.story-mode .logwrap{max-height:22vh !important}
           '　｜　结局收集 ' + endCount + '/' + Object.keys(C.endings).length +
           '　｜　最佳存活 ' + (profile.best.turn || 0) + ' 天' +
           '　｜　总局数 ' + profile.runs.total + '（死亡 ' + profile.runs.died + '）' +
-          '　｜　周目点数 ' + profile.points));
-        if (profile.points > 0 && C.legacyOptions) {
+          '　｜　周目点数 ' + ptsNow.available + '（核对过 ' + ptsNow.ok + ' 局' +
+          (ptsNow.pending ? '，另有 ' + ptsNow.pending + ' 局没打完' : '') + '）' +
+          (ptsNow.bad ? '　⚠ ' + ptsNow.bad + ' 局记录没通过核对（改过的档案到这一步就露出来了）' : '') +
+          (ptsNow.drift ? '　（另有 ' + ptsNow.drift + ' 局是旧规则打的，按现在的规则重算）' : '') +
+          (ptsNow.gap ? '　⚠ 记录链断号' : '')));
+        if (ptsNow.available > 0 && C.legacyOptions) {
           body.appendChild(el('div', 'sectionTitle', '二周目继承（本次开局生效，消耗周目点数）'));
           const row = el('div', 'row');
           const none = el('button', 'btn small' + (!selected.legacy ? ' on' : ''), '不带继承');
@@ -19487,7 +19713,7 @@ body.story-mode .logwrap{max-height:22vh !important}
           row.appendChild(none);
           Object.keys(C.legacyOptions).forEach((id) => {
             const leg = C.legacyOptions[id];
-            const afford = profile.points >= leg.cost;
+            const afford = ptsNow.available >= leg.cost;
             const b = el('button', 'btn small' + (selected.legacy === id ? ' on' : ''),
               leg.name + '（' + leg.cost + ' 点）' + (afford ? '' : '·点数不足'));
             b.disabled = !afford;
@@ -19546,16 +19772,23 @@ body.story-mode .logwrap{max-height:22vh !important}
   }
 
   function startGame() {
-    // 二周目继承：先校验点数（档案带校验和，改档会在载入时被拒）
+    /* 二周目继承（第 43 轮口径改了）：
+     * 点数不再"在档案里减掉"，而是**记在收据链里**——开局时挂一条"这一局用了什么继承"的收据，
+     * 打完那一局再把它换成完整收据。于是：弃掉一局照样付钱，改档案里的数字也没用（真值现算）。
+     * 要花钱了，这里强制把收据链重放核对一遍。 */
     let legacy = null;
     if (selected.legacy && profile && P && C.legacyOptions[selected.legacy]) {
-      const cost = C.legacyOptions[selected.legacy].cost;
-      if (profile.points >= cost) {
-        profile.points -= cost;
+      const leg = C.legacyOptions[selected.legacy];
+      const pts = pointsNow(true);
+      if (pts.available >= leg.cost) {
         legacy = selected.legacy;
-        P.saveProfile(profile);
       } else {
         legacy = null;
+        addLog('warn', '【点数不足】' + leg.name + ' 需要 ' + leg.cost + ' 点，核对收据链后你只有 ' + pts.available + ' 点。');
+        if (pts.bad || pts.gap) {
+          addLog('muted', '（核对结果：合格 ' + pts.ok + ' 局、没通过 ' + pts.bad + ' 局' + (pts.gap ? '、记录链断号' : '') +
+            '。没通过的不给分，改过的档案到这一步就会露出来。）');
+        }
       }
       selected.legacy = null; // 只对本次开局生效
     }
@@ -19569,6 +19802,14 @@ body.story-mode .logwrap{max-height:22vh !important}
       // 第 37 轮：只有选了「上一世的记忆」才把记忆带过来（要花周目点数）
       memory: (legacy === 'remember' && profile && profile.memory) ? profile.memory : null,
     });
+    // 带继承开局：先挂一条"半局收据"（成本记上，弃局也照样付）
+    if (legacy && P && profile && E.saveReceipt) {
+      const rec = P.recordRun(profile, E.saveReceipt(state), null);
+      profile = rec.profile;
+      state.receiptSeq = rec.seq;
+      P.saveProfile(profile);
+      pointsCache = null;
+    }
     $('panel').style.display = '';
     clear($('log'));
     dayBand(1, '清晨', (E.chainLabel ? E.chainLabel(state) : 1));   // 第 38 轮：第一天的分界条也带章节名
@@ -19584,7 +19825,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     // 继承提示必须写在 clear(log) 之后，否则会被清掉（玩家花了点数却看不到反馈）
     if (legacy) {
       addLog('', '【二周目继承】' + C.legacyOptions[legacy].name + '：' + C.legacyOptions[legacy].desc +
-        '（已消耗 ' + C.legacyOptions[legacy].cost + ' 点，剩余 ' + (profile ? profile.points : 0) + ' 点）');
+        '（本局记 ' + C.legacyOptions[legacy].cost + ' 点花费，打完那一局才算进档案；' +
+        '弃掉这一局也照样记花费）');
     }
     // 第 37 轮：上一世的记忆——开局第一屏就说清楚"你记得什么"（说完就从 notes 里取走，避免重复）
     const mem = E.memoryCarried ? E.memoryCarried(state) : null;
