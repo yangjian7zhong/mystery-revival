@@ -156,6 +156,38 @@ body.fontL .line{line-height:1.85}
 }
 .toolbox .pk{min-width:72px; color:var(--dim); font-size:13px}
 
+/* ==== 第 31 轮：开局向导（一步步选）与背包 ==== */
+.wizHead{border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:#0d141c; margin-bottom:10px}
+.wizTitle{color:#ffd7a8; font-size:15px; font-weight:600; margin-bottom:6px}
+.wizDots{display:flex; gap:6px; margin-bottom:8px}
+.wizDot{
+  width:24px; height:24px; line-height:22px; text-align:center; border-radius:50%;
+  border:1px solid #2b3a4a; color:#5d6d7e; font-size:12.5px; cursor:pointer;
+}
+.wizDot.done{border-color:#3a5a4a; color:#8fd0a8}
+.wizDot.on{border-color:var(--accent); color:#ffd7a8; background:#1a1410; font-weight:600}
+.wizSum{color:#9fb3c8; font-size:12.5px; line-height:1.7; margin-bottom:4px; word-break:break-word}
+.wizBody{display:flex; flex-direction:column; gap:8px; margin-bottom:10px}
+.wizNav{display:flex; gap:8px}
+.wizNav .btn{flex:1; min-height:40px}
+.wizNav .btn:disabled{opacity:.45}
+
+.bagMoney{display:flex; flex-wrap:wrap; gap:10px}
+.bagMoneyItem{display:flex; flex-direction:column; align-items:center; min-width:64px}
+.bagMoneyV{color:#ffd166; font-size:16px; font-weight:600}
+.bagMoneyK{color:var(--dim); font-size:11.5px; margin-top:2px}
+.bagItem{border-top:1px dashed #1d2530; padding:7px 0 5px}
+.bagItem:first-of-type{border-top:none}
+.bagItemName{color:#e6edf3; font-size:13.5px; font-weight:600; line-height:1.6}
+.bagItemDesc{color:#c9d6e2; font-size:12.5px; line-height:1.7; margin-top:2px}
+.bagItemMeta{color:var(--dim); font-size:12px; margin-top:2px}
+
+@media (max-width:900px){
+  .wizDot{width:28px; height:28px; line-height:26px; font-size:13px}
+  .wizNav .btn{min-height:44px}
+  .bagMoneyItem{min-width:56px}
+}
+
 /* ==== 第 12 轮：剧情类界面（场景图 + 刚刚发生 + 手机优先） ==== */
 #stage{display:flex; flex-direction:column; gap:10px; min-height:0}
 .scene-art{width:100%; height:168px; border-radius:12px; overflow:hidden; border:1px solid #1d2530;
@@ -376,6 +408,7 @@ body.story-mode .logwrap{max-height:22vh !important}
   <span class="spacer"></span>
   <div class="tools">
     <button class="btn small" id="btnJournal">日记</button>
+    <button class="btn small" id="btnBag">背包</button>
     <button class="btn small" id="btnNotes">笔记</button>
     <button class="btn small" id="btnSettings">设置</button>
   </div>
@@ -14211,6 +14244,45 @@ body.story-mode .logwrap{max-height:22vh !important}
   }
 
   /* ------------------------------------------------------------ 开局页 */
+  /* ------------------- 第 31 轮：开局向导（一步步选，手机端不用再翻长页） -------------------
+   * 原来开局所有设置挤在一页里（难度/开局/落地/时期/立场/分级/种子 + 档案 + 继承），
+   * 手机上要滚很久。现在拆成 6 步：选完一个自动进入下一步，底部永远有「开始游戏」
+   * （= 用当前选择直接开，所以"点开始游戏"这条老路径依旧有效）。
+   */
+  let menuStep = 1;
+  const MENU_STEPS = [
+    { key: 'diff', title: '难度', hint: '决定整局的手感曲线' },
+    { key: 'pack', title: '开局', hint: '你是谁、从哪一段开始' },
+    { key: 'city', title: '落地', hint: '你在哪座城' },
+    { key: 'era', title: '时期', hint: '原著时间线' },
+    { key: 'stance', title: '立场', hint: '你和这个时代的关系' },
+    { key: 'misc', title: '分级与种子', hint: '最后确认，然后开始' },
+  ];
+  function menuGo(step) {
+    menuStep = Math.max(1, Math.min(MENU_STEPS.length, step));
+    showMenu();
+  }
+  /** 选完一项 → 自动进入下一步（用户要求"选完一个再跳转其他的"） */
+  function pickAndNext(setter) {
+    setter();
+    if (menuStep < MENU_STEPS.length) menuGo(menuStep + 1);
+    else showMenu();
+  }
+  function menuSummary() {
+    const d = C.difficulties[selected.difficulty];
+    const p = C.packs[selected.pack];
+    const c = selected.city === 'random' ? null : C.cities[selected.city];
+    const e = selected.era === 'random' ? null : C.eras[selected.era];
+    const st = C.stances ? C.stances[selected.stance] : null;
+    return [
+      '难度：' + (d ? d.name : '自定义'),
+      '开局：' + (p ? p.name : '—'),
+      '落地：' + (c ? c.name : '随机'),
+      '时期：' + (e ? e.short : '随机'),
+      '立场：' + (st ? st.name : '民间驭鬼者'),
+    ].join('　·　');
+  }
+
   function showMenu() {
     clear($('log'));
     if ($('scene')) $('scene').innerHTML = sceneSvg({ seedInt: 20180923, turn: 0, era: 'y2018', city: 'dachang' });
@@ -14218,188 +14290,204 @@ body.story-mode .logwrap{max-height:22vh !important}
     $('panel').style.display = 'none';
     clear($('choices'));
     const box = $('choices');
-    box.appendChild(el('div', 'sectionTitle', '选择难度（决定整局手感曲线）'));
-    const diffRow = el('div', 'row');
-    Object.keys(C.difficulties).forEach((id) => {
-      const d = C.difficulties[id];
-      const b = el('button', 'btn small' + (selected.difficulty === id ? ' on' : ''), d.name);
-      b.onclick = () => { selected.difficulty = id; showMenu(); };
-      diffRow.appendChild(b);
-    });
-    const cb = el('button', 'btn small' + (selected.difficulty === 'custom' ? ' on' : ''), '自定义');
-    cb.onclick = () => { selected.difficulty = 'custom'; showMenu(); };
-    diffRow.appendChild(cb);
-    box.appendChild(diffRow);
-    const cur = C.resolveTuning(selected.difficulty, selected.custom);
-    box.appendChild(el('div', 'hint', cur.blurb));
+    const step = MENU_STEPS[menuStep - 1];
 
-    if (selected.difficulty === 'custom') {
-      Object.keys(C.tuningKnobs).forEach((key) => {
-        const knob = C.tuningKnobs[key];
-        box.appendChild(el('div', 'sectionTitle', knob.label));
-        const row = el('div', 'row');
-        knob.options.forEach((op) => {
-          const b = el('button', 'btn small' + (selected.custom[key] === op.id ? ' on' : ''), op.name);
-          b.onclick = () => { selected.custom[key] = op.id; showMenu(); };
-          row.appendChild(b);
-        });
-        box.appendChild(row);
+    // 头部：进度 + 已选摘要
+    const head = el('div', 'wizHead');
+    head.appendChild(el('div', 'wizTitle', '开局设置　第 ' + menuStep + ' / ' + MENU_STEPS.length + ' 步 · ' + step.title));
+    const dots = el('div', 'wizDots');
+    for (let i = 1; i <= MENU_STEPS.length; i++) {
+      const d = el('span', 'wizDot' + (i === menuStep ? ' on' : (i < menuStep ? ' done' : '')),
+        String(i));
+      d.onclick = () => menuGo(i);
+      d.title = MENU_STEPS[i - 1].title;
+      dots.appendChild(d);
+    }
+    head.appendChild(dots);
+    head.appendChild(el('div', 'wizSum', menuSummary()));
+    head.appendChild(el('div', 'hint', step.hint));
+    box.appendChild(head);
+
+    const body = el('div', 'wizBody');
+    box.appendChild(body);
+
+    if (step.key === 'diff') {
+      const diffRow = el('div', 'row');
+      Object.keys(C.difficulties).forEach((id) => {
+        const d = C.difficulties[id];
+        const b = el('button', 'btn card' + (selected.difficulty === id ? ' on' : ''), d.name + '　—　' + d.blurb);
+        b.onclick = () => pickAndNext(() => { selected.difficulty = id; });
+        diffRow.appendChild(b);
       });
-    }
-
-    // 第 23 轮：立场（决定开局初始值、专属每日行动、与"杨间线"的关系）
-    if (C.stances) {
-      box.appendChild(el('div', 'sectionTitle', '选择立场（你和这个时代的关系）· 原著向可选"总部队长"'));
-      for (const id of Object.keys(C.stances)) {
-        const st = C.stances[id];
-        const b = el('button', 'btn card' + (selected.stance === id ? ' on' : ''), st.name + '　—　' + st.blurb +
-          (st.rules && st.rules.length ? '　【规矩】' + st.rules.join(' ') : ''));
-        b.onclick = () => { selected.stance = id; showMenu(); };
-        box.appendChild(b);
+      body.appendChild(diffRow);
+      const cb = el('button', 'btn card' + (selected.difficulty === 'custom' ? ' on' : ''),
+        '自定义　—　遭遇 / 判定 / 容错 / 每日行动 四个旋钮自己配' + (selected.difficulty === 'custom' ? '（下面调完再点下一步）' : ''));
+      cb.onclick = () => { selected.difficulty = 'custom'; showMenu(); };   // 自定义不自动跳，先让人调旋钮
+      body.appendChild(cb);
+      if (selected.difficulty === 'custom') {
+        Object.keys(C.tuningKnobs).forEach((key) => {
+          const knob = C.tuningKnobs[key];
+          body.appendChild(el('div', 'sectionTitle', knob.label));
+          const row = el('div', 'row');
+          knob.options.forEach((op) => {
+            const b = el('button', 'btn small' + (selected.custom[key] === op.id ? ' on' : ''), op.name);
+            b.onclick = () => { selected.custom[key] = op.id; showMenu(); };
+            row.appendChild(b);
+          });
+          body.appendChild(row);
+        });
       }
     }
 
-    // 开局包按来源分组：原著开局 / 同人衍生开局（源自用户点名的 11 部同人作）
-    const packGroups = [
-      ['原著开局', Object.keys(C.packs).filter((id) => !C.packs[id].src || C.packs[id].src === '原著')],
-      ['同人衍生开局（11 部衍生作各一个）', Object.keys(C.packs).filter((id) => C.packs[id].src && C.packs[id].src !== '原著')],
-    ];
-    for (const [title, ids] of packGroups) {
-      if (!ids.length) continue;
-      box.appendChild(el('div', 'sectionTitle', '选择开局 · ' + title));
-      for (const id of ids) {
-        const p = C.packs[id];
-        const b = el('button', 'btn card' + (selected.pack === id ? ' on' : ''),
-          p.name + (p.src && p.src !== '原著' ? '　[' + p.src + ']' : '') + '　—　' + p.blurb);
-        b.onclick = () => { selected.pack = id; showMenu(); };
-        box.appendChild(b);
+    if (step.key === 'pack') {
+      const packGroups = [
+        ['原著开局', Object.keys(C.packs).filter((id) => !C.packs[id].src || C.packs[id].src === '原著')],
+        ['同人衍生开局（11 部衍生作各一个）', Object.keys(C.packs).filter((id) => C.packs[id].src && C.packs[id].src !== '原著')],
+      ];
+      for (const [title, ids] of packGroups) {
+        if (!ids.length) continue;
+        body.appendChild(el('div', 'sectionTitle', title));
+        for (const id of ids) {
+          const p = C.packs[id];
+          const b = el('button', 'btn card' + (selected.pack === id ? ' on' : ''),
+            p.name + (p.src && p.src !== '原著' ? '　[' + p.src + ']' : '') + '　—　' + p.blurb);
+          b.onclick = () => pickAndNext(() => { selected.pack = id; });
+          body.appendChild(b);
+        }
       }
     }
 
-    // ---- 落地（城市）：可自选，也可随机 ----
-    if (C.cities) {
-      box.appendChild(el('div', 'sectionTitle', '落地（你在哪座城）· 可自选或随机'));
-      const cRow = el('div', 'row');
-      const rc = el('button', 'btn small' + (selected.city === 'random' ? ' on' : ''), '随机落地');
-      rc.onclick = () => { selected.city = 'random'; showMenu(); };
-      cRow.appendChild(rc);
-      box.appendChild(cRow);
+    if (step.key === 'city') {
+      const rc = el('button', 'btn card' + (selected.city === 'random' ? ' on' : ''),
+        '随机落地　—　按种子抽签，同种子必得同一座城');
+      rc.onclick = () => pickAndNext(() => { selected.city = 'random'; });
+      body.appendChild(rc);
       const groups = [['原著城市', '原著'], ['同人衍生（含其城市与厉鬼）', '同人']];
       for (const [title, key] of groups) {
         const ids = Object.keys(C.cities).filter((id) => (key === '原著'
           ? C.cities[id].src === '原著'
           : C.cities[id].src !== '原著'));
+        body.appendChild(el('div', 'sectionTitle', title));
         const row = el('div', 'row');
-        row.appendChild(el('span', 'muted', title + '：'));
         ids.forEach((id) => {
           const c = C.cities[id];
           const b = el('button', 'btn small' + (selected.city === id ? ' on' : ''), c.name);
           b.title = c.src + '　' + c.desc;
-          b.onclick = () => { selected.city = id; showMenu(); };
+          b.onclick = () => pickAndNext(() => { selected.city = id; });
           row.appendChild(b);
         });
-        box.appendChild(row);
+        body.appendChild(row);
       }
       const curC = selected.city === 'random' ? null : C.cities[selected.city];
-      box.appendChild(el('div', 'hint', curC
+      body.appendChild(el('div', 'hint', curC
         ? ('落地：' + curC.name + '（' + curC.src + '）' + curC.desc +
            '　本地厉鬼：' + curC.ghosts.map((g) => (C.ghosts[g] ? C.ghosts[g].name : g)).join('、') +
            (curC.rule ? '　【本地规矩】' + curC.rule.text : '') +
            (curC.act ? '　【专属行动】' + curC.act.label : ''))
-        : '落地：随机（按种子抽签，同种子必得同一座城；每座城都有本地厉鬼、本地规矩与一条专属行动）'));
+        : '落地：随机（每座城都有本地厉鬼、本地规矩与一条专属行动）'));
     }
 
-    // ---- 时期（原著时间线）：可自选，也可随机 ----
-    if (C.eras) {
-      box.appendChild(el('div', 'sectionTitle', '时期（原著时间线）· 可自选或随机'));
-      const eRow = el('div', 'row');
-      const re = el('button', 'btn small' + (selected.era === 'random' ? ' on' : ''), '随机时期');
-      re.onclick = () => { selected.era = 'random'; showMenu(); };
-      eRow.appendChild(re);
+    if (step.key === 'era') {
+      const re = el('button', 'btn card' + (selected.era === 'random' ? ' on' : ''),
+        '随机时期　—　按种子抽签');
+      re.onclick = () => pickAndNext(() => { selected.era = 'random'; });
+      body.appendChild(re);
       Object.keys(C.eras).forEach((id) => {
         const e = C.eras[id];
-        const b = el('button', 'btn small' + (selected.era === id ? ' on' : ''), e.short);
-        b.title = e.name + '　' + e.desc;
-        b.onclick = () => { selected.era = id; showMenu(); };
-        eRow.appendChild(b);
+        const b = el('button', 'btn card' + (selected.era === id ? ' on' : ''), e.short + '　—　' + e.desc);
+        b.onclick = () => pickAndNext(() => { selected.era = id; });
+        body.appendChild(b);
       });
-      box.appendChild(eRow);
-      const curE = selected.era === 'random' ? null : C.eras[selected.era];
-      box.appendChild(el('div', 'hint', curE
-        ? ('时期：' + curE.name + '　' + curE.desc + '　世界时钟：' +
-           curE.events.map((e) => (C.ghosts[e.ghost] ? C.ghosts[e.ghost].name : e.ghost) + '@' + e.turn + '天').join(' → '))
-        : '时期：随机（按种子抽签）'));
     }
 
-    box.appendChild(el('div', 'sectionTitle', '内容分级'));
-    const lvRow = el('div', 'row');
-    [['A', 'A 影视级（默认）'], ['B', 'B 写实级'], ['C', 'C 无限制']].forEach(([id, label]) => {
-      const b = el('button', 'btn small' + (selected.level === id ? ' on' : ''), label);
-      b.onclick = () => { selected.level = id; showMenu(); };
-      lvRow.appendChild(b);
-    });
-    box.appendChild(lvRow);
+    if (step.key === 'stance' && C.stances) {
+      for (const id of Object.keys(C.stances)) {
+        const st = C.stances[id];
+        const b = el('button', 'btn card' + (selected.stance === id ? ' on' : ''), st.name + '　—　' + st.blurb +
+          (st.rules && st.rules.length ? '　【规矩】' + st.rules.join(' ') : ''));
+        b.onclick = () => pickAndNext(() => { selected.stance = id; });
+        body.appendChild(b);
+      }
+    }
 
-    box.appendChild(el('div', 'sectionTitle', '随机种子（可选，同种子=同世界）'));
-    const seedInput = el('input', 'input');
-    seedInput.placeholder = '留空则随机';
-    seedInput.value = selected.seed;
-    seedInput.oninput = () => { selected.seed = seedInput.value.trim(); };
-    box.appendChild(seedInput);
+    if (step.key === 'misc') {
+      body.appendChild(el('div', 'sectionTitle', '内容分级'));
+      const lvRow = el('div', 'row');
+      [['A', 'A 影视级（默认）'], ['B', 'B 写实级'], ['C', 'C 无限制']].forEach(([id, label]) => {
+        const b = el('button', 'btn small' + (selected.level === id ? ' on' : ''), label);
+        b.onclick = () => { selected.level = id; showMenu(); };
+        lvRow.appendChild(b);
+      });
+      body.appendChild(lvRow);
 
+      body.appendChild(el('div', 'sectionTitle', '随机种子（可选，同种子=同世界）'));
+      const seedInput = el('input', 'input');
+      seedInput.placeholder = '留空则随机';
+      seedInput.value = selected.seed;
+      seedInput.oninput = () => { selected.seed = seedInput.value.trim(); };
+      body.appendChild(seedInput);
+
+      if (profile && P) {
+        const prog = P.achievementProgress(profile);
+        const endCount = Object.keys(profile.endings || {}).length;
+        body.appendChild(el('div', 'sectionTitle', '玩家档案（跨局保存）'));
+        body.appendChild(el('div', 'hint', '成就 ' + prog.unlocked + '/' + prog.total +
+          '　｜　结局收集 ' + endCount + '/' + Object.keys(C.endings).length +
+          '　｜　最佳存活 ' + (profile.best.turn || 0) + ' 天' +
+          '　｜　总局数 ' + profile.runs.total + '（死亡 ' + profile.runs.died + '）' +
+          '　｜　周目点数 ' + profile.points));
+        if (profile.points > 0 && C.legacyOptions) {
+          body.appendChild(el('div', 'sectionTitle', '二周目继承（本次开局生效，消耗周目点数）'));
+          const row = el('div', 'row');
+          const none = el('button', 'btn small' + (!selected.legacy ? ' on' : ''), '不带继承');
+          none.onclick = () => { selected.legacy = null; showMenu(); };
+          row.appendChild(none);
+          Object.keys(C.legacyOptions).forEach((id) => {
+            const leg = C.legacyOptions[id];
+            const afford = profile.points >= leg.cost;
+            const b = el('button', 'btn small' + (selected.legacy === id ? ' on' : ''),
+              leg.name + '（' + leg.cost + ' 点）' + (afford ? '' : '·点数不足'));
+            b.disabled = !afford;
+            if (afford) b.onclick = () => { selected.legacy = id; showMenu(); };
+            row.appendChild(b);
+          });
+          body.appendChild(row);
+          const cur = selected.legacy && C.legacyOptions[selected.legacy];
+          body.appendChild(el('div', 'hint', cur ? cur.desc : '继承只影响开局初始值，不参与任何判定公式。'));
+        }
+      } else {
+        const gallery = LS.get('rs_gallery', {});
+        const names = Object.keys(gallery).map((k) => (C.endings[k] ? C.endings[k].name : k) + '×' + gallery[k].times);
+        body.appendChild(el('div', 'muted', '结局图鉴（' + Object.keys(gallery).length + '/' + Object.keys(C.endings).length + '）：' +
+          (names.length ? names.join('、') : '暂无')));
+      }
+      const auto = LS.get('rs_autosave', null);
+      if (auto) {
+        const b = el('button', 'btn small', '继续上次的进度');
+        b.onclick = () => loadFromText(auto); // 注意：LS.get 已经解过一次码，不能再 JSON.stringify
+        body.appendChild(b);
+      }
+    }
+
+    // 底部导航（每一步都在，手机上不会跑出屏幕）
+    const nav = el('div', 'wizNav');
+    const back = el('button', 'btn small', '‹ 上一步');
+    back.disabled = menuStep === 1;
+    back.onclick = () => menuGo(menuStep - 1);
+    nav.appendChild(back);
+    const next = el('button', 'btn small', menuStep === MENU_STEPS.length ? '回到第 1 步' : '下一步 ›');
+    next.onclick = () => menuGo(menuStep === MENU_STEPS.length ? 1 : menuStep + 1);
+    nav.appendChild(next);
+    box.appendChild(nav);
+
+    // 按钮文案保持「开始游戏」不变（很多自动化用例按这个精确匹配），
+    // "用当前选择直接开局"这层意思放在下面的提示里。
     const start = el('button', 'btn primary big', '开始游戏');
     start.onclick = () => startGame();
     box.appendChild(start);
-
-    if (profile && P) {
-      const prog = P.achievementProgress(profile);
-      const endCount = Object.keys(profile.endings || {}).length;
-      box.appendChild(el('div', 'sectionTitle', '玩家档案（跨局保存）'));
-      const kv = el('div', 'hint');
-      kv.textContent = '成就 ' + prog.unlocked + '/' + prog.total +
-        '　｜　结局收集 ' + endCount + '/' + Object.keys(C.endings).length +
-        '　｜　最佳存活 ' + (profile.best.turn || 0) + ' 天' +
-        '　｜　总局数 ' + profile.runs.total + '（死亡 ' + profile.runs.died + '）' +
-        '　｜　周目点数 ' + profile.points;
-      box.appendChild(kv);
-      const names = Object.keys(profile.endings || {})
-        .map((k) => (C.endings[k] ? C.endings[k].name : k) + '×' + profile.endings[k]);
-      box.appendChild(el('div', 'muted', '结局图鉴：' + (names.length ? names.join('、') : '暂无')));
-      const unlockedNames = prog.list.filter((x) => x.unlocked).map((x) => x.name);
-      box.appendChild(el('div', 'muted', '已解锁成就：' + (unlockedNames.length ? unlockedNames.join('、') : '暂无')));
-
-      // 二周目：花点数换开局加成（只改初始值，写进本局存档参与校验和）
-      if (profile.points > 0 && C.legacyOptions) {
-        box.appendChild(el('div', 'sectionTitle', '二周目继承（本次开局生效，消耗周目点数）'));
-        const row = el('div', 'row');
-        const none = el('button', 'btn small' + (!selected.legacy ? ' on' : ''), '不带继承');
-        none.onclick = () => { selected.legacy = null; showMenu(); };
-        row.appendChild(none);
-        Object.keys(C.legacyOptions).forEach((id) => {
-          const leg = C.legacyOptions[id];
-          const afford = profile.points >= leg.cost;
-          const b = el('button', 'btn small' + (selected.legacy === id ? ' on' : ''),
-            leg.name + '（' + leg.cost + ' 点）' + (afford ? '' : '·点数不足'));
-          b.disabled = !afford;
-          if (afford) b.onclick = () => { selected.legacy = id; showMenu(); };
-          row.appendChild(b);
-        });
-        box.appendChild(row);
-        const cur = selected.legacy && C.legacyOptions[selected.legacy];
-        box.appendChild(el('div', 'hint', cur ? cur.desc : '继承只影响开局初始值，不参与任何判定公式。'));
-      }
-    } else {
-      const gallery = LS.get('rs_gallery', {});
-      const names = Object.keys(gallery).map((k) => (C.endings[k] ? C.endings[k].name : k) + '×' + gallery[k].times);
-      box.appendChild(el('div', 'muted', '结局图鉴（' + Object.keys(gallery).length + '/' + Object.keys(C.endings).length + '）：' +
-        (names.length ? names.join('、') : '暂无')));
-    }
-    const auto = LS.get('rs_autosave', null);
-    if (auto) {
-      const b = el('button', 'btn small', '继续上次的进度');
-      b.onclick = () => loadFromText(auto); // 注意：LS.get 已经解过一次码，不能再 JSON.stringify
-      box.appendChild(b);
-    }
+    box.appendChild(el('div', 'hint', '现在也可以直接开始：用上面「已选」里那套设置开局（想改就点上一步，或点上面的圆点跳步）。'));
+    box.appendChild(el('div', 'hint', '玩法提示：每天有 2~4 个行动点，每件事都先给一段小故事、再让你挑具体怎么做。' +
+      '顶栏「日记」按天翻页看发生过什么，「背包」看身上的东西，「笔记」放线索与重点，「设置」里是图鉴与存档。'));
   }
 
   function startGame() {
@@ -14758,8 +14846,100 @@ body.story-mode .logwrap{max-height:22vh !important}
     box.appendChild(body);
   }
 
+  /** 背包：身上有什么（道具 / 契约厉鬼 / 钱与家底 / 特殊持有） */
+  function openBag() {
+    const box = $('toolbox');
+    clear(box);
+    box.style.display = '';
+    sheetHead(box, '背包', '你身上带着的东西：道具、契约、钱与家底。想在遭遇里用道具不用手动点——引擎会自己挑。', null);
+    if (!state) { box.appendChild(el('div', 'setDesc', '还没开局。')); return; }
+    const body = el('div', 'sheetBody');
+
+    // ① 钱与家底
+    const money = el('div', 'noteCard');
+    money.appendChild(el('div', 'noteTitle', '钱与家底'));
+    const mrow = el('div', 'bagMoney');
+    const mItem = (label, val, unit) => {
+      const c = el('span', 'bagMoneyItem');
+      c.appendChild(el('span', 'bagMoneyV', String(val) + (unit || '')));
+      c.appendChild(el('span', 'bagMoneyK', label));
+      mrow.appendChild(c);
+    };
+    mItem('现金（万）', state.money.cash);
+    mItem('存款（万）', state.money.deposit);
+    mItem('黄金（kg）', state.money.gold);
+    mItem('贡献点', state.money.contribution);
+    money.appendChild(mrow);
+    body.appendChild(money);
+
+    // ② 道具
+    const items = el('div', 'noteCard');
+    items.appendChild(el('div', 'noteTitle', '道具（' + (state.items || []).length + ' 件）'));
+    if (!(state.items || []).length) {
+      items.appendChild(el('div', 'noteLine', '身上没有道具。去「去黑市补给」用黄金换，或者从生路上带点东西出来。'));
+    }
+    for (const it of (state.items || [])) {
+      const def = C.items[it.id] || {};
+      const row = el('div', 'bagItem');
+      row.appendChild(el('div', 'bagItemName', (def.name || it.id) + '　×' + it.uses +
+        (def.shieldFor ? '　（能挡 ' + def.shieldFor.join('/') + ' 级）' : '')));
+      row.appendChild(el('div', 'bagItemDesc', def.text || '没有说明。'));
+      if (def.base) {
+        row.appendChild(el('div', 'bagItemMeta', '挡下概率：基础 ' + def.base + '%' +
+          (def.bonus ? '，相关线索 +' + def.bonus + '%' : '')));
+      }
+      items.appendChild(row);
+    }
+    body.appendChild(items);
+
+    // ③ 体内的契约厉鬼
+    const ct = el('div', 'noteCard');
+    ct.appendChild(el('div', 'noteTitle', '体内的契约（' + (state.contracts || []).length + ' 只）'));
+    if (!(state.contracts || []).length) {
+      ct.appendChild(el('div', 'noteLine', '还没有契约。契约厉鬼要先把它的规律查清、再「尝试驾驭」。'));
+    }
+    for (const gid of (state.contracts || [])) {
+      const g = C.ghosts[gid];
+      if (!g) continue;
+      const row = el('div', 'bagItem');
+      row.appendChild(el('div', 'bagItemName', g.name + '（' + g.level + ' 级）'));
+      const ab = (g.abilities || []).slice(0, 3);
+      if (ab.length) row.appendChild(el('div', 'bagItemDesc', ab.join('　·　')));
+      row.appendChild(el('div', 'bagItemMeta', '危险惩罚 -' + (g.penalty || 0) + '%　｜　图鉴里能看它的全部规律'));
+      ct.appendChild(row);
+    }
+    body.appendChild(ct);
+
+    // ④ 特殊持有（只在有数值时显示）
+    const sp = el('div', 'noteCard');
+    sp.appendChild(el('div', 'noteTitle', '特殊持有'));
+    const spRow = (label, val) => {
+      const r = el('div', 'kvRow');
+      r.appendChild(el('span', 'kvK', label));
+      r.appendChild(el('span', 'kvV', String(val)));
+      sp.appendChild(r);
+    };
+    spRow('情报点数', (state.flags && state.flags.intel) || 0);
+    spRow('灾厄印记', ((state.flags && state.flags.marks) || 0) + ' 层（每层让世界推进更快）');
+    spRow('安全屋 / 伪装', ((state.flags && state.flags.safehouse) || 0) + ' 级 / ' + ((state.flags && state.flags.disguise) || 0) + ' 级');
+    spRow('规律线索', (state.clues || []).length + ' 条（「笔记 · 线索」里按鬼分组看）');
+    if (state.godLayers) spRow('体内鬼域层数', state.godLayers + ' 层（替你挡死，用尽才真的死）');
+    if (state.domain && state.domain.lv) spRow('鬼域扩张', state.domain.lv + '/5 格（盖满 = 世界结局「人间如狱」）');
+    if (state.busTurn && (state.turn - state.busTurn) <= 2) {
+      spRow('灵异公交压制', '还剩 ' + (3 - (state.turn - state.busTurn)) + ' 天（体内复苏被压住）');
+    }
+    const pet = (state.relationships || []).length;
+    if (pet) spRow('关系', pet + ' 人（「维持关系」可以加深）');
+    if (state.wife) spRow('家里', '已婚' + (state.children ? '，孩子 ' + state.children + ' 个' : ''));
+    body.appendChild(sp);
+
+    body.appendChild(el('div', 'sheetSub', '提示：道具在遭遇里会自动替你挡一下；黄金能挡 S 级，也能在黑市换东西。'));
+    box.appendChild(body);
+  }
+
   function openSettingsOrJournal(which) {
     if (which === 'journal') openJournal(false);
+    else if (which === 'bag') openBag();
     else if (which === 'notes') openNotes('clue');
     else openSettings();
   }
@@ -14976,6 +15156,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     if ($('btnCodex')) $('btnCodex').onclick = function () { openCodex('ach'); };
     // 第 30 轮：顶栏只留「日记 / 笔记 / 设置」
     if ($('btnJournal')) $('btnJournal').onclick = function () { openJournal(false); };
+    if ($('btnBag')) $('btnBag').onclick = openBag;
     if ($('btnNotes')) $('btnNotes').onclick = function () { openNotes('clue'); };
     if ($('btnSettings')) $('btnSettings').onclick = openSettings;
     if ($('btnNewbie')) {
