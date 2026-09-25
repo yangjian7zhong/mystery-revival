@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260925082640">
+<meta name="rs-build" content="v260925091743">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -414,7 +414,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260925082640";</script>
+<script>window.__RS_BUILD = "v260925091743";</script>
 <header>
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
@@ -5032,6 +5032,88 @@ body.story-mode .logwrap{max-height:22vh !important}
         },
       ],
     },
+  };
+
+  /* --------------------- 第 35 轮：养鬼 / 驱使（B 段第一件）
+   * 这两张场景只负责"你具体怎么养、怎么使唤"的叙事与开销；
+   * 默契与复苏的增减全部在引擎的 carePet / drivePet 里算（唯一写入点 + 钳制）。
+   */
+  scenes.raise_contract = {
+    title: '怎么养它？',
+    story: function (s, act) {
+      // actionId 形如 raise_contract:<gid> —— 用它取到"这一次养的是哪只"的读数
+      const gid = String((act && act.id) || '').split(':')[1];
+      const p = (gid && s && s.pets) ? s.pets[gid] : null;
+      return [
+        '你把手按在胸口那道印记上。它不在皮肉里，也不在骨头里——像有人在你身体内侧留了一把椅子，随时可以坐下。',
+        p ? '它现在的样子：默契 ' + p.bond + '，复苏 ' + p.revival + (p.frozen ? '——已经失控了，先把它压回 60 以下' : '') + '。养它要花时间，也要花你自己。'
+          : '契约是活的。你不理它，它也会自己往上长——长到压不住那天，它就不跟你商量了。',
+        '原著的规矩是：饲料从来不是食物，是界限。你给它什么、不给它什么，说清楚一次，它记很久。',
+      ];
+    },
+    options: [
+      {
+        id: 'rc_feed', label: '弄一份它认的东西喂它', hint: '花钱最少：默契 +1，复苏 -8',
+        story: [
+          '你去了一趟城南，把该买的买齐：一份带血的生食、一叠写过字的纸，还有一小瓶不知名液体。',
+          '摆上去之后你没有看它。喂契约这种事，看着的人会先输掉气势。',
+        ],
+        cost: [{ k: 'money', key: 'cash', v: -2 }, { k: 'stat', key: 'stamina', v: -4 }],
+        win: { lines: ['桌上的东西在几分钟里变旧了。你收走盘子的时候，那点动静已经沉下去半截。'] },
+      },
+      {
+        id: 'rc_talk', label: '静坐，跟它把界限说清楚', hint: '默契 +1，复苏 -12，另得情报',
+        story: [
+          '你把门窗关好，坐在地上，跟它说话——不是求，也不是命令，是把话摆平。',
+          '它听着。你能感觉到它在身体里挪了挪位置，像在把椅子往前拉一点。',
+        ],
+        cost: [{ k: 'stat', key: 'sanity', v: -4 }],
+        win: { lines: ['天快亮的时候你说完最后一句：什么可以要，什么不能要。它记住了这个边界。'] },
+      },
+      {
+        id: 'rc_bleed', label: '放血喂它', hint: '最伤身但最快：默契 +2，复苏 -20',
+        story: [
+          '你割开手腕内侧那条浅的，把血滴在印记的位置。它喝得很慢——慢得像在数你还有多少次。',
+          '血流到第三十滴的时候你就知道今天够了，但你还是让它多喝了几滴。',
+        ],
+        cost: [{ k: 'stat', key: 'stamina', v: -12 }, { k: 'stat', key: 'pollution', v: 5 }],
+        win: { lines: ['你把伤口按住，靠在墙上喘了一会儿。它在里面安静得像一只睡着的狗——只是重了一点。'] },
+      },
+    ],
+  };
+
+  scenes.drive_contract = {
+    title: '这次要它做什么？',
+    story: [
+      '你把手按在印记上，叫了它一声。它应了——那种应法不是说话，是身体里某样东西换了个姿势。',
+      '它能替你做的事有限，而且每做一件，它都会往你身上再长一寸。这笔账你心里要清楚。',
+    ],
+    options: [
+      {
+        id: 'dc_shield', label: '让它替你挡一次（先记在账上）', hint: '护身 +1（最多 2 层），复苏 +20',
+        story: [
+          '你把手按在胸口，说了一句"记住你答应的"。',
+          '胸口那道印记自己紧了一下——它答应了，但你能感觉到它答应得很痛快，痛快得不太像好意。',
+        ],
+        win: { lines: ['接下来的几个小时里，你身上多了一层说不清的东西：不是护甲，更像有人在门后替你顶着。'] },
+      },
+      {
+        id: 'dc_scout', label: '派它出去摸一件事', hint: '可能带回来一条线索，复苏 +15',
+        story: [
+          '你放它出去。它走的不是路——是墙缝、是别人的影子、是那些你没注意过的夹角。',
+          '你站在原地等。等的时候你会发现，自己身上有一块地方是空的。',
+        ],
+        win: { lines: ['它回来的时候不声不响，只是你手里多了一件本来不该知道的事。'] },
+      },
+      {
+        id: 'dc_calm', label: '让它替你压住身上的脏东西', hint: '污染 -10、理智 +8；复苏 +12',
+        story: [
+          '你让它往回收一点。污染像水一样顺着印记被抽走，抽走的时候你听见自己牙关在响。',
+          '清醒也回来了，回来得很快——快到你开始怀疑刚才那些是它故意让你看见的。',
+        ],
+        win: { lines: ['你洗了把脸，镜子里的人比昨天像人一点。你不太敢多看里面那个影子。'] },
+      },
+    ],
   };
 
   return { scenes: scenes };
@@ -10313,6 +10395,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     // 第 30 轮：灵异公交车的压制窗口 / 当天的额外遭遇风险（都走账本，改 state 会被守恒校验抓到）
     'busTurn': [0, 1e6],
     'encRiskToday': [0, 100],
+    // 第 35 轮：契约护身（养鬼·驱使线的回报，最多囤 2 层；进账本 → 直接改 state 会被守恒校验抓到）
+    'petShield': [0, 2],
     'meta.deaths': [0, 1e6],
     'meta.bestTurn': [0, 1e6],
   };
@@ -10385,6 +10469,9 @@ body.story-mode .logwrap{max-height:22vh !important}
       money: money,
       items: pack.items.map((id) => ({ id: id, uses: CONTENT.items[id].uses || 1 })),
       contracts: pack.contracts.slice(),
+      // 第 35 轮：契约不是勋章——每只鬼单独记默契/复苏/失控状态（养鬼·驱使线）
+      pets: {},
+      petShield: 0,
       clues: [],
       bestiary: {},
       relationships: [],
@@ -11252,6 +11339,21 @@ body.story-mode .logwrap{max-height:22vh !important}
     }
 
     checkThresholds(state);
+    if (state.over) return;
+    // 第 35 轮：体内的契约过夜要结账（复苏自然上涨 / 过线啃人 / 满值失控 / 拖久了反噬致死）
+    const petNight = petsNightly(state);
+    if (petNight.alert.length) {
+      state.notes = state.notes || [];
+      state.notes.push.apply(state.notes, petNight.alert);
+    }
+    if (petNight.lines.length) {
+      state.notes = state.notes || [];
+      state.notes.push.apply(state.notes, petNight.lines);
+    }
+    if (petNight.death) {
+      return endGame(state, 'dead', '体内的契约终于把该拿的那一次拿走了。', 'contract-backlash');
+    }
+    checkThresholds(state);          // 契约反噬推高的侵蚀/情智可能当场过线，必须复检
     if (!state.over) startTurn(state);
   }
 
@@ -11928,6 +12030,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (ca) add(ca);
     // 第 30 轮：灵异公交车（复苏度过高时的喘息；原著里车能压住厉鬼的杀人规律）
     add(busAction(state));
+    // 第 35 轮：养鬼 / 驱使（B 段第一件）——有契约才出现
+    for (const ca of contractActions(state)) add(ca);
     // 第 23 轮：立场专属行动（每天一个）
     const stanceAct = stanceAction(state);
     if (stanceAct) add(stanceAct);
@@ -12458,6 +12562,246 @@ body.story-mode .logwrap{max-height:22vh !important}
     };
   }
 
+  /* --------------------- 第 35 轮：养鬼 / 驱使（B 段第一件）
+   * 原来"契约"只是一枚勋章：驾驭成功之后，那只鬼就躺在 contracts 数组里什么也不干。
+   * 这一轮给它装上三条线：
+   *   ① **养**：每天花行动点"供养"它（喂、静坐说话、放血），把默契养上去、把复苏压下来；
+   *   ② **用**：默契够了可以驱使——替你挡一次死、派它去摸一条线索、让它压住你自己的污染；
+   *   ③ **代价**：复苏度只增不减地往上爬（用一次 +15~20），爬过 90 每天啃你一口，
+   *      满 100 就**失控**（默契清零、不能再驱使、每天伤身），失控拖久了直接反噬致死。
+   * 全部走唯一写入点与账本（护身标记 petShield 在 BOUNDS 里），读档结构消毒。
+   */
+  const PET_BOND_MAX = 10;          // 默契上限
+  const PET_REVIVAL_MAX = 100;      // 复苏度上限
+  const PET_ALERT = 90;             // 过了这条线：每天开始啃你
+  const PET_RECOVER = 60;           // 失控后要压回这条线下才算恢复
+  const PET_CARE_PER_DAY = 2;       // 同一只鬼一天最多养两次（防"一天养满"）
+  const PET_SHIELD_MAX = 2;         // 护身标记最多囤两个
+
+  function petOf(state, gid) {
+    state.pets = state.pets || {};
+    let p = state.pets[gid];
+    if (!p) {
+      p = { bond: 0, revival: 0, careTurn: -99, careCount: 0, useTurn: -99, useCount: 0, uses: 0, frozen: false, badDays: 0 };
+      state.pets[gid] = p;
+    }
+    p.bond = clamp(int(p.bond) || 0, 0, PET_BOND_MAX);
+    p.revival = clamp(int(p.revival) || 0, 0, PET_REVIVAL_MAX);
+    p.uses = Math.max(0, int(p.uses) || 0);
+    return p;
+  }
+
+  /** 界面用：这只契约现在什么状态（只读） */
+  function petStatus(state, gid) {
+    const p = petOf(state, gid);
+    const g = CONTENT.ghosts[gid] || { name: gid };
+    let label;
+    if (p.frozen) label = '失控';
+    else if (p.revival >= PET_ALERT) label = '压不住';
+    else if (p.revival >= 60) label = '躁动';
+    else if (p.revival >= 30) label = '安静';
+    else label = '温顺';
+    return {
+      id: gid, name: g.name, level: g.level || '', bond: p.bond, revival: p.revival,
+      frozen: !!p.frozen, label: label,
+      text: g.name + '（默契 ' + p.bond + '/' + PET_BOND_MAX + '，复苏 ' + p.revival + '/' + PET_REVIVAL_MAX + '，' + label + '）',
+    };
+  }
+
+  /** 菜单/界面用：所有契约的状态一览 */
+  function allPets(state) {
+    return (state.contracts || []).filter((gid) => CONTENT.ghosts[gid]).map((gid) => petStatus(state, gid));
+  }
+
+  /** 两种能用的契约行动（养 / 驱使）：**每只契约各一个**，标签把场景指过去
+   *  （场景 key 用 tags 命中 `raise_contract` / `drive_contract`，actionId 里带着是哪只鬼） */
+  function contractActions(state) {
+    // 复苏最高的排在前面（最该养的先出现）——杨戬这种 6 只契约开局的菜单不至于看不出重点
+    const pets = allPets(state).slice().sort((a, b) => (b.revival - a.revival) || (b.bond - a.bond));
+    const out = [];
+    for (const p of pets) {
+      out.push({
+        id: 'raise_contract:' + p.id,
+        label: '供养「' + p.name + '」（默契 ' + p.bond + '/' + PET_BOND_MAX + '，复苏 ' + p.revival + '，' + p.label + '）',
+        tags: ['raise_contract'], kind: 'day',
+        run: () => ({ lines: [] }),
+      });
+      if (!p.frozen && p.bond >= 2) {
+        out.push({
+          id: 'drive_contract:' + p.id,
+          label: '驱使「' + p.name + '」（复苏 ' + p.revival + '，契约护身 ' + (state.petShield || 0) + '/' + PET_SHIELD_MAX + '）',
+          tags: ['drive_contract'], kind: 'day',
+          run: () => ({ lines: [] }),
+        });
+      }
+    }
+    return out;
+  }
+
+  /** 这一次养/驱使的是哪只契约（actionId 是 raise_contract:<gid> 这种形式） */
+  function petTargetOf(state, actId, optId) {
+    void optId;
+    const fromScene = String((state.scene && state.scene.actionId) || '').split(':')[1];
+    if (fromScene && CONTENT.ghosts[fromScene]) return fromScene;
+    const fromAct = String(actId || '').split(':')[1];
+    if (fromAct && CONTENT.ghosts[fromAct]) return fromAct;
+    const list = allPets(state);
+    return list.length ? list[0].id : null;
+  }
+
+  /** 养：喂 / 静坐说话 / 放血。mode 由子场景选项 id 决定。 */
+  function carePet(state, gid, mode) {
+    const p = petOf(state, gid);
+    const g = CONTENT.ghosts[gid] || { name: gid };
+    if (!(state.contracts || []).includes(gid)) return { ok: false, why: '你体内没有这只鬼。' };
+    if (p.careTurn !== state.turn) { p.careTurn = state.turn; p.careCount = 0; }
+    if (p.careCount >= PET_CARE_PER_DAY) {
+      return { ok: false, why: '今天已经养过 ' + g.name + ' 两次了——再喂它也不领情。' };
+    }
+    const table = {
+      rc_feed: { bond: 1, revival: -8, cash: -2, lines: [] },
+      rc_talk: { bond: 1, revival: -12, sanity: -4, intel: 1, lines: [] },
+      rc_bleed: { bond: 2, revival: -20, stamina: -12, pollution: 5, lines: [] },
+    };
+    const t = table[mode] || table.rc_feed;
+    const eff = [];
+    if (t.cash) eff.push({ k: 'money', key: 'cash', v: t.cash });
+    if (t.sanity) eff.push({ k: 'stat', key: 'sanity', v: t.sanity });
+    if (t.stamina) eff.push({ k: 'stat', key: 'stamina', v: t.stamina });
+    if (t.pollution) eff.push({ k: 'stat', key: 'pollution', v: t.pollution });
+    if (eff.length) applyEffects(state, eff, '供养「' + g.name + '」');
+    if (t.intel) grantIntel(state, t.intel, '静坐时它漏给你的一句话');
+    const b0 = p.bond;
+    const r0 = p.revival;
+    p.bond = clamp(p.bond + t.bond, 0, PET_BOND_MAX);
+    p.revival = clamp(p.revival - (-t.revival), 0, PET_REVIVAL_MAX);
+    p.careCount += 1;
+    if (p.frozen && p.revival <= PET_RECOVER) {
+      p.frozen = false;
+      p.badDays = 0;
+      p.bond = Math.max(p.bond, 1);
+    }
+    const settlement = [
+      '供养「' + g.name + '」：默契 ' + b0 + '→' + p.bond +
+      (p.revival === r0 ? '，复苏 ' + p.revival + '（已经压到底了，没得再压）' : '，复苏 ' + r0 + '→' + p.revival) +
+      (p.frozen ? '（还是失控，要先把它压回 ' + PET_RECOVER + ' 以下）' : ''),
+    ];
+    if (t.intel) settlement.push('情报 +' + t.intel);
+    return { ok: true, lines: t.lines, settlement: settlement, pet: petStatus(state, gid), recovered: !p.frozen && b0 !== p.bond };
+  }
+
+  /** 驱使：护身 / 派它去看 / 让它压住你。要有默契，代价是复苏度。 */
+  function drivePet(state, gid, mode) {
+    const p = petOf(state, gid);
+    const g = CONTENT.ghosts[gid] || { name: gid };
+    if (!(state.contracts || []).includes(gid)) return { ok: false, why: '你体内没有这只鬼。' };
+    if (p.frozen) return { ok: false, why: '「' + g.name + '」已经失控了——现在驱使它，等于把方向盘交给它。' };
+    if (p.bond < 2) return { ok: false, why: '你跟「' + g.name + '」的默契还不够（要 ' + 2 + ' 点以上，现在是 ' + p.bond + '）。' };
+    if (p.useTurn !== state.turn) { p.useTurn = state.turn; p.useCount = 0; }
+    if (p.useCount >= 1) return { ok: false, why: '今天已经驱使过它一次了——它也需要缓一缓。' };
+    const lines = [];
+    const settlement = [];
+    if (mode === 'dc_shield') {
+      if ((state.petShield || 0) >= PET_SHIELD_MAX) return { ok: false, why: '身上已经压着 ' + PET_SHIELD_MAX + ' 层契约护身了，再多它也顶不住。' };
+      addPath(state, 'petShield', 1, '让「' + g.name + '」替你挡一次（先记在账上）');
+      p.revival = clamp(p.revival + 20, 0, PET_REVIVAL_MAX);
+      settlement.push('契约护身 +1（当前 ' + state.petShield + '/' + PET_SHIELD_MAX + '）：下次必死判定由它替你承一次');
+      settlement.push('复苏 +20（' + g.name + '现在 ' + p.revival + '/' + PET_REVIVAL_MAX + '）');
+    } else if (mode === 'dc_scout') {
+      const c = grantClue(state, '驱使「' + g.name + '」去摸');
+      p.revival = clamp(p.revival + 15, 0, PET_REVIVAL_MAX);
+      if (c.ok) {
+        settlement.push('线索 +1：' + c.text);
+        lines.push('它带回来的东西是：' + c.text);
+      } else {
+        lines.push(c.why);
+        settlement.push('它空手回来了（' + c.why + '）');
+      }
+      settlement.push('复苏 +15（' + g.name + '现在 ' + p.revival + '/' + PET_REVIVAL_MAX + '）');
+    } else {
+      // dc_calm：让它替你把身上的脏东西压回去
+      applyEffects(state, [
+        { k: 'stat', key: 'pollution', v: -10 },
+        { k: 'stat', key: 'sanity', v: 8 },
+      ], '驱使「' + g.name + '」压住污染');
+      p.revival = clamp(p.revival + 12, 0, PET_REVIVAL_MAX);
+      settlement.push('污染 -10、理智 +8');
+      settlement.push('复苏 +12（' + g.name + '现在 ' + p.revival + '/' + PET_REVIVAL_MAX + '）');
+    }
+    p.useCount += 1;
+    p.uses += 1;
+    if (p.revival >= PET_ALERT) settlement.push('警告：它的复苏已经到 ' + p.revival + '，再爬上去就要压不住了');
+    return { ok: true, lines: lines, settlement: settlement, pet: petStatus(state, gid) };
+  }
+
+  /** 契约护身：本该致死时被体内那只鬼顶一次（比鬼域护体弱，要先掉一点代价） */
+  function petShieldSave(state, why) {
+    if (!state.petShield || state.petShield <= 0) return false;
+    addPath(state, 'petShield', -1, '契约护身承下一次致死（' + why + '）');
+    const pets = allPets(state).filter((p) => !p.frozen);
+    const who = pets.length ? pets[0].name : '体内的契约';
+    applyEffects(state, [
+      { k: 'stat', key: 'stamina', v: -18 },
+      { k: 'stat', key: 'pollution', v: 8 },
+    ], '契约护身承伤');
+    const gid = pets.length ? pets[0].id : (state.contracts || [])[0];
+    if (gid && state.pets && state.pets[gid]) {
+      state.pets[gid].revival = clamp((int(state.pets[gid].revival) || 0) + 10, 0, PET_REVIVAL_MAX);
+    }
+    (state.notes = state.notes || []).push(
+      '「' + who + '」替你承了这一下：你听见它在你体内咳了一声，然后一切照旧。' +
+      '（契约护身剩 ' + state.petShield + '；体力 -18、污染 +8、它的复苏 +10）');
+    return true;
+  }
+
+  /** 每天结束时的契约账：复苏自然上涨 / 过线啃人 / 满值失控 / 失控拖久了反噬致死 */
+  function petsNightly(state) {
+    const lines = [];
+    const alert = [];
+    let backlashDeath = false;
+    for (const gid of (state.contracts || [])) {
+      if (!CONTENT.ghosts[gid]) continue;
+      const p = petOf(state, gid);
+      const g = CONTENT.ghosts[gid];
+      // 契约是活的：不管它就是慢慢往上爬（用一次 +15~20，养一次能压 8~20）
+      p.revival = clamp(p.revival + 1, 0, PET_REVIVAL_MAX);
+      if (p.revival >= PET_REVIVAL_MAX) {
+        if (!p.frozen) {
+          p.frozen = true;
+          p.bond = 0;
+          p.badDays = 0;
+          alert.push('【契约失控】「' + g.name + '」的复苏满了——它不再听你的。默契清零，暂时不能驱使；' +
+            '要先把它养回 ' + PET_RECOVER + ' 以下（用「供养体内的契约」）。');
+        } else {
+          p.badDays = (int(p.badDays) || 0) + 1;
+        }
+      } else if (p.frozen) {
+        p.badDays = (int(p.badDays) || 0) + 1;
+      } else {
+        p.badDays = 0;
+      }
+      if (p.frozen) {
+        applyEffects(state, [
+          { k: 'stat', key: 'stamina', v: -20 },
+          { k: 'stat', key: 'pollution', v: 10 },
+        ], '失控的「' + g.name + '」在夜里啃你');
+        lines.push('夜里你被自己身上的动静惊醒——「' + g.name + '」在皮下面翻身。你压了一夜，天亮时手是抖的。');
+        if (p.badDays >= 3) {
+          backlashDeath = true;
+          lines.push('第三天夜里你没有压住。「' + g.name + '」从你体内把该拿的一次拿走了。');
+          break;
+        }
+      } else if (p.revival >= PET_ALERT) {
+        applyEffects(state, [
+          { k: 'stat', key: 'sanity', v: -2 },
+          { k: 'stat', key: 'erosion', v: 2 },
+        ], '「' + g.name + '」复苏报警');
+        alert.push('（「' + g.name + '」复苏 ' + p.revival + '：已经压不住了，每天侵蚀 +2、理智 -2——快去养它。）');
+      }
+    }
+    return { lines: lines, alert: alert, death: backlashDeath };
+  }
+
   /* --------------------- 第 30 轮：灵异公交车（复苏度过高时的避难所）
    * 原著设定：车内鬼不超过 35 只时可以压制车上鬼的杀人规律；能撞到厉鬼死机；
    * 座位里的折叠男尸是车本体、具备压制厉鬼复苏的作用；行驶中会熄火，引发集体下车的大危机；
@@ -12787,6 +13131,25 @@ body.story-mode .logwrap{max-height:22vh !important}
     };
   }
 
+  /** 保命阶梯（第 35 轮抽出）：抵御失败或没有抵御手段时，依次尝试
+   *  ① 体内鬼域（杨戬线，一层一命）→ ② 契约护身（养鬼线，先花钱买下的保底）。
+   *  返回 true = 这次没死。所有副作用都写进结算行，便于测试与玩家对账。 */
+  function saveLadder(state, g, opt, settlement, lines) {
+    if (godSave(state, '命中「' + g.name + '」的规律（' + (opt && opt.label ? opt.label : '') + '）')) {
+      settlement.push('命中「' + g.name + '」的杀人规律 → 被你体内的鬼域挡下（剩余 ' + state.godLayers + ' 层）');
+      applyEffects(state, [{ k: 'stat', key: 'pollution', v: 6 }], '鬼域挡下的余波');
+      lines.push('规律合拢的那一刻，你脚下的地面换了颜色：一层鬼域铺开，把它压在原地。');
+      return true;
+    }
+    if (petShieldSave(state, '命中「' + g.name + '」的规律')) {
+      settlement.push('命中「' + g.name + '」的杀人规律 → 契约护身替你承下（剩 ' + state.petShield +
+        '，代价：体力 -18、污染 +8、那只鬼复苏 +10）');
+      lines.push('你胸口那道印记自己烫了一下——里面那只鬼替你把这一下顶住了。它没出声，但你知道这笔账记下了。');
+      return true;
+    }
+    return false;
+  }
+
   function resolveEncounter(state, optionId) {
     const enc = state.pending;
     if (!enc) return { error: '没有待处理的遭遇' };
@@ -12817,18 +13180,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       }
       // 确定性必死判定；只有持有有效抵御手段才进入概率结算
       const shield = pickShield(state, g);
-      if (!shield) {
-        if (godSave(state, '命中「' + g.name + '」的规律（' + (opt.label || '') + '）')) {
-          settlement.push('命中「' + g.name + '」的杀人规律 → 被你体内的鬼域挡下（剩余 ' + state.godLayers + ' 层）');
-          applyEffects(state, [{ k: 'stat', key: 'pollution', v: 6 }], '鬼域挡下的余波');
-          lines.push('规律合拢的那一刻，你脚下的地面换了颜色：一层鬼域铺开，把它压在原地。');
-        } else {
-          dead = true;
-          deadCause = 'encounter-trap';
-          lines.push('你做出了那个选择。空气安静了一瞬——然后规律合拢。');
-          settlement.push('命中「' + g.name + '」的杀人规律 → 无有效灵异道具/能力 → 默认必死（确定性判定，不含随机数）');
-        }
-      } else {
+      let saved = false;
+      if (shield) {
         const r = doCheck(state, 'resist:' + g.id, shield.item, shield.base, [
           { name: '道具匹配', v: shield.bonus },
           { name: '劫难修正', v: state.stats.calamity >= 70 ? -5 : 0 },
@@ -12842,13 +13195,28 @@ body.story-mode .logwrap{max-height:22vh !important}
             { k: 'stat', key: 'stamina', v: -20 },
           ], '抵御成功的代价');
           lines.push(shield.text);
+          // 第 35 轮：契约替你顶的这一次，它自己会往上长一截（养鬼线的真实代价）
+          if (shield.petId && state.pets && state.pets[shield.petId]) {
+            const pp = state.pets[shield.petId];
+            pp.revival = clamp((int(pp.revival) || 0) + 8, 0, PET_REVIVAL_MAX);
+            settlement.push('契约「' + (CONTENT.ghosts[shield.petId] || {}).name + '」替你顶下 → 它的复苏 +8（现在 ' + pp.revival + '/' + PET_REVIVAL_MAX + '）');
+          }
+          saved = true;
           // 第 21 轮：记录"用道具挡下了规律"（成就用，不参与判定）
           state.events.done.push('shield:' + shield.item + ':' + g.id);
         } else {
-          dead = true;
-          deadCause = 'encounter-resist';
+          // 第 35 轮：抵御没顶住 ≠ 当场死——继续往下走保命阶梯（鬼域 → 契约护身）。
+          // 原来这里直接判死，会让"抵御手段存在"反而变成比没有更糟的事（杨戬十八层鬼域都被绕过）。
+          settlement.push('抵御失败 → 继续尝试下面的保命手段');
           lines.push('「' + shield.name + '」没能挡住它。');
         }
+      }
+      if (!saved) saved = saveLadder(state, g, opt, settlement, lines);
+      if (!saved) {
+        dead = true;
+        deadCause = 'encounter-trap';
+        lines.push('你做出了那个选择。空气安静了一瞬——然后规律合拢。');
+        settlement.push('命中「' + g.name + '」的杀人规律 → 无有效灵异道具/能力/护身 → 默认必死（确定性判定，不含随机数）');
       }
     } else if (opt.kind === 'exit') {
       if (!canPay(state, opt.cost)) {
@@ -12922,8 +13290,19 @@ body.story-mode .logwrap{max-height:22vh !important}
         };
       }
     }
-    if (state.contracts.length > 0) {
-      return { item: 'ghost_power', name: '契约厉鬼', base: 50, bonus: 5, text: '体内的东西替你把规律顶了回去——代价随后就来。' };
+    /* 第 35 轮：契约厉鬼这条抵御从"有契约就 50% 保命"改成**跟着默契走**：
+     * 默契越高越压得住（50 + 默契×3 → 5~10 点默契能到 65~80%），
+     * 而且用成功之后那只鬼会往上涨一截（复苏 +8）；
+     * 全部失控时没人替你顶（这条抵御直接消失）——失控才真的可怕。 */
+    const pets = allPets(state).filter((p) => !p.frozen);
+    if (pets.length) {
+      const best = pets.slice().sort((a, b) => b.bond - a.bond)[0];
+      return {
+        item: 'ghost_power', petId: best.id,
+        name: '契约厉鬼「' + best.name + '」（默契 ' + best.bond + '）',
+        base: 50 + best.bond * 3, bonus: 5,
+        text: '体内的那只鬼替你把规律顶了回去——它顶完就往你身上又长了一寸。',
+      };
     }
     return null;
   }
@@ -13275,6 +13654,22 @@ body.story-mode .logwrap{max-height:22vh !important}
         const r = runSceneOption(state, act, opt);
         narrative.push.apply(narrative, r.lines);
         if (r.check && r.check.formula) settlement.push('做法判定：' + r.check.formula);
+        // 第 35 轮：养鬼 / 驱使——数值全部集中在 carePet / drivePet 里算（场景只负责叙事）
+        // 注意 act.id 形如 raise_contract:<gid>，要按"基线 id"判断，不能直接比字符串
+        const baseAct = String(act.id).split(':')[0];
+        if (baseAct === 'raise_contract' || baseAct === 'drive_contract') {
+          const gid = petTargetOf(state, act.id, opt.id);
+          const pr = baseAct === 'raise_contract'
+            ? carePet(state, gid, opt.id)
+            : drivePet(state, gid, opt.id);
+          if (pr.ok) {
+            narrative.push.apply(narrative, pr.lines || []);
+            settlement.push.apply(settlement, pr.settlement || []);
+          } else {
+            narrative.push(pr.why);
+            settlement.push('（这一次没做成：' + pr.why + '）');
+          }
+        }
         // 走唯一写入点：行动点也在账本里，绕过它直接改 state 会被守恒校验抓到
         addPath(state, 'apUsed', 1, '第 ' + state.turn + ' 天·第 ' + ((state.apUsed || 0) + 1) + ' 次行动（' + act.id + '）');
         state.actionTakenToday = true;
@@ -13519,13 +13914,21 @@ body.story-mode .logwrap{max-height:22vh !important}
       资金: state.money.cash + ' 万 / 存 ' + state.money.deposit + ' 万 / 黄金 ' + state.money.gold + 'kg',
       贡献: state.money.contribution,
       道具: state.items.map((i) => CONTENT.items[i.id].name + '×' + i.uses).join('、') || '无',
-      契约: state.contracts.map((c) => CONTENT.ghosts[c].name).join('、') || '无',
+      契约: (function () {
+        const pets = allPets(state);
+        if (!pets.length) return '无';
+        return pets.map((p) => p.text).join('　');
+      })(),
       线索: state.clues.length + ' 条',
       安全屋: state.flags.safehouse + ' 级',
       灾厄印记: state.flags.marks,
     };
     // 只在真正有鬼域时显示这一行（否则面板会出现"鬼域 undefined"）
     if (state.godLayers) out['鬼域'] = state.godLayers + ' 层（替你挡死，用尽才会死）';
+    // 第 35 轮：契约护身与失控提醒（养鬼线的两个关键读数）
+    if (state.petShield) out['契约护身'] = state.petShield + ' 层（遭遇必死判定时由契约替你承一次）';
+    const broken = allPets(state).filter((p) => p.frozen);
+    if (broken.length) out['失控契约'] = broken.map((p) => p.name).join('、') + '（先养回 ' + PET_RECOVER + ' 以下才能再驱使）';
     return out;
   }
 
@@ -13566,6 +13969,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       // 第 30 轮：阵营与引荐（谁认识谁会影响"能不能约到人"）
       contacts: state.contacts || [], introducedBy: state.introducedBy || {},
       busTurn: state.busTurn || 0,
+      // 第 35 轮：契约的默契与复苏（养鬼·驱使线）
+      pets: state.pets || {}, petShield: state.petShield || 0,
       // 第 33 轮：事件卡（存档中途存下也能接着选）
       card: state.card || null, cardLog: state.cardLog || [],
       // 第 34 轮：NPC 对话记录（好感 / 说过几句 / 已经给过什么）
@@ -13626,6 +14031,25 @@ body.story-mode .logwrap{max-height:22vh !important}
       if (CONTENT.ghosts[k] && CONTENT.ghosts[ib[k]]) s.introducedBy[k] = ib[k];
     }
     s.busTurn = Math.max(0, int(obj.p.busTurn));
+    // 第 35 轮：契约状态读回来（结构消毒：只认自己真的契约、默契/复苏钳制、失控标记可读）
+    s.pets = {};
+    s.petShield = clamp(int(obj.p.petShield) || 0, 0, PET_SHIELD_MAX);
+    const pv = obj.p.pets || {};
+    for (const gid of (s.contracts || [])) {
+      if (!CONTENT.ghosts[gid]) continue;
+      const v = pv[gid] || {};
+      s.pets[gid] = {
+        bond: clamp(int(v.bond) || 0, 0, PET_BOND_MAX),
+        revival: clamp(int(v.revival) || 0, 0, PET_REVIVAL_MAX),
+        careTurn: int(v.careTurn) || -99,
+        careCount: clamp(int(v.careCount) || 0, 0, PET_CARE_PER_DAY),
+        useTurn: int(v.useTurn) || -99,
+        useCount: clamp(int(v.useCount) || 0, 0, 1),
+        uses: Math.max(0, int(v.uses) || 0),
+        frozen: !!v.frozen,
+        badDays: clamp(int(v.badDays) || 0, 0, 99),
+      };
+    }
     // 第 34 轮：对话记录要读回来（结构消毒：只认内容表里真有的人，好感钳在 ±6）
     s.talks = {};
     const tk = obj.p.talks || {};
@@ -13738,6 +14162,14 @@ body.story-mode .logwrap{max-height:22vh !important}
     sayTo: sayTo, talkCtx: talkCtx, npcOpening: npcOpening, npcAttitude: npcAttitude,
     npcArchetype: npcArchetype, talkOf: talkOf, planTalk: planTalk,
     TALK_PER_TURN: TALK_PER_TURN, TALK_PER_DAY: TALK_PER_DAY, TALK_FAVOR_BOUNDS: [FAVOR_MIN, FAVOR_MAX],
+    // 第 35 轮：养鬼 / 驱使
+    petOf: petOf, petStatus: petStatus, allPets: allPets, carePet: carePet, drivePet: drivePet,
+    pickShield: pickShield, saveLadder: saveLadder,
+    contractActions: contractActions, petTargetOf: petTargetOf, petShieldSave: petShieldSave,
+    petsNightly: petsNightly,
+    PET_BOND_MAX: PET_BOND_MAX, PET_REVIVAL_MAX: PET_REVIVAL_MAX,
+    PET_ALERT: PET_ALERT, PET_RECOVER: PET_RECOVER, PET_SHIELD_MAX: PET_SHIELD_MAX,
+    PET_CARE_PER_DAY: PET_CARE_PER_DAY,
     BOUNDS: BOUNDS,
     CHAPTER_REDUCTION_CAP: CHAPTER_REDUCTION_CAP,
     CHAPTER_HUMANITY_CAP: CHAPTER_HUMANITY_CAP,
