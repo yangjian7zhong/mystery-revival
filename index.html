@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260925102634">
+<meta name="rs-build" content="v260925110955">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -88,10 +88,13 @@ main{display:flex; gap:14px; padding:14px; align-items:flex-start; flex:1}
 .toolbox .row{align-items:center}
 
 /* ============ 第 30 轮：日志分界 / 日记 / 笔记 / 设置抽屉 ============ */
-.dayband{display:flex; align-items:center; gap:10px; margin:18px 0 10px}
+.dayband{display:flex; align-items:center; gap:10px; margin:18px 0 10px; max-width:100%; flex-wrap:wrap}
 .dayband .bandLine{flex:1; height:1px; background:linear-gradient(90deg, transparent, #2b3a4a, transparent)}
 .dayband .bandText{
-  color:#ffd7a8; font-size:13.5px; font-weight:600; letter-spacing:.6px; white-space:nowrap;
+  color:#ffd7a8; font-size:13.5px; font-weight:600; letter-spacing:.6px;
+  /* 第 38 轮：分界条现在会带上章节名（"末日篇 · 第一章 · 断电"），手机上必须能折行，
+     否则这一行会把整个日志撑宽 → 抽屉跟着横向溢出（mobile30 实测 84px）。 */
+  white-space:normal; overflow-wrap:anywhere; max-width:100%;
   padding:2px 10px; border:1px solid #3a2f22; border-radius:999px; background:#1a1410;
 }
 .actiondiv{
@@ -414,7 +417,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260925102634";</script>
+<script>window.__RS_BUILD = "v260925110955";</script>
 <header>
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
@@ -2310,6 +2313,133 @@ body.story-mode .logwrap{max-height:22vh !important}
     INTENTS: INTENTS, ARCHS: ARCHS, INTEL_LINES: INTEL_LINES,
     classify: classify, reply: reply, opening: opening, stats: stats,
   };
+});
+</script>
+<script>/* ============================================================================
+ * 神秘复苏模拟器 · 章节链（第 38 轮：A 段第一件「末日篇章节链」）
+ * ----------------------------------------------------------------------------
+ * A 段的方针是"只做结构，不做堆量"：这里给末日篇写一条**完整的章节链**（6 章，
+ * 每章有自己的名字、天数区间、主线厉鬼、开场文字、过章奖励），
+ * 其余时期则由引擎按各自的世界时钟（era.events）**现场生成**一条同构的链——
+ * 于是"章节"这件事在七个时期里都成立，但只有末日篇有手写的内容。
+ *
+ * 契约：
+ *   chapter = {
+ *     id, name, days:[起, 止], ghost, label,        // 主线厉鬼 id 与它在世界时钟里的说法
+ *     text: [开场两句话],                            // 进这一章时写进日志
+ *     goal: '这一章你要做到的事',                     // 一句话目标（只展示，不强制）
+ *     onEnter: [effects], onExit: [effects],         // 过章时的轻量效果（走唯一写入点）
+ *   }
+ * 数值刻意压得很轻（±2~6 与 1 点情报）：章节链是**结构**，不是新的资源来源。
+ * ==========================================================================*/
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSChapters = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  /** 末日篇：原著/同人里那条"诺亚方舟 vs 大洪水"的线，拆成六章。 */
+  const doomsday = {
+    id: 'doomsday',
+    name: '末日篇',
+    desc: '国王组织推行「诺亚方舟计划」，总部用大洪水计划反制；城市按区设防，队长一个接一个折损。',
+    chapters: [
+      {
+        id: 'd1', name: '第一章 · 断电', days: [1, 9], ghost: 'yachuang', label: '避难所·睡不安稳',
+        text: [
+          '末日开始的方式很安静：先是网没了，然后是电。第三天的夜里，整片街区只剩下应急灯的红点。',
+          '避难所里的人挤在地下车库，谁也不敢睡实——因为睡着的人里，已经有两个再没醒过来。',
+        ],
+        goal: '先活过这一章，弄清"睡着的东西"到底碰的是什么人。',
+        onEnter: [{ k: 'stat', key: 'calamity', v: 2 }],
+        onExit: [{ k: 'flag', key: 'intel', v: 1 }],
+      },
+      {
+        id: 'd2', name: '第二章 · 封锁区', days: [10, 19], ghost: 'eshigui', label: '封锁区·饿死鬼脱困',
+        text: [
+          '城市按区封锁以后，区与区之间只剩下哨卡和铁丝网。有人开始用罐头换路条，也有人开始吃不该吃的东西。',
+          '封锁线内侧的第七栋楼，从上个星期起就不再向外报数了。',
+        ],
+        goal: '把封锁线内侧那条规矩摸清楚——它跟"饿"有关。',
+        onEnter: [{ k: 'stat', key: 'calamity', v: 3 }],
+        onExit: [{ k: 'stat', key: 'stamina', v: 6 }],
+      },
+      {
+        id: 'd3', name: '第三章 · 码头', days: [20, 29], ghost: 'ganshigui', label: '码头·幽灵船的乘客',
+        text: [
+          '港口的调度塔在第二十天彻底安静了。码头上排着队的人不吵不闹，只是站着，面朝海的方向。',
+          '有人从船上下来了，走路的姿势像被谁提着后领子——他们的脚底从不沾水。',
+        ],
+        goal: '别在码头上被"接走"：看清哪些人是在等的，哪些人是被等的。',
+        onEnter: [{ k: 'stat', key: 'pollution', v: 4 }],
+        onExit: [{ k: 'flag', key: 'intel', v: 1 }],
+      },
+      {
+        id: 'd4', name: '第四章 · 指挥部', days: [30, 34], ghost: 'qigui', label: '指挥部·一盘棋',
+        text: [
+          '总部在前线设了临时指挥部，桌上摊着一张按区涂色的地图。涂黑的地方已经连成一片。',
+          '指挥部里的人话很少——他们知道每一格涂黑的代价是几个名字。',
+        ],
+        goal: '在指挥部的账上留下一个数字，而不是一个名字。',
+        onEnter: [{ k: 'stat', key: 'calamity', v: 2 }],
+        onExit: [{ k: 'money', key: 'contribution', v: 8 }],
+      },
+      {
+        id: 'd5', name: '第五章 · 船靠岸', days: [35, 44], ghost: 'ghostship', label: '幽灵船靠岸',
+        text: [
+          '第三十五天凌晨，海面上那团影子终于靠了岸。没有汽笛，没有灯，只有缆绳自己从船头落下来缠上桩子。',
+          '在同一时刻，城市里所有的电子设备同时闪了一下——像是被谁按了重启。',
+        ],
+        goal: '船已经靠岸了。这一章不是"避开它"，而是"别上船"。',
+        onEnter: [{ k: 'stat', key: 'calamity', v: 4 }, { k: 'stat', key: 'sanity', v: -3 }],
+        onExit: [{ k: 'flag', key: 'intel', v: 1 }, { k: 'stat', key: 'stamina', v: 8 }],
+      },
+      {
+        id: 'd6', name: '第六章 · 收容点', days: [45, 999], ghost: 'zhenname', label: '收容点·谁在叫你的名字',
+        text: [
+          '最后一批收容点设在城外的山坳里，登记表上写着每个进来的人的名字。',
+          '有人发现：登记表上多出来的那几行，名字全是真的，人却从来没有来过。',
+        ],
+        goal: '在末日篇里活到最后——或者，看清这条链到底通向哪里。',
+        onEnter: [{ k: 'stat', key: 'calamity', v: 3 }],
+        onExit: [{ k: 'flag', key: 'intel', v: 2 }],
+      },
+    ],
+  };
+
+  const chains = { doomsday: doomsday };
+
+  /** 通用链：按世界时钟现场生成（其它六个时期都用它——只做结构，不写内容） */
+  function genericChain(era) {
+    const events = (era && era.events) || [];
+    if (!events.length) return null;
+    const chapters = events.map((ev, i) => {
+      const next = events[i + 1];
+      return {
+        id: 'g' + (i + 1),
+        name: '第 ' + (i + 1) + ' 章 · ' + String(ev.label || '').split('·').slice(-1)[0],
+        days: [ev.turn, next ? next.turn - 1 : 999],
+        ghost: ev.ghost,
+        label: ev.label,
+        text: [
+          '（' + (era.name || '这一时期') + '的这一章从现在开始：' + ev.label + '）',
+          '世界在往前走，不会因为你在忙别的就停下来。',
+        ],
+        goal: '活过这一章，把主线那只鬼的规矩摸出来。',
+        onEnter: [{ k: 'stat', key: 'calamity', v: 2 }],
+        onExit: [{ k: 'flag', key: 'intel', v: 1 }],
+      };
+    });
+    return { id: era.id || 'era', name: (era.name || '本时期') + '·章节线', desc: era.desc || '', chapters: chapters };
+  }
+
+  function stats() {
+    let n = 0;
+    for (const k of Object.keys(chains)) n += chains[k].chapters.length;
+    return { chains: Object.keys(chains).length, chapters: n, doomChapters: doomsday.chapters.length };
+  }
+
+  return { chains: chains, genericChain: genericChain, stats: stats };
 });
 </script>
 <script>/**
@@ -10405,11 +10535,11 @@ body.story-mode .logwrap{max-height:22vh !important}
  * ==========================================================================*/
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory(require('./content.js'), require('./mechanics.js'), require('./dialogue.js'));
+    module.exports = factory(require('./content.js'), require('./mechanics.js'), require('./dialogue.js'), require('./chapters.js'));
   } else {
-    root.RSEngine = factory(root.RSContent, root.RSMechanics, root.RSDialogue);
+    root.RSEngine = factory(root.RSContent, root.RSMechanics, root.RSDialogue, root.RSChapters);
   }
-})(typeof self !== 'undefined' ? self : this, function (CONTENT, MECH, DIA) {
+})(typeof self !== 'undefined' ? self : this, function (CONTENT, MECH, DIA, CHAPTERS) {
   'use strict';
 
   /* ---------------------------------------------------------------- 工具 */
@@ -11372,6 +11502,13 @@ body.story-mode .logwrap{max-height:22vh !important}
     // 第 33 轮：新的一天可能开场撞上一张事件卡（抽不到就照常开始）
     state.card = drawCard(state);
     if (state.card) state.phase = 'card';
+    // 第 38 轮：章节链——进了新的一天就看看有没有跨章（进出各一次，效果很轻）
+    // 放在最后：此时 turn / phase / 当日重置都已经就位，章节效果不会再被别的清理冲掉。
+    const chainStep = chainTick(state);
+    if (chainStep.lines.length) {
+      state.notes = state.notes || [];
+      state.notes.push.apply(state.notes, chainStep.lines);
+    }
   }
 
   /** 结束一天：守恒校验 → 结局判定 → 自然恢复 → 世界推进 → 阈值 → 进入下一天 */
@@ -12690,6 +12827,110 @@ body.story-mode .logwrap{max-height:22vh !important}
     };
   }
 
+  /* --------------------- 第 38 轮：章节链（A 段第一件：末日篇章节链）
+   * 以前"第 N 章"只是 `Math.ceil(turn / 7)` 的一个数字，跟世界时钟各说各话。
+   * 现在每个时期都有一条**链**：末日篇是手写的六章（断电 → 封锁区 → 码头 → 指挥部 → 船靠岸 → 收容点），
+   * 其它六个时期由引擎按各自的 era.events 现场生成同构的链（A 段方针：只做结构，不做堆量）。
+   * 三条约定：
+   *   ① 章节推进只发生在过夜（endTurn 里），一天最多进/出一章，全部有记录（state.chain.idx / cleared）；
+   *   ② 章节效果极轻（±2~6 与 1 点情报）：它是结构，不是新的资源来源；
+   *   ③ 当前章节的主线厉鬼在遭遇池里被抬高权重（20%），让"这一章在讲谁"真的能被玩家感觉到。
+   */
+  function chainFor(state) {
+    const era = eraOf(state) || {};
+    const authored = (CHAPTERS && CHAPTERS.chains && CHAPTERS.chains[era.id]) || null;
+    if (authored) return authored;
+    if (CHAPTERS && CHAPTERS.genericChain) return CHAPTERS.genericChain(era);
+    return null;
+  }
+
+  /** 第 turn 天落在第几章（0 起）；章节按 days 区间排 */
+  function chainIdxAt(chain, turn) {
+    if (!chain || !chain.chapters.length) return 0;
+    for (let i = 0; i < chain.chapters.length; i++) {
+      const c = chain.chapters[i];
+      if (turn >= c.days[0] && turn <= c.days[1]) return i;
+    }
+    return turn < chain.chapters[0].days[0] ? 0 : chain.chapters.length - 1;
+  }
+
+  function chainState(state) {
+    const chain = chainFor(state);
+    if (!chain) return null;
+    const idx = chainIdxAt(chain, state.turn);
+    const chapter = chain.chapters[idx] || chain.chapters[0];
+    if (!state.chain) {
+      state.chain = { id: chain.id, idx: idx, cleared: [], started: state.turn, done: false };
+    }
+    return { chain: chain, idx: idx, chapter: chapter, rec: state.chain, total: chain.chapters.length };
+  }
+
+  /** 界面用：一句话章节标题（"末日篇 · 第三章 · 码头"） */
+  function chainLabel(state) {
+    const cs = chainState(state);
+    if (!cs) return '';
+    return cs.chain.name + ' · ' + cs.chapter.name + (cs.rec.done ? '（这条链已经走到尽头）' : '');
+  }
+
+  /** 面板/笔记用：章节一行（含目标与主线） */
+  function chainPanelLine(state) {
+    const cs = chainState(state);
+    if (!cs) return '（本时期没有章节线）';
+    const g = CONTENT.ghosts[cs.chapter.ghost];
+    return '第 ' + (cs.idx + 1) + ' 章（共 ' + cs.total + ' 章：' + cs.chapter.name + '）' +
+      '　已过 ' + cs.rec.cleared.length + ' 章' +
+      (g ? '　主线：' + g.name : '') + (cs.rec.done ? '　—— 这条链已经走完了' : '');
+  }
+
+  /**
+   * 章节推进（只在过夜时调用）：进出各一次、有记录、有轻量效果。
+   * 返回 { entered, exited, lines } —— 由 endTurn 并入 notes。
+   */
+  function chainTick(state) {
+    const chain = chainFor(state);
+    if (!chain) return { lines: [] };
+    // idx = -1：这样第一次 tick 会正常走"进入当前章"的分支，把这一章的开场文字给出来
+    if (!state.chain) state.chain = { id: chain.id, idx: -1, cleared: [], started: state.turn, done: false };
+    const rec = state.chain;
+    const want = chainIdxAt(chain, state.turn);
+    const lines = [];
+    if (rec.id !== chain.id) {                 // 换时期/换局：重新开始
+      rec.id = chain.id;
+      rec.idx = want;
+      rec.cleared = [];
+      rec.started = state.turn;
+      rec.done = false;
+    }
+    if (want === rec.idx) return { lines: lines };
+    const dir = want > rec.idx ? 1 : -1;
+    for (let i = rec.idx; i !== want; i += dir) {
+      const leaving = chain.chapters[i];
+      if (dir > 0) {
+        if (leaving && rec.cleared.indexOf(leaving.id) < 0) {
+          rec.cleared.push(leaving.id);
+          if (leaving.onExit && leaving.onExit.length) applyEffects(state, leaving.onExit, '过章奖励·' + leaving.name);
+          lines.push('【章节】' + leaving.name + ' 过去了。');
+        }
+      }
+      const entering = chain.chapters[i + dir];
+      if (entering && dir > 0) {
+        if (entering.onEnter && entering.onEnter.length) applyEffects(state, entering.onEnter, '进入章节·' + entering.name);
+        lines.push('【章节】' + chain.name + '：' + entering.name + '　' + entering.label);
+        for (const t of (entering.text || [])) lines.push(t);
+        if (entering.goal) lines.push('（这一章你要做到的事：' + entering.goal + '）');
+      }
+    }
+    rec.idx = want;
+    // 走到链的尽头：进了最后一章、而且前面每一章都过完了 → 记一笔（成就与尾声会用）
+    const lastIdx = chain.chapters.length - 1;
+    if (!rec.done && rec.idx >= lastIdx && rec.cleared.length >= lastIdx) {
+      rec.done = true;
+      lines.push('【章节】' + chain.name + '已经走到尽头：前面每一章你都活着过来了。');
+      if (state.events.done.indexOf('chain:' + chain.id) < 0) state.events.done.push('chain:' + chain.id);
+    }
+    return { lines: lines };
+  }
+
   /* --------------------- 第 37 轮：多周目轮回记忆（B 段第三件）
    * 原来的"二周目继承"只是三条数值加成（情报+2、一件道具、安全屋+1）。
    * 这一轮让上一局**留下记忆**：你记得几条规律、认得几个人、在哪条线上混过脸、以及上一世是怎么死的。
@@ -13316,6 +13557,17 @@ body.story-mode .logwrap{max-height:22vh !important}
       const local = city.ghosts.filter((gid) => ghostAllowedNow(state, gid));
       const got = pickFrom(local, 'city');
       if (got) return got;
+    }
+    // 第 38 轮：章节链——本章主线鬼被抬高权重（20%），让"这一章在讲谁"真的能被感觉到。
+    // 放在城市鬼之后、游荡鬼之前：既不抢城市特色，也不至于让主线永远见不到。
+    // 注意必须尊重"反重复"（avoid）：否则这条捷径会让主线鬼连着两天出现。
+    if (r > 25) {
+      const cs = chainState(state);
+      const mainId = cs && cs.chapter ? cs.chapter.ghost : null;
+      if (mainId && mainId !== avoid && CONTENT.ghosts[mainId] && ghostAllowedNow(state, mainId) &&
+          roll100(state, 'chapterGhost', 0) <= 20) {
+        return mainId;
+      }
     }
     if (r <= 60) {
       const pool = ghostPoolOf(state).filter((gid) => ghostAllowedNow(state, gid));
@@ -14342,6 +14594,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       })(),
       // 第 36 轮：势力声望（自己那条线 + 最高的外线 + 有没有人把你记成仇）
       声望: repPanelLine(state),
+      // 第 38 轮：章节链（本时期走到哪一章了 / 主线是谁）
+      章节: chainPanelLine(state),
       线索: state.clues.length + ' 条',
       安全屋: state.flags.safehouse + ' 级',
       灾厄印记: state.flags.marks,
@@ -14396,6 +14650,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       pets: state.pets || {}, petShield: state.petShield || 0,
       // 第 36 轮：势力声望
       rep: state.rep || {}, repVisitTurn: state.repVisitTurn || 0, repSpendTurn: state.repSpendTurn || 0,
+      // 第 38 轮：章节链进度
+      chain: state.chain || null,
       // 第 33 轮：事件卡（存档中途存下也能接着选）
       card: state.card || null, cardLog: state.cardLog || [],
       // 第 34 轮：NPC 对话记录（好感 / 说过几句 / 已经给过什么）
@@ -14429,6 +14685,10 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (obj.p.tuning) s.tuning = obj.p.tuning;
     s.peakGold = Math.max(s.peakGold || 0, getPath(s, 'money.gold'));
     Object.assign(s, JSON.parse(JSON.stringify(obj.p)));
+    /* 第 38 轮：notes 是"这一回合引擎临时的提示"，不进存档；而上面那次 createGame 会
+     * 在 startTurn 里跑一次章节链、把第一章的开场塞进 notes——如果不清掉，**每次读档都会
+     * 重放一遍开场**（sim 的"同存档同做法结果一致"用例就是这么抓到的）。 */
+    s.notes = [];
     s.seedInt = hashStr(s.seed);
     s.chapter = Math.ceil(s.turn / 7);
     s.ledger = [];
@@ -14462,6 +14722,21 @@ body.story-mode .logwrap{max-height:22vh !important}
     for (const f of FACTION_IDS) s.rep[f] = clamp(int(rv[f]) || 0, REP_MIN, REP_MAX);
     s.repVisitTurn = Math.max(0, int(obj.p.repVisitTurn) || 0);
     s.repSpendTurn = Math.max(0, int(obj.p.repSpendTurn) || 0);
+    // 第 38 轮：章节链进度读回来（结构消毒：章节 id 只认本时期那条链里真实存在的）
+    s.chain = null;
+    if (obj.p.chain && typeof obj.p.chain === 'object') {
+      const chain = chainFor(s);
+      if (chain) {
+        const ids = chain.chapters.map((c) => c.id);
+        s.chain = {
+          id: chain.id,
+          idx: clamp(int(obj.p.chain.idx) || 0, 0, chain.chapters.length - 1),
+          cleared: (Array.isArray(obj.p.chain.cleared) ? obj.p.chain.cleared : []).filter((x) => ids.indexOf(x) >= 0),
+          started: Math.max(0, int(obj.p.chain.started) || 0),
+          done: !!obj.p.chain.done,
+        };
+      }
+    }
     // 第 35 轮：契约状态读回来（结构消毒：只认自己真的契约、默契/复苏钳制、失控标记可读）
     s.pets = {};
     s.petShield = clamp(int(obj.p.petShield) || 0, 0, PET_SHIELD_MAX);
@@ -14610,6 +14885,10 @@ body.story-mode .logwrap{max-height:22vh !important}
     applyMemory: applyMemory, memoryCarried: memoryCarried,
     MEM_CLUE_MAX: MEM_CLUE_MAX, MEM_PEOPLE_MAX: MEM_PEOPLE_MAX,
     MEM_REP_DIV: MEM_REP_DIV, MEM_REP_CAP: MEM_REP_CAP,
+    // 第 38 轮：章节链
+    chainFor: chainFor, chainState: chainState, chainTick: chainTick, chainLabel: chainLabel,
+    chainIdxAt: chainIdxAt, chainPanelLine: chainPanelLine,
+    encounterGhostId: encounterGhostId, activeGhost: activeGhost,
     BOUNDS: BOUNDS,
     CHAPTER_REDUCTION_CAP: CHAPTER_REDUCTION_CAP,
     CHAPTER_HUMANITY_CAP: CHAPTER_HUMANITY_CAP,
@@ -14769,6 +15048,9 @@ body.story-mode .logwrap{max-height:22vh !important}
     { id: 'nightmare_win', cat: 'survive', name: '极难通关', desc: '在极难（原著档）拿到非死亡结局', cond: (c) => c.state.difficulty === 'nightmare' && c.ending && c.ending !== 'dead' && c.ending !== 'unfinished' },
     { id: 'nightmare_death', cat: 'survive', name: '直面极难', desc: '在极难（原著档）死掉或终局一次', cond: (c) => c.state.difficulty === 'nightmare' },
     { id: 'hot_streak', cat: 'survive', name: '连战十日', desc: '单局遭遇 ≥10 次仍然活着', cond: (c) => c.run.encounters >= 10 && c.run.turn >= 15 },
+    // 第 38 轮：章节链（A 段）
+    { id: 'chain_5', cat: 'survive', name: '过五章', desc: '单局走过 5 章（章节链过半）', cond: (c) => ((c.state.chain && c.state.chain.cleared) || []).length >= 5 },
+    { id: 'chain_done', cat: 'survive', name: '走完一条链', desc: '活着进到本章节链的最后一章（前面的章都过了）', cond: (c) => !!(c.state.chain && c.state.chain.done) },
 
     // —— 驾驭 ——
     { id: 'first_contract', cat: 'mastery', name: '初拥', desc: '第一次成功驾驭厉鬼', cond: (c) => c.run.contracts >= 2 || (c.state.contracts && c.state.contracts.length >= 2) },
@@ -16410,7 +16692,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     const b = el('div', 'dayband');
     b.appendChild(el('span', 'bandLine', ''));
     b.appendChild(el('span', 'bandText', '第 ' + turn + ' 天' + (slot ? ' · ' + slot : '') +
-      (chapter ? '　·　第 ' + chapter + ' 章' : '')));
+      (chapter ? '　·　' + chapter : '')));
     b.appendChild(el('span', 'bandLine', ''));
     box.appendChild(b);
     // 分界条也进「刚刚发生」卡片，手机上滑到一半也能看到"这是哪一天"
@@ -17015,7 +17297,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (!dayStoryShown) {
       // ① 新一天的剧情：单独一屏，只有剧情和「开始今天的行动」
       dayStoryShown = true;
-      dayBand(state.turn, '清晨', state.chapter);   // 第 30 轮：新的一天 → 明显分界条
+      // 第 38 轮：分界条带上章节链的名字（"末日篇 · 第二章 · 封锁区"），而不是只写"第 N 章"
+      dayBand(state.turn, '清晨', (E.chainLabel ? E.chainLabel(state) : state.chapter));
       renderScene(true);
       renderSceneArt(state);
       renderNow();
@@ -18748,7 +19031,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     });
     $('panel').style.display = '';
     clear($('log'));
-    dayBand(1, '清晨', 1);        // 第 30 轮：第一天也打一条分界条，日志从一眼能认的地方开始
+    dayBand(1, '清晨', (E.chainLabel ? E.chainLabel(state) : 1));   // 第 38 轮：第一天的分界条也带章节名
     addLog('', '【开局】' + C.packs[selected.pack].blurb);
     const stNow = (C.stances && C.stances[state.stance]) || null;
     if (stNow) {
@@ -18770,6 +19053,12 @@ body.story-mode .logwrap{max-height:22vh !important}
       if (state.notes && state.notes.length) {
         state.notes = state.notes.filter((x) => String(x).indexOf('【上一世的记忆】') !== 0);
       }
+    }
+    // 第 38 轮：开局时引擎攒下的 notes（章节链第一章的开场、世界规则提示…）要在**第一屏**就写出来，
+    // 否则玩家要先做完一件事才读到"这一章是什么"。
+    if (state.notes && state.notes.length) {
+      for (const l of state.notes) addLog('story', String(l));
+      state.notes = [];
     }
     addLog('muted', '规则引擎 ' + C.meta.version + '　种子：' + state.seed + '　难度：' + (state.tuning ? state.tuning.name : '标准') +
       '　内容分级：' + ({ A: 'A 影视级', B: 'B 写实级', C: 'C 无限制' }[state.contentLevel] || 'A') +
@@ -19071,6 +19360,22 @@ body.story-mode .logwrap{max-height:22vh !important}
         body.appendChild(rc);
       }
       const chain = state.clueChain;
+      // 第 38 轮：章节链（这一时期走到哪一章、这一章要做什么）
+      if (E.chainState) {
+        const cs = E.chainState(state);
+        if (cs) {
+          const cc = el('div', 'noteCard');
+          cc.appendChild(el('div', 'noteTitle', '章节线：' + cs.chain.name));
+          cc.appendChild(el('div', 'noteLine', '· ' + cs.chapter.name + '（第 ' + (cs.idx + 1) + ' / ' + cs.total +
+            ' 章）' + (cs.rec.done ? '　—　这条链已经走完了' : '')));
+          cc.appendChild(el('div', 'noteLine', '· 这一章：' + (cs.chapter.goal || '活过去。')));
+          const g = C.ghosts[cs.chapter.ghost];
+          if (g) cc.appendChild(el('div', 'noteLine', '· 主线厉鬼：' + g.name + '（' + g.level + ' 级）——本章它更容易找上你'));
+          cc.appendChild(el('div', 'noteLine', '· 已过 ' + cs.rec.cleared.length + ' 章；每过一章会有一次结算，' +
+            '章节按天数推进（末日篇六章：断电 → 封锁区 → 码头 → 指挥部 → 船靠岸 → 收容点）。'));
+          body.appendChild(cc);
+        }
+      }
       // 第 37 轮：这一局带着的记忆（没有就不显示）
       const memC = (E.memoryCarried ? E.memoryCarried(state) : null);
       if (memC) {
