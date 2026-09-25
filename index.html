@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260925110955">
+<meta name="rs-build" content="v260925115921">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -417,7 +417,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260925110955";</script>
+<script>window.__RS_BUILD = "v260925115921";</script>
 <header>
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
@@ -2440,6 +2440,141 @@ body.story-mode .logwrap{max-height:22vh !important}
   }
 
   return { chains: chains, genericChain: genericChain, stats: stats };
+});
+</script>
+<script>/* ============================================================================
+ * 神秘复苏模拟器 · 已有厉鬼之间的「关联事件」（第 39 轮：A 段第二件）
+ * ----------------------------------------------------------------------------
+ * A 段的方针是"只做结构，不做堆量"：不给游戏加新的鬼，而是把**已有的 106 只**串起来——
+ * 同一栋楼、同一条线、同一种载体、同一批人手里的东西，本来就该有关系。
+ *
+ * 契约：
+ *   link = {
+ *     id, a, b,                       // 两只既有厉鬼的 id
+ *     kind,                           // samePlace 同一处 / sameLine 同一条线 / sameKind 同一类载体 /
+ *                                     // victim 同一批受害者 / counter 相互克制
+ *     text,                           // 你"想起来"的那句话（≤90 字）
+ *     hint,                           // 从 A 的规矩里能对 B 推出什么（只展示）
+ *   }
+ * 规则（引擎侧）：
+ *   · 你只要掌握 A 的一条规律（或遭遇过 A）+ 面对 B，就会想起这条关联；
+ *   · 想起来的当场可以"借"到 B 的一条规律——但**走统一线索入口**（受当天上限），
+ *     而且每条关联一辈子只给一次（state.links 记录）。
+ * ==========================================================================*/
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.RSLinks = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const LIST = [
+    {
+      id: 'lk_qiaomen_wutou', a: 'qiaomen', b: 'wutou', kind: 'samePlace',
+      text: '敲门鬼和无头鬼影是同一栋楼里的东西：一个在门外数节奏，一个在门内听声音。你上次弄明白的那条节奏，在这里同样成立。',
+      hint: '门外的东西靠声音定位——门里的东西也一样。',
+    },
+    {
+      id: 'lk_qiaomen_menshen', a: 'qiaomen', b: 'menshen', kind: 'counter',
+      text: '你想起敲门鬼的规矩：它必须"被请"才能进门。而门神正好相反——它守的就是这道门，两边的规矩在这一道门框上撞在一起。',
+      hint: '会敲门的怕门神，门神也懒得管别的事。',
+    },
+    {
+      id: 'lk_yuzhumen_menshen', a: 'yuzhumen', b: 'menshen', kind: 'sameKind',
+      text: '两样东西都长在门上：一个是门本身变成了域，一个是门上贴着的那个东西活了。它们认得同一个门框。',
+      hint: '站在门前的人，永远先撞见门神，再撞见门。',
+    },
+    {
+      id: 'lk_ghostship_captain', a: 'ghostship', b: 'captain', kind: 'sameLine',
+      text: '船和船长是一套的：船停在港口的时候，船长不在船上。你想起船靠岸那天缆绳自己缠上桩子——那是有东西在替它系。',
+      hint: '找不到船长的时候，去看船上的缆绳。',
+    },
+    {
+      id: 'lk_ghostship_bus', a: 'ghostship', b: 'guibus', kind: 'sameKind',
+      text: '幽灵船和灵异公交车是同一种东西：都是"车船"里装着一群不该还在的东西。你在车上学会的那套规矩——别数人头、别看错站牌——在这儿也用得上。',
+      hint: '载具类的东西都有"到站"的规矩：到站之前别下车，到站之后别赖着。',
+    },
+    {
+      id: 'lk_guilou_guilouti', a: 'guilou', b: 'guilouti', kind: 'samePlace',
+      text: '鬼楼和鬼楼梯是一栋楼的两截：一截在往上叠层，一截在往下延伸。你数过的那层楼，和这段楼梯通向的是同一个地方。',
+      hint: '这两样东西都怕"数对"——数错了才会被留在里面。',
+    },
+    {
+      id: 'lk_guilou_yezhen', a: 'guilou', b: 'yezhen', kind: 'victim',
+      text: '你听见叶真提过这栋楼：他手下的替死鬼替别人挡过的一次，就在鬼楼里。人和鬼的账，在这栋楼里是记在一起的。',
+      hint: '叶真知道这栋楼的底细——他愿意为它开口，但不会白开口。',
+    },
+    {
+      id: 'lk_renpizhi_guibaozhi', a: 'renpizhi', b: 'guibaozhi', kind: 'sameKind',
+      text: '人皮纸和鬼报纸是一类东西：一个用人的皮写字，一个用新闻的版式记人。它们都在"记录"，而记录本身就是它们的规矩。',
+      hint: '凡是记录人的东西，都怕被人先写上一笔。',
+    },
+    {
+      id: 'lk_zhiqian_zhizharen', a: 'zhiqian', b: 'zhizharen', kind: 'sameKind',
+      text: '纸钱和纸人是一个作坊出来的：一个给死人花的，一个替死人站着的。它们认的是同一把剪刀。',
+      hint: '剪过它们的那把剪刀，也能剪断它们。',
+    },
+    {
+      id: 'lk_yachuang_guimu', a: 'yachuang', b: 'guimu', kind: 'samePlace',
+      text: '压床鬼睡在床垫的夹层里，鬼母守着睡着的孩子。同一间卧室里，两样东西都知道"谁睡着了"。',
+      hint: '在这两样东西面前，装睡比醒着更危险。',
+    },
+    {
+      id: 'lk_eshigui_yachuang', a: 'eshigui', b: 'yachuang', kind: 'sameLine',
+      text: '饿死鬼和压床鬼是同一条线上下来的：一个要活人给吃的，一个要活人别动弹。封锁区里，这两样东西会一起找上门。',
+      hint: '在封锁区，别在睡着的时候把吃的放在床边。',
+    },
+    {
+      id: 'lk_jingzhongren_guiying', a: 'jingzhongren', b: 'guiying_shadow', kind: 'counter',
+      text: '镜中人和影子互相看得见——一个住在反光里，一个住在没有光的地方。你身上那只（如果你有）在镜子面前会安静得反常。',
+      hint: '有影子的地方没有镜子，有镜子的地方影子会躲。',
+    },
+    /* —— 同一时期的"主线连着来"：每个时期的第一章与第二章本来就是前后脚 ——
+     * 这几条保证任何时期开局都能在头十章里摸到一条关联（否则关联表只覆盖 106 只里的 19 只，
+     * 很多局根本撞不上；真机上就是这么发现的）。 */
+    {
+      id: 'lk_guiying_qiaomen', a: 'guiying', b: 'qiaomen', kind: 'sameLine',
+      text: '鬼婴和敲门鬼是同一段日子里先后冒出来的：先是夜里的哭声，然后是有人开始敲你家的门。它们不是同一种东西，但它们在同一张时间表上。',
+      hint: '哭声先到的地方，敲门声随后就到——两边都别应声。',
+    },
+    {
+      id: 'lk_yachuang_jietianyuan', a: 'yachuang', b: 'jietianyuan', kind: 'sameLine',
+      text: '压床鬼之后，接线员开始打电话：一个在睡梦里压住你，一个在电话里叫你别挂。都是"别答应"的规矩。',
+      hint: '这类东西都要你回应才成立——不回应就是最稳的生路。',
+    },
+    {
+      id: 'lk_yinqigui_ganshigui', a: 'yinqigui', b: 'ganshigui', kind: 'sameLine',
+      text: '阴气鬼在前，赶尸鬼在后：这一带先是有人家的灯自己灭，接着路口开始有排队走过的东西。同一段日子里的两件事。',
+      hint: '会排队走路的东西怕活人的视线——别盯着队列看。',
+    },
+    {
+      id: 'lk_ganshigui_guixiang', a: 'ganshigui', b: 'guixiang', kind: 'sameLine',
+      text: '赶尸鬼走过之后，鬼相才露面：一个负责把死人带走，一个负责让人认不出活人。前后脚，同一批人手里的活。',
+      hint: '先遇到队列，再遇到"熟人的脸"——那张脸多半不是熟人。',
+    },
+    {
+      id: 'lk_xulie_guixiang', a: 'xulie', b: 'guixiang', kind: 'sameLine',
+      text: '序列之鬼和鬼相是同一条线上来的：一个在编号，一个在换脸。它们都在替某件事"整理名单"。',
+      hint: '被编号的东西怕你报错名字；换脸的东西怕你记住原来的脸。',
+    },
+    {
+      id: 'lk_yachuang_ganshigui', a: 'yachuang', b: 'ganshigui', kind: 'sameLine',
+      text: '压床鬼之后是赶尸鬼：先是睡梦里有人按住你，接着路口开始有排队走过的东西。同一段时间里的两件事，规矩也像。',
+      hint: '两样东西都要"你别动"——一个要你别动地睡，一个要你别动地看。',
+    },
+    {
+      id: 'lk_yinqigui_lingqi', a: 'yinqigui', b: 'lingqi', kind: 'sameLine',
+      text: '阴气鬼和劫修是同一时期前后出现的：一个散阴气，一个借着阴气修行。你想弄明白其中一个，另一个迟早会找上来。',
+      hint: '凡是靠"借"活着的东西，断了它的借处就等于断了它的路。',
+    },
+  ];
+
+  function stats() {
+    const kinds = {};
+    for (const l of LIST) kinds[l.kind] = (kinds[l.kind] || 0) + 1;
+    return { links: LIST.length, kinds: kinds };
+  }
+
+  return { links: LIST, stats: stats };
 });
 </script>
 <script>/**
@@ -10535,11 +10670,12 @@ body.story-mode .logwrap{max-height:22vh !important}
  * ==========================================================================*/
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
-    module.exports = factory(require('./content.js'), require('./mechanics.js'), require('./dialogue.js'), require('./chapters.js'));
+    module.exports = factory(require('./content.js'), require('./mechanics.js'), require('./dialogue.js'),
+      require('./chapters.js'), require('./links.js'));
   } else {
-    root.RSEngine = factory(root.RSContent, root.RSMechanics, root.RSDialogue, root.RSChapters);
+    root.RSEngine = factory(root.RSContent, root.RSMechanics, root.RSDialogue, root.RSChapters, root.RSLinks);
   }
-})(typeof self !== 'undefined' ? self : this, function (CONTENT, MECH, DIA, CHAPTERS) {
+})(typeof self !== 'undefined' ? self : this, function (CONTENT, MECH, DIA, CHAPTERS, LINKS) {
   'use strict';
 
   /* ---------------------------------------------------------------- 工具 */
@@ -11310,13 +11446,18 @@ body.story-mode .logwrap{max-height:22vh !important}
     const ap = state.apMax || apMaxOf(state);
     return ap >= 4 ? 3 : 2;      // 简单档一天可挖 3 条，其余 2 条
   }
-  function grantClue(state, reason) {
+  function grantClue(state, reason, preferGid) {
     const cap = clueDailyCap(state);
     if ((state.clueGainsToday || 0) >= cap) {
       return { ok: false, why: '今天的线索已经挖到 ' + cap + ' 条了——脑子需要时间把东西记住。', text: null };
     }
     const chain = state.clueChain || {};
     let g = CONTENT.ghosts[activeGhost(state)];
+    // 第 39 轮：调用方可以指定"这一次想弄清哪只鬼"（关联就是从另一端推出来的）
+    if (preferGid && CONTENT.ghosts[preferGid] &&
+        CONTENT.ghosts[preferGid].clues.some((c) => !state.clues.includes(c.id))) {
+      g = CONTENT.ghosts[preferGid];
+    }
     // 第 30 轮：线索链——昨天在追哪只鬼，今天接着追它就更容易出东西（用户要的"深挖一条线"）
     const chainGid = (chain.lastTurn === state.turn - 1 || chain.lastTurn === state.turn) ? chain.gid : null;
     if (chainGid && CONTENT.ghosts[chainGid] &&
@@ -12827,6 +12968,89 @@ body.story-mode .logwrap{max-height:22vh !important}
     };
   }
 
+  /* --------------------- 第 39 轮：已有厉鬼之间的关联事件（A 段第二件）
+   * 不新增鬼，只把**已有的 106 只**串起来：同一处、同一条线、同一类载体、同一批受害者、相互克制。
+   * 规矩：
+   *   ① 触发条件是"你掌握过 A 的规律（或遭遇过 A）"+"你正面对 B"——先认识一半，才想得起另一半；
+   *   ② 想起来的当场可以借到 B 的一条规律，但**走统一线索入口**（受当天上限），一次关联一辈子只给一次；
+   *   ③ 全部记录在 state.links（进存档、结构消毒），笔记里有一张「已知的关联」表。
+   */
+  function linkList() {
+    return (LINKS && LINKS.links) ? LINKS.links : [];
+  }
+  function linkById(id) {
+    return linkList().filter((l) => l.id === id)[0] || null;
+  }
+  /** 这只鬼身上"你已知的那一半"：遭遇过，或者掌握过它的规律 */
+  function knownAbout(state, gid) {
+    if (!gid || !CONTENT.ghosts[gid]) return false;
+    if (state.bestiary && state.bestiary[gid]) return true;
+    const ids = (CONTENT.ghosts[gid].clues || []).map((c) => c.id);
+    return ids.some((cid) => (state.clues || []).indexOf(cid) >= 0);
+  }
+  /** 面对 gid 时"想得起来"的关联：另一端已知、这一端还没记过 */
+  function liveLinks(state, gid) {
+    const out = [];
+    for (const l of linkList()) {
+      if (l.a !== gid && l.b !== gid) continue;
+      const other = l.a === gid ? l.b : l.a;
+      if (!CONTENT.ghosts[other]) continue;
+      if (!knownAbout(state, other)) continue;            // 另一端你不认识 → 还串不起来
+      if (state.links && state.links[l.id]) continue;      // 已经想过一次了
+      out.push({ link: l, other: other });
+    }
+    return out;
+  }
+  /** 记一次关联（并尝试借一条规律；受当天线索上限约束）
+   *  preferGid = 你**正面对着的**那只鬼：关联的用处是"从认识的那一半推出眼前这一半"。 */
+  function fireLink(state, link, otherGid, preferGid) {
+    if (!state.links) state.links = {};
+    if (state.links[link.id]) return null;
+    state.links[link.id] = { turn: state.turn, other: otherGid };
+    const g = CONTENT.ghosts[otherGid] || {};
+    const lines = [String(link.text || '')];
+    const settlement = ['【关联】' + (CONTENT.ghosts[otherGid] ? CONTENT.ghosts[otherGid].name : otherGid) +
+      ' 与这一只之间有旧事（' + (LINK_KIND_NAME[link.kind] || link.kind) + '）'];
+    const c = grantClue(state, '关联·' + link.id, preferGid || otherGid);
+    if (c.ok) {
+      lines.push('你想起了这一条：' + c.text);
+      settlement.push('线索 +1（从关联里推出来的）');
+    } else {
+      lines.push('（关于' + (g.name || '它') + '的规律，你今天已经记得够多了——先消化。）');
+    }
+    if (link.hint) lines.push('（' + link.hint + '）');
+    if (state.events.done.indexOf('link:' + link.id) < 0) state.events.done.push('link:' + link.id);
+    return { lines: lines, settlement: settlement };
+  }
+  const LINK_KIND_NAME = {
+    samePlace: '同一处', sameLine: '同一条线', sameKind: '同一类载体', victim: '同一批受害者', counter: '相互克制',
+  };
+  /** 笔记用：已知的关联（含"只知道一半"的） */
+  function linkBoard(state) {
+    const rows = [];
+    for (const l of linkList()) {
+      const ka = knownAbout(state, l.a);
+      const kb = knownAbout(state, l.b);
+      if (!ka && !kb) continue;
+      rows.push({
+        id: l.id, kind: l.kind, kindName: LINK_KIND_NAME[l.kind] || l.kind,
+        a: l.a, b: l.b,
+        aName: (CONTENT.ghosts[l.a] || {}).name || l.a,
+        bName: (CONTENT.ghosts[l.b] || {}).name || l.b,
+        knownA: ka, knownB: kb, fired: !!(state.links && state.links[l.id]),
+      });
+    }
+    return rows;
+  }
+  /** 面板一行：发现了多少条关联 */
+  function linkPanelLine(state) {
+    const rows = linkBoard(state);
+    const fired = rows.filter((r) => r.fired).length;
+    if (!rows.length) return '还没有串起任何两件事（先弄清一只鬼的规矩）';
+    return '已经串起 ' + rows.length + ' 条（想通过 ' + fired + ' 条）　' +
+      rows.slice(0, 2).map((r) => r.aName + '↔' + r.bName).join('、') + (rows.length > 2 ? '…' : '');
+  }
+
   /* --------------------- 第 38 轮：章节链（A 段第一件：末日篇章节链）
    * 以前"第 N 章"只是 `Math.ceil(turn / 7)` 的一个数字，跟世界时钟各说各话。
    * 现在每个时期都有一条**链**：末日篇是手写的六章（断电 → 封锁区 → 码头 → 指挥部 → 船靠岸 → 收容点），
@@ -13771,6 +13995,15 @@ body.story-mode .logwrap{max-height:22vh !important}
         options.push({ id: opt.id, label: opt.label, tags: opt.tags, kind: 'exit', cost: opt.cost });
       }
     }
+    // 第 39 轮：关联——面对这只鬼时"想得起来"的旧事（另一端你已经认识）
+    const links = [];
+    for (const item of liveLinks(state, ghostId)) {
+      const r = fireLink(state, item.link, item.other, ghostId);
+      if (r) {
+        links.push({ id: item.link.id, other: item.other, otherName: (CONTENT.ghosts[item.other] || {}).name || item.other,
+          kind: item.link.kind, kindName: LINK_KIND_NAME[item.link.kind] || item.link.kind, lines: r.lines, settlement: r.settlement });
+      }
+    }
     return {
       ghost: ghostId,
       name: g.name,
@@ -13779,6 +14012,7 @@ body.story-mode .logwrap{max-height:22vh !important}
       text: g.encounter,
       revealedClues: revealed.map((c) => c.text),
       clueHints: g.clues.filter((c) => !state.clues.includes(c.id)).length,
+      links: links,
       options: options,
       minClues: g.minClues || 2,
     };
@@ -14596,6 +14830,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       声望: repPanelLine(state),
       // 第 38 轮：章节链（本时期走到哪一章了 / 主线是谁）
       章节: chainPanelLine(state),
+      // 第 39 轮：关联（把已有厉鬼串起来）
+      关联: linkPanelLine(state),
       线索: state.clues.length + ' 条',
       安全屋: state.flags.safehouse + ' 级',
       灾厄印记: state.flags.marks,
@@ -14652,6 +14888,8 @@ body.story-mode .logwrap{max-height:22vh !important}
       rep: state.rep || {}, repVisitTurn: state.repVisitTurn || 0, repSpendTurn: state.repSpendTurn || 0,
       // 第 38 轮：章节链进度
       chain: state.chain || null,
+      // 第 39 轮：已知的关联（哪条关联已经"想过"了）
+      links: state.links || {},
       // 第 33 轮：事件卡（存档中途存下也能接着选）
       card: state.card || null, cardLog: state.cardLog || [],
       // 第 34 轮：NPC 对话记录（好感 / 说过几句 / 已经给过什么）
@@ -14722,6 +14960,15 @@ body.story-mode .logwrap{max-height:22vh !important}
     for (const f of FACTION_IDS) s.rep[f] = clamp(int(rv[f]) || 0, REP_MIN, REP_MAX);
     s.repVisitTurn = Math.max(0, int(obj.p.repVisitTurn) || 0);
     s.repSpendTurn = Math.max(0, int(obj.p.repSpendTurn) || 0);
+    // 第 39 轮：关联记录读回来（结构消毒：只认确实存在的关联 id，另一端也必须是真鬼）
+    s.links = {};
+    const lk = obj.p.links || {};
+    for (const id of Object.keys(lk)) {
+      const def = linkById(id);
+      if (!def) continue;
+      const v = lk[id] || {};
+      s.links[id] = { turn: Math.max(0, int(v.turn) || 0), other: CONTENT.ghosts[v.other] ? v.other : (def.a === v.other ? def.a : def.b) };
+    }
     // 第 38 轮：章节链进度读回来（结构消毒：章节 id 只认本时期那条链里真实存在的）
     s.chain = null;
     if (obj.p.chain && typeof obj.p.chain === 'object') {
@@ -14889,6 +15136,10 @@ body.story-mode .logwrap{max-height:22vh !important}
     chainFor: chainFor, chainState: chainState, chainTick: chainTick, chainLabel: chainLabel,
     chainIdxAt: chainIdxAt, chainPanelLine: chainPanelLine,
     encounterGhostId: encounterGhostId, activeGhost: activeGhost,
+    // 第 39 轮：关联（已有厉鬼之间的旧事）
+    linkById: linkById, knownAbout: knownAbout, liveLinks: liveLinks, fireLink: fireLink,
+    linkBoard: linkBoard, linkPanelLine: linkPanelLine, LINK_KIND_NAME: LINK_KIND_NAME,
+    linkList: linkList,
     BOUNDS: BOUNDS,
     CHAPTER_REDUCTION_CAP: CHAPTER_REDUCTION_CAP,
     CHAPTER_HUMANITY_CAP: CHAPTER_HUMANITY_CAP,
@@ -16908,6 +17159,11 @@ body.story-mode .logwrap{max-height:22vh !important}
       addLog('clue', state.pending.revealedClues.map((c) => '· 你掌握的线索：' + c));
     } else {
       addLog('warn', '· 你对它一无所知——现在只能靠判断和运气。');
+    }
+    // 第 39 轮：关联——面对这只鬼时"想起来"的旧事（另一端你已经认识）
+    for (const lk of (state.pending.links || [])) {
+      addLog('clue', '【关联·' + lk.kindName + '】' + (lk.lines || []).join(''));
+      if (lk.settlement && lk.settlement.length) addLog('set', lk.settlement.map((x) => '▸ ' + x));
     }
     if (N && N.prose) {
       const cs = N.prose(state, 'encClose', 1, ctxOf(state));
@@ -19360,6 +19616,21 @@ body.story-mode .logwrap{max-height:22vh !important}
         body.appendChild(rc);
       }
       const chain = state.clueChain;
+      // 第 39 轮：已知的关联（把已有厉鬼串起来的那张网）
+      if (E.linkBoard) {
+        const rows = E.linkBoard(state);
+        if (rows.length) {
+          const lc = el('div', 'noteCard');
+          lc.appendChild(el('div', 'noteTitle', '已知的关联（' + rows.length + ' 条）'));
+          for (const r of rows) {
+            lc.appendChild(el('div', 'noteLine', '· ' + r.aName + ' ↔ ' + r.bName + '（' + r.kindName + '）' +
+              (r.fired ? '　—　已经想起来过' : '　—　' + (r.knownA ? '你知道「' + r.aName + '」那一半' : '你知道「' + r.bName + '」那一半'))));
+          }
+          lc.appendChild(el('div', 'noteLine', '（遇到某一端时，只要你认识另一端，就会"想起来"——' +
+            '当场能从关联里推出一条规律（受当天线索上限约束，每条关联只给一次）。）'));
+          body.appendChild(lc);
+        }
+      }
       // 第 38 轮：章节链（这一时期走到哪一章、这一章要做什么）
       if (E.chainState) {
         const cs = E.chainState(state);
