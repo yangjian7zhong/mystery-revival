@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260925123618">
+<meta name="rs-build" content="v260925133842">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -417,7 +417,7 @@ body.story-mode .logwrap{max-height:22vh !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260925123618";</script>
+<script>window.__RS_BUILD = "v260925133842";</script>
 <header>
   <h1>神秘复苏模拟器</h1>
   <span class="tag" id="turnLabel">未开局</span>
@@ -6688,7 +6688,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     shenlin: {
       id: 'shenlin', name: '沈林（鬼相）', level: 'A', penalty: 46, person: true,
       tie: '总部·队长（原著·鬼相）',
-      faction: 'org', rank: '队长', meetBase: 0.35, valueNeed: 3,
+      faction: 'org', rank: '总部队长', meetBase: 0.35, valueNeed: 3,
       introduces: ['lvjun', 'jiangshangbai'],
       introLine: '李军在城西；朋友圈那位姜尚白，也认价不认人。你把代价先摆在桌面上。',
       encounter: '他站在楼道里，你看着他的脸——像是隔着一层水。' +
@@ -12641,15 +12641,71 @@ body.story-mode .logwrap{max-height:22vh !important}
     return (state.clues || []).length + (state.contracts || []).length * 3 +
       Math.floor((state.stats.ghostEye || 0)) * 2 + Math.floor((state.money.contribution || 0) / 100);
   }
+
+  /* --------------------- 第 41 轮（用户要求）：会见驭鬼者按"战力"分档
+   * 用户原话："比较弱的玩家约会被拒绝；同样鬼数量以及高一点的约是概率事件；
+   *            战力明显很高的约了必定同意。之前那个经人引荐才能会见的不改。"
+   * 于是把约见拆成三档（战力 = 契约数 ×4 + 鬼眼重数 ×2 + 线索 ÷3（上限 6））：
+   *   · 对方明显强（对方 ≥ 我 ×1.8 + 2）→ **必定被拒**，理由就是"你跟他不在一个量级上"；
+   *   · 我明显强（我 ≥ 对方 ×1.5 + 3）→ **必定同意**（对面不敢不给这个面子）；
+   *   · 其余（差不多，或者只高一点）→ 走原来的概率判定。
+   * 引荐 / 阵营 / 声望那套门槛**一点没动**（用户明确要求不改）：见不到的人照样见不到，
+   * 战力只在"能约到的人"里面决定同不同意。
+   */
+  const NPC_POWER_BY_LEVEL = { 'S+': 12, S: 10, A: 6, B: 3, C: 1 };
+  function powerOf(state) {
+    const contracts = (state.contracts || []).length;
+    const eye = Math.floor(state.stats.ghostEye || 0);
+    const clues = Math.min(6, Math.floor((state.clues || []).length / 3));
+    return contracts * 4 + eye * 2 + clues;
+  }
+  function npcPower(g) {
+    if (!g) return 3;
+    return NPC_POWER_BY_LEVEL[g.level] || 3;
+  }
+  /** 三档判定：refuse 必拒 / chance 概率 / accept 必同意 */
+  function meetTier(state, gid) {
+    const g = CONTENT.ghosts[gid];
+    if (!g) return { tier: 'chance', mine: 0, theirs: 0, text: '' };
+    const mine = powerOf(state);
+    const theirs = npcPower(g);
+    let tier = 'chance';
+    if (theirs >= mine * 1.8 + 2) tier = 'refuse';
+    else if (mine >= theirs * 1.5 + 3) tier = 'accept';
+    const text = tier === 'refuse' ? '比你强太多，约不到'
+      : tier === 'accept' ? '你压得住他，随叫随到'
+        : '跟你差不多，看运气';
+    return { tier: tier, mine: mine, theirs: theirs, text: text };
+  }
   /** 约见判定：返回 {ok, why, by} */
   function meetCheck(state, gid) {
     const g = CONTENT.ghosts[gid];
     if (!g) return { ok: false, why: '没有这个人' };
+    /* 第 41 轮补的防线：**"能不能见到这个人"必须在判定里也拦一道**。
+     * 原来这道门只写在 meetableIds（调用方）里，于是单独调 meetCheck 就能绕过引荐/阵营——
+     * 红队用"战力拉满 + 直接约叶真"当场试出来了。 */
+    if (meetableIds(state).indexOf(gid) < 0) {
+      return {
+        ok: false, tier: 'unknown', chance: 0, sameFaction: factionOfNpc(g) === factionOfPlayer(state),
+        why: '你不认识这个人——跨阵营的同行要么有人引荐，要么你在他们那边混出了名声（声望 ' +
+          REP_CROSS_MEET + ' 点起）。',
+      };
+    }
     const by = (state.introducedBy || {})[gid] || null;
     const base = (typeof g.meetBase === 'number') ? g.meetBase : 0.5;
     const sameFaction = factionOfNpc(g) === factionOfPlayer(state);
     const need = int(g.valueNeed) || 1;
     const favor = (state.flags.favor || 0);
+    const tier = meetTier(state, gid);
+    // ① 对方明显强：不掷骰，直接拒（但引荐过的人情仍然能让他"记你一笔"）
+    if (tier.tier === 'refuse') {
+      return {
+        ok: false, tier: tier.tier, chance: 0.05, by: by, sameFaction: sameFaction,
+        why: '你跟他不在一个量级上——' + g.name + '手里有几只鬼你是知道的。' +
+          '他听完你的来意，只回了一句："你先混出自己的名字再来。"' +
+          (by ? '（引荐替你留了话，但分量这种事，替不了。）' : ''),
+      };
+    }
     let chance = base;
     if (sameFaction) chance += 0.12;
     if (by) chance += 0.22;                                  // 有人引荐 = 门槛大降
@@ -12658,9 +12714,15 @@ body.story-mode .logwrap{max-height:22vh !important}
     chance += clamp(repOf(state, factionOfNpc(g)) / 500, -0.08, 0.18);
     if (meetValue(state) < need * 2) chance -= 0.25;          // 你还没什么能拿得出手的
     if ((state.stats.erosion || 0) >= 70) chance -= 0.15;     // 快变成鬼的人，同行也不敢见
+    // 战力略高一点也帮着抬成功率（第 41 轮）
+    if (tier.mine > tier.theirs) chance += Math.min(0.2, (tier.mine - tier.theirs) / 40);
     chance = Math.max(0.05, Math.min(0.92, chance));
+    // ② 我明显强：不掷骰，必同意
+    if (tier.tier === 'accept') {
+      return { ok: true, tier: tier.tier, chance: chance, by: by, sameFaction: sameFaction, forced: true };
+    }
     const roll = roll01(state, 'meet:' + gid, 0);
-    if (roll <= chance) return { ok: true, chance: chance, by: by, sameFaction: sameFaction };
+    if (roll <= chance) return { ok: true, tier: tier.tier, chance: chance, by: by, sameFaction: sameFaction };
     // 拒绝的理由要具体：忙 / 你不够分量 / 阵营不同
     let why;
     const r = roll100(state, 'meetWhy:' + gid, 0);
@@ -12669,7 +12731,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     else if (r <= 45) why = '他最近在忙自己的事，托人带话：过几天再说。';
     else if (r <= 75) why = '他答应了，又临时改了主意——这种时候，谁都不想离开自己的安全屋。';
     else why = '你等了半宿，来的是他手下一个不说话的年轻人："有事你说，我记下来。"';
-    return { ok: false, why: why, chance: chance, by: by, sameFaction: sameFaction };
+    return { ok: false, tier: tier.tier, why: why, chance: chance, by: by, sameFaction: sameFaction };
   }
   /** 一次见面之后：对方可能把你引荐给别人（有交集的人才引荐——用户要求的"有关联"） */
   function tryIntroduce(state, gid) {
@@ -13725,8 +13787,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     if (ids.length > 1 && ids[i] === avoid) i = (i + 1) % ids.length;
     const gid = ids[i];
     const chk = meetCheck(state, gid);
-    if (!chk.ok) return { refused: true, why: chk.why, gid: gid };
-    return { gid: gid, by: chk.by, chance: chk.chance };
+    if (!chk.ok) return { refused: true, why: chk.why, gid: gid, tier: chk.tier };
+    return { gid: gid, by: chk.by, chance: chk.chance, tier: chk.tier, forced: chk.forced };
   }
 
   function startDriverEncounter(state, forceId) {
@@ -14595,16 +14657,20 @@ body.story-mode .logwrap{max-height:22vh !important}
           const att = meetDriverAttempt(state);
           if (att.refused) {
             narrative.push('你托人带了话、在约好的地方等了两个晚上——' + (att.why || '没等到人。'));
-            settlement.push('会见判定：没约到（' + (att.gid ? CONTENT.ghosts[att.gid].name : '无人可约') + '）');
+            settlement.push('会见判定：没约到（' + (att.gid ? CONTENT.ghosts[att.gid].name : '无人可约') +
+              (att.tier === 'refuse' ? '，量级不够' : '') + '）');
             if (att.gid && CONTENT.ghosts[att.gid]) {
+              const gg = CONTENT.ghosts[att.gid];
               state.notes = state.notes || [];
-              state.notes.push('（你找的是「' + CONTENT.ghosts[att.gid].name + '」，' +
-                factionName(factionOfNpc(CONTENT.ghosts[att.gid])) + '。换个人、或者先攒点能拿得出手的东西再试。）');
+              state.notes.push('（你找的是「' + gg.name + '」，' +
+                factionName(factionOfNpc(gg)) + '·' + (gg.rank || '—') + '，战力 ' + npcPower(gg) +
+                '；你现在 ' + powerOf(state) + '。换个人、或者先攒点能拿得出手的东西再试。）');
             }
           } else if (startDriverEncounter(state, att.gid)) {
             state.lastDriverTurn = state.turn;
-            settlement.push('会见判定：约到的是「' + state.pending.name + '」——' + state.pending.factionName +
-              (att.by ? '（' + (CONTENT.ghosts[att.by] || {}).name + ' 引荐的）' : ''));
+            settlement.push('会见判定：' + (att.forced ? '他不敢不见你——' : '约到的是') + '「' + state.pending.name + '」——' + state.pending.factionName +
+              (att.by ? '（' + (CONTENT.ghosts[att.by] || {}).name + ' 引荐的）' : '') +
+              (att.forced ? '（战力 ' + powerOf(state) + ' 对他 ' + npcPower(CONTENT.ghosts[att.gid]) + '：你明显强，他随叫随到）' : ''));
             if (att.by) {
               narrative.push('（' + (CONTENT.ghosts[att.by] || {}).name + ' 替你说了话，所以他才肯挪出时间。）');
             }
@@ -14839,6 +14905,9 @@ body.story-mode .logwrap{max-height:22vh !important}
       章节: chainPanelLine(state),
       // 第 39 轮：关联（把已有厉鬼串起来）
       关联: linkPanelLine(state),
+      // 第 41 轮：战力（会见驭鬼者按它分档：比你强太多=必拒、差不多=看运气、你明显强=必同意）
+      战力: powerOf(state) + '（契约 ' + (state.contracts || []).length + ' ×4 ＋ 鬼眼 ' +
+        Math.floor(state.stats.ghostEye || 0) + ' ×2 ＋ 线索折算）',
       线索: state.clues.length + ' 条',
       安全屋: state.flags.safehouse + ' 级',
       灾厄印记: state.flags.marks,
@@ -15077,6 +15146,7 @@ body.story-mode .logwrap{max-height:22vh !important}
     meetableIds: meetableIds,
     meetDriverAttempt: meetDriverAttempt,
     meetValue: meetValue,
+    meetCheck: meetCheck,              // 第 41 轮：约见判定（含战力分档）——测试与界面都要用
     calmFromBus: calmFromBus,
     tryIntroduce: tryIntroduce,        // 供测试/界面验证"引荐"这条线
     encounterChance: encounterChance,
@@ -15143,6 +15213,8 @@ body.story-mode .logwrap{max-height:22vh !important}
     chainFor: chainFor, chainState: chainState, chainTick: chainTick, chainLabel: chainLabel,
     chainIdxAt: chainIdxAt, chainPanelLine: chainPanelLine,
     encounterGhostId: encounterGhostId, activeGhost: activeGhost,
+    // 第 41 轮：会见按战力分档
+    powerOf: powerOf, npcPower: npcPower, meetTier: meetTier, NPC_POWER_BY_LEVEL: NPC_POWER_BY_LEVEL,
     // 第 39 轮：关联（已有厉鬼之间的旧事）
     linkById: linkById, knownAbout: knownAbout, liveLinks: liveLinks, fireLink: fireLink,
     linkBoard: linkBoard, linkPanelLine: linkPanelLine, LINK_KIND_NAME: LINK_KIND_NAME,
@@ -19598,8 +19670,11 @@ body.story-mode .logwrap{max-height:22vh !important}
         // 第 34 轮：把"他/它现在对你的态度"写进笔记（聊过天的人才有）
         const talk = state.talks ? state.talks[gid] : null;
         const att = (E.npcAttitude && talk) ? E.npcAttitude(state, gid) : null;
+        // 第 41 轮：约不约得到——按战力给一句判断（比你强太多 / 差不多 / 你压得住他）
+        const tier = (E.meetTier && g.person) ? E.meetTier(state, gid) : null;
         card.appendChild(el('div', 'noteLine', '· ' + g.name + '（' +
           (E.factionName ? E.factionName(E.factionOfNpc(g)) : '') + (g.rank ? '·' + g.rank : '') + '）' +
+          (tier ? '　—　' + tier.text + '（他 ' + tier.theirs + '／你 ' + tier.mine + '）' : '') +
           (att ? '　—　态度：' + att.label + '（好感 ' + att.favorText + '，说过 ' + att.said + ' 句）' : '') +
           (by && C.ghosts[by] ? '　—　' + C.ghosts[by].name + ' 引荐' : '')));
       }
