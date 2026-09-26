@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260926143801">
+<meta name="rs-build" content="v260926155022">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -498,7 +498,7 @@ body.at-menu #reader{display:none !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260926143801";</script>
+<script>window.__RS_BUILD = "v260926155022";</script>
 <!-- 第 44 轮补丁：弱网加载提示（单文件约 4.7MB，慢网络下先让玩家知道"在加载"） -->
 <div id="boot" class="boot">
   <div class="bootbox">
@@ -8728,12 +8728,20 @@ body.at-menu #reader{display:none !important}
     },
   };
 
-  /** 落地/时期解析：'random' 或空 → 按种子确定性地随机（同种子必得同一城市/时期） */
-  function resolveAxis(table, want, seed, purpose) {
+  /** 落地/时期解析：'random' 或空 → 按种子确定性地随机（同种子必得同一城市/时期）。
+   *  第 45 轮：randomAllowIds = 时期白名单（来自开局包的 eras）——**只约束"随机"抽取**，
+   *  否则杨间开局可能被摇到民国/古代（用户实测抓到）。显式指定的时期永远照办：
+   *  UI 层负责拦不兼容组合，引擎对直接调用/老存档重放保持宽容。 */
+  function resolveAxis(table, want, seed, purpose, randomAllowIds) {
     const ids = Object.keys(table);
     if (want && want !== 'random' && table[want]) return table[want];
     if (want && want !== 'random' && !table[want]) return table[ids[hashIdx(seed + ':' + purpose, ids.length)]];
-    return table[ids[hashIdx(seed + ':' + purpose, ids.length)]];
+    let pool = ids;
+    if (randomAllowIds && randomAllowIds.length) {
+      const allowed = ids.filter((id) => randomAllowIds.indexOf(id) >= 0);
+      if (allowed.length) pool = allowed;
+    }
+    return table[pool[hashIdx(seed + ':' + purpose, pool.length)]];
   }
   function hashIdx(str, mod) {
     let h = 2166136261;
@@ -10908,8 +10916,11 @@ body.at-menu #reader{display:none !important}
     const seed = String(opts.seed || makeSeed());
 
     // 两轴：落地（城市）与时期。'random'/缺省 → 按种子确定性抽取，同种子必得同一组合。
+    // 第 45 轮（用户实测）：开局带时期白名单（杨间=2018 这类时间线锚定）时，"随机时期"
+    // 只从白名单里抽——杨间开局不该被摇到民国/古代。
     const city = CONTENT.resolveAxis(CONTENT.cities, opts.city, seed, 'cityPick');
-    const era = CONTENT.resolveAxis(CONTENT.eras, opts.era, seed, 'eraPick');
+    const era = CONTENT.resolveAxis(CONTENT.eras, opts.era, seed, 'eraPick',
+      (pack.eras && pack.eras.length) ? pack.eras : null);
     const cityRandom = !opts.city || opts.city === 'random';
     const eraRandom = !opts.era || opts.era === 'random';
 
@@ -20111,7 +20122,7 @@ body.at-menu #reader{display:none !important}
           body.appendChild(b);
         }
       }
-      if (!eraId) body.appendChild(el('div', 'hint', '时期选了「随机」时，开局先按全部时期显示；开局后按实际年代结算。'));
+      if (!eraId) body.appendChild(el('div', 'hint', '时期选了「随机」时，开局先按全部时期显示；开局后按实际年代结算（有时间线锚定的开局——如杨间=2018——只会在它的时期里随机）。'));
     }
 
     if (step.key === 'city') {
@@ -20145,11 +20156,16 @@ body.at-menu #reader{display:none !important}
     }
 
     if (step.key === 'era') {
+      // 第 45 轮（用户实测"我都杨间开局了怎么还能选民国"）：开局包带时期白名单时，
+      // 时期步骤只显示该开局存在的时间线——杨间是 2018 年的高三学生，民国及更早没有他。
+      const packSel = C.packs[selected.pack];
+      const allowedEras = (packSel && packSel.eras && packSel.eras.length) ? packSel.eras : null;
       const re = el('button', 'btn card' + (selected.era === 'random' ? ' on' : ''),
-        '随机时期　—　按种子抽签');
+        '随机时期　—　按种子抽签' + (allowedEras ? '（只从「' + packSel.name + '」所在的时期里抽）' : ''));
       re.onclick = () => pickAndNext(() => { selected.era = 'random'; });
       body.appendChild(re);
       Object.keys(C.eras).forEach((id) => {
+        if (allowedEras && allowedEras.indexOf(id) < 0) return;   // 这个开局不属于的时期：不出现
         const e = C.eras[id];
         // 第 44 轮：古代/民国的年代说明（用户要求慎重对待年代）
         const extra = id === 'ancient' ? '　【年代】没有电、没有便利店、没有驭鬼者组织——只有规矩、香烛和老办法。'
@@ -20171,6 +20187,12 @@ body.at-menu #reader{display:none !important}
         });
         body.appendChild(b);
       });
+      if (allowedEras) {
+        const names = allowedEras.map((id) => (C.eras[id] ? C.eras[id].short : id)).join(' / ');
+        body.appendChild(el('div', 'hint', '你选的「' + (packSel ? packSel.name : '') +
+          '」有它自己的时间线：只存在于 ' + names + '。其他时期没有这个人，所以不显示——' +
+          '想玩别的时期就回上一步换个开局。'));
+      }
     }
 
     if (step.key === 'stance' && C.stances) {
