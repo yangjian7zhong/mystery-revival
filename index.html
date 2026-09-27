@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta name="rs-build" content="v260926155022">
+<meta name="rs-build" content="v260927032135">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>神秘复苏模拟器 v3.1</title>
@@ -498,7 +498,7 @@ body.at-menu #reader{display:none !important}
 }</style>
 </head>
 <body>
-<script>window.__RS_BUILD = "v260926155022";</script>
+<script>window.__RS_BUILD = "v260927032135";</script>
 <!-- 第 44 轮补丁：弱网加载提示（单文件约 4.7MB，慢网络下先让玩家知道"在加载"） -->
 <div id="boot" class="boot">
   <div class="bootbox">
@@ -5597,6 +5597,9 @@ body.at-menu #reader{display:none !important}
       text: '纸面浮出一行字，随后自己烧掉了。' },
     huangjin: { name: '黄金块', uses: 3, shieldFor: ['C', 'B', 'A'], base: 70, bonus: 8,
       text: '黄金把那股力量隔在外面——它唯一怕的东西。' },
+    // 第 46 轮：张洞的青铜镜（前传设定：彻底抹除灵异，代价是同步丧失记忆/感官/生命印记）
+    tongjing: { name: '青铜镜', uses: 3, shieldFor: ['C', 'B', 'A'], base: 75, bonus: 5,
+      text: '镜面泛起一层微光，那东西像被"擦"掉了——你想不起昨晚的梦。' },
   };
 
   /* ------------------------------------------------------------- 厉鬼库 */
@@ -8427,6 +8430,74 @@ body.at-menu #reader{display:none !important}
       items: [], contracts: [],
       flags: { safehouse: 0 }, place: 'city',
     },
+
+    /* ---- 第 46 轮：民国七老开局包（来源：原著主线第 1403-1404 章「真正的张幼红」＋
+     * 前传《神秘复苏之民国前传》——七人七能力：张洞抹除 / 孟小董鬼域 / 李庆之血脉牵引 /
+     * 罗文松·罗千 规则感知与灵异攻击 / 张幼红镇压棺 / 张伯华黄金封锁。
+     * 全部锁定民国时期（eras:['minguo']）；blurb 文案已按民国年代词撰写。 ---- */
+    zhangdong: {
+      id: 'zhangdong', name: '张洞开局（民国·前传）', src: '原著',
+      blurb: '你是个十岁起就孤身流浪的孩子，手里的青铜镜能"擦"掉任何东西——每擦一次，你就忘掉一段自己的事。这次要擦的，是枯村里那个压床的东西。',
+      stats: { erosion: 15, humanity: 60, calamity: 18, stealth: 45, sanity: 65, stamina: 100, causality: 10, pollution: 5, ghostEye: 0 },
+      money: { cash: 0.5, deposit: 0, gold: 0 },
+      items: ['tongjing'], contracts: [],
+      flags: { safehouse: 0 }, place: 'oldhouse',
+      eras: ['minguo'],
+    },
+    zhangyouhong: {
+      id: 'zhangyouhong', name: '张幼红开局（民国·镇压棺）', src: '原著',
+      blurb: '苏州丧葬世家的传人，一手镇压的本事天下闻名——故事鬼想跑，也跑不掉。你抬着的这口棺材，今天要收的东西不小。',
+      stats: { erosion: 20, humanity: 55, calamity: 15, stealth: 70, sanity: 85, stamina: 100, causality: 5, pollution: 5, ghostEye: 0 },
+      money: { cash: 2, deposit: 0, gold: 1 },
+      items: ['guancai', 'guancai', 'fu'], contracts: [],
+      flags: { safehouse: 0 }, place: 'shrine',
+      eras: ['minguo'],
+    },
+    mengxiaodong: {
+      id: 'mengxiaodong', name: '孟小董开局（民国·鬼域）', src: '原著',
+      blurb: '你能把身体里那只东西的空间翻出来罩住一条街——鬼域之内，你说了算。可它每翻出来一次，你就觉得自己更"薄"一层。',
+      stats: { erosion: 35, humanity: 45, calamity: 20, stealth: 50, sanity: 75, stamina: 100, causality: 5, pollution: 10, ghostEye: 0 },
+      money: { cash: 1, deposit: 0, gold: 0 },
+      items: ['guizhu'], contracts: ['yachuang'],
+      flags: { safehouse: 0 }, place: 'oldhouse',
+      eras: ['minguo'],
+    },
+    liqingzhi: {
+      id: 'liqingzhi', name: '李庆之开局（民国·血脉牵引）', src: '原著',
+      blurb: '你牵得起一条血脉——先人的手从香烛后面伸出来，替你把事情办了。可欠下的债，记在你自己的骨头上。',
+      stats: { erosion: 18, humanity: 60, calamity: 20, stealth: 55, sanity: 80, stamina: 100, causality: 20, pollution: 5, ghostEye: 0 },
+      money: { cash: 1, deposit: 0, gold: 0 },
+      items: ['fu', 'relic'], contracts: [],
+      flags: { safehouse: 0 }, place: 'oldhouse',
+      eras: ['minguo'],
+    },
+    luowensong: {
+      id: 'luowensong', name: '罗文松开局（民国·规则感知）', src: '原著',
+      blurb: '你看得见规矩的"线"——哪扇门后贴着什么、哪段路上少了第几级台阶，一眼就知道。看得越清楚，越睡不着。',
+      stats: { erosion: 10, humanity: 65, calamity: 12, stealth: 60, sanity: 90, stamina: 100, causality: 5, pollution: 0, ghostEye: 0 },
+      money: { cash: 1, deposit: 0, gold: 0 },
+      items: [], contracts: [],
+      flags: { safehouse: 0, intel: 3 }, place: 'town',
+      eras: ['minguo'],
+    },
+    luoqian: {
+      id: 'luoqian', name: '罗千开局（民国·灵异攻击）', src: '原著',
+      blurb: '你不靠道具，你本身就是"那一下"。规矩在你身上留了印子——出手的时候，连鬼都要退半步。',
+      stats: { erosion: 30, humanity: 50, calamity: 18, stealth: 45, sanity: 80, stamina: 100, causality: 5, pollution: 8, ghostEye: 1 },
+      money: { cash: 1, deposit: 0, gold: 0 },
+      items: ['guizhu'], contracts: [],
+      flags: { safehouse: 0 }, place: 'town',
+      eras: ['minguo'],
+    },
+    zhangbohua: {
+      id: 'zhangbohua', name: '张伯华开局（民国·黄金封锁）', src: '原著',
+      blurb: '你家的手艺是把东西锁进黄金里——锁过什么，族谱上不写，只记斤两。这回你带出来的金子，比往常都沉。',
+      stats: { erosion: 12, humanity: 65, calamity: 12, stealth: 60, sanity: 85, stamina: 100, causality: 5, pollution: 0, ghostEye: 0 },
+      money: { cash: 3, deposit: 0, gold: 15 },
+      items: ['huangjin'], contracts: [],
+      flags: { safehouse: 0 }, place: 'town',
+      eras: ['minguo'],
+    },
   };
 
   /* --------------------------------------------------------- 世界时钟 */
@@ -11100,7 +11171,10 @@ body.at-menu #reader{display:none !important}
   // 第 44 轮：遭遇文本本身带现代物件的鬼（病房灯、鬼来电、鬼公交……），在古代/民国的
   // **随机遭遇池**里不出现（时期时钟上排了期的主线鬼不受此限——那是给这个年代安排的戏）。
   const GHOST_BLOCK_ANCIENT = /电梯|便利店|电视|监控|手机|电脑|网络|论坛|直播|路灯|霓虹|公交|地铁|外卖|快递|喇叭|垃圾|卷帘门|冰箱|水管|风机|闹钟|摄像头|红绿灯|消防|物业|车库|停车|投币|硬币|打卡|工位|打印|台灯|空调|自来水|水泥|柏油|火车|汽车|摩托|单车|网吧|帖子|热搜|微信|门禁|小区|中学|教室|高三|晚自习|校服|课桌|黑板|粉笔|医院|诊所|心理|医生|公安|警察|派出所|银行|纸币|钞票|电话|电台|电报|电灯|电车|电线|发电机|照片|相机|相册|手表|总部|队长|档案柜|面包车|电动车|声控灯|感应灯|保安|出租车|幼儿园|小卖部|楼下|楼道|病房|殡仪馆|火葬场|酒店|商场|超市|写字楼|游戏厅|酒吧|天台|宿舍|教学楼|操场|游乐园|末班/;
-  const GHOST_BLOCK_REPUBLIC = /手机|电脑|网络|论坛|帖子|监控|摄像头|外卖|快递|空调|冰箱|自来水|物业|小区|网吧|短视频|电动车|声控灯|发电机|末班/;
+  // 民国要额外避开的（民国已有：电灯/电话/电报/报纸/照片/银行/警察/医院/中学/汽车/火车/手表）
+  // 第 46 轮：补齐叙事层民国词（心理/医生/咨询/总部/队长/驭鬼者）——lineFitsEra 复用这张表，
+  // 否则机制/子场景文案里的「心理治疗」会漏进民国（round45 实跑抓到）
+  const GHOST_BLOCK_REPUBLIC = /手机|电脑|网络|论坛|帖子|监控|摄像头|外卖|快递|空调|冰箱|自来水|物业|小区|网吧|短视频|电动车|声控灯|发电机|末班|心理|医生|咨询|总部|队长|驭鬼者/;
   // 第 44 轮：一句话是否属于当前年代（古代/民国滤掉现代物件词；现代一律通过）。
   // 用于：子场景故事行 / 选项做法行 / 随机遭遇池（ghostFitsEra）。
   function lineFitsEra(state, txt) {
